@@ -12,6 +12,8 @@ Install:
 
 import io
 import re
+import zipfile
+import tempfile
 from pathlib import Path
 from datetime import datetime
 
@@ -1618,7 +1620,7 @@ with st.sidebar:
     else:
      uploaded = st.file_uploader(
         "Upload G5 files",
-        type=["csv", "xlsx", "xls"],
+        type=["zip","csv", "xlsx", "xls"],
         accept_multiple_files=True
     )
 
