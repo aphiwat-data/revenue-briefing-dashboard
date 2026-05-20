@@ -1594,7 +1594,7 @@ def render_pace_cards(df):
 # Main UI Execution
 # ============================================================
 
-st.title("📊 G5 D4cast Revenue Dashboard — Presentation Layout")
+st.title("📊 G5 D4cast Revenue Dashboard")
 st.caption("Daily G5 folder → D4cast momentum → movement vs Yesterday / 7D / 1st Month → pace benchmark")
 st.caption("Deployment note: on Streamlit Cloud, use Manual upload unless Google Drive API integration is added.")
 
