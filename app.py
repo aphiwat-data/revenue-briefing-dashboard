@@ -11,9 +11,9 @@ Install:
 """
 
 import io
-import re
 import zipfile
 import tempfile
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -86,7 +86,7 @@ st.markdown(
 # Constants
 # ============================================================
 
-SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls"]
+SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls", ".zip"]
 
 MONTH_FORMATS_TRY = [
     "%b, %Y", "%b-%y", "%b, %y", "%b,%y", "%b %Y", "%b %y",
@@ -241,20 +241,86 @@ def build_file_catalog_from_folder(folder_path_text):
     df["Report Label"] = df.apply(lambda r: f"{int(r['File Order']):02d} | {r['Report Date'].strftime('%Y-%m-%d')}", axis=1)
     return df
 
+
 def build_file_catalog_from_uploads(uploaded_files):
+    """
+    Build file catalog from manually uploaded files.
+
+    Supports:
+    - Multiple CSV/XLSX/XLS files
+    - One or more ZIP files containing CSV/XLSX/XLS reports
+
+    ZIP uploads are expanded in memory, so parse_record receives only real
+    report files (.csv/.xlsx/.xls), never the .zip itself.
+    """
     rows = []
-    for i, f in enumerate(uploaded_files, start=1):
-        suffix = Path(f.name).suffix.lower()
-        report_date = extract_date_from_filename(f.name)
-        if pd.isna(report_date):
-            report_date = pd.Timestamp.today().normalize()
-        rows.append({
-            "Source": "Upload", "File Path": None, "File Bytes": f.getvalue(), "File Name": f.name,
-            "Suffix": suffix, "Report Date": report_date, "Modified Time": pd.NaT, "Original Upload Order": i,
-        })
+
+    for upload_order, uploaded_file in enumerate(uploaded_files, start=1):
+        uploaded_name = uploaded_file.name
+        suffix = Path(uploaded_name).suffix.lower()
+
+        if suffix == ".zip":
+            try:
+                with zipfile.ZipFile(io.BytesIO(uploaded_file.getvalue())) as z:
+                    for zip_info in z.infolist():
+                        if zip_info.is_dir():
+                            continue
+
+                        inner_path = zip_info.filename
+                        inner_name = Path(inner_path).name
+                        inner_suffix = Path(inner_name).suffix.lower()
+
+                        if inner_suffix not in [".csv", ".xlsx", ".xls"]:
+                            continue
+                        if inner_name.startswith("~$") or inner_name.startswith("."):
+                            continue
+
+                        report_date = extract_date_from_filename(inner_path)
+                        if pd.isna(report_date):
+                            report_date = pd.Timestamp.today().normalize()
+
+                        rows.append({
+                            "Source": "Upload",
+                            "File Path": None,
+                            "File Bytes": z.read(zip_info),
+                            "File Name": inner_name,
+                            "Original Path": inner_path,
+                            "Suffix": inner_suffix,
+                            "Report Date": report_date,
+                            "Modified Time": pd.NaT,
+                            "Original Upload Order": upload_order,
+                            "Upload Container": uploaded_name,
+                        })
+            except zipfile.BadZipFile:
+                raise ValueError(f"Invalid ZIP file: {uploaded_name}")
+
+        elif suffix in [".csv", ".xlsx", ".xls"]:
+            report_date = extract_date_from_filename(uploaded_name)
+            if pd.isna(report_date):
+                report_date = pd.Timestamp.today().normalize()
+
+            rows.append({
+                "Source": "Upload",
+                "File Path": None,
+                "File Bytes": uploaded_file.getvalue(),
+                "File Name": uploaded_name,
+                "Original Path": uploaded_name,
+                "Suffix": suffix,
+                "Report Date": report_date,
+                "Modified Time": pd.NaT,
+                "Original Upload Order": upload_order,
+                "Upload Container": uploaded_name,
+            })
+
+    if not rows:
+        raise ValueError("No valid CSV/XLSX/XLS files found. Upload daily files or a .zip folder containing them.")
+
     df = pd.DataFrame(rows).sort_values(["Report Date", "File Name"]).reset_index(drop=True)
     df["File Order"] = range(1, len(df) + 1)
-    df["Report Label"] = df.apply(lambda r: f"{int(r['File Order']):02d} | {r['Report Date'].strftime('%Y-%m-%d')}", axis=1)
+    df["Report Label"] = df.apply(
+        lambda r: f"{int(r['File Order']):02d} | {r['Report Date'].strftime('%Y-%m-%d')}",
+        axis=1,
+    )
     return df
 
 def select_role_files(file_catalog, report_file_month):
@@ -312,8 +378,9 @@ def parse_csv_bytes(file_bytes):
 def parse_csv_path(path):
     return parse_csv_bytes(Path(path).read_bytes())
 
-def parse_excel_bytes(file_bytes):
-    raw = pd.read_excel(io.BytesIO(file_bytes), header=None)
+def parse_excel_bytes(file_bytes, suffix=".xlsx"):
+    engine = "openpyxl" if suffix == ".xlsx" else None
+    raw = pd.read_excel(io.BytesIO(file_bytes), header=None, engine=engine)
     header_idx = None
     for idx in range(min(25, len(raw))):
         row_join = " ".join(raw.iloc[idx].astype(str).str.lower().tolist())
@@ -321,7 +388,7 @@ def parse_excel_bytes(file_bytes):
             header_idx = idx
             break
     if header_idx is None:
-        return pd.read_excel(io.BytesIO(file_bytes)), "", ""
+        return pd.read_excel(io.BytesIO(file_bytes), engine=engine), "", ""
     title = clean_text(raw.iloc[0].dropna().astype(str).tolist()[-1]) if len(raw) > 0 and not raw.iloc[0].dropna().empty else ""
     generated = clean_text(raw.iloc[1].dropna().astype(str).tolist()[-1]) if len(raw) > 1 and not raw.iloc[1].dropna().empty else ""
     headers = raw.iloc[header_idx].tolist()
@@ -331,7 +398,8 @@ def parse_excel_bytes(file_bytes):
     return df, title, generated
 
 def parse_excel_path(path):
-    return parse_excel_bytes(Path(path).read_bytes())
+    suffix = Path(path).suffix.lower()
+    return parse_excel_bytes(Path(path).read_bytes(), suffix=suffix)
 
 def standardize_df(df, report_label, report_date, report_order, file_name, title="", generated=""):
     df = df.copy()
@@ -346,18 +414,43 @@ def standardize_df(df, report_label, report_date, report_order, file_name, title
     df.insert(5, "Generated", generated)
     return df
 
+
 def parse_record(row):
     suffix = str(row["Suffix"]).lower()
+
+    if suffix == ".zip":
+        raise ValueError(
+            f"ZIP file reached parser unexpectedly: {row.get('File Name', '')}. "
+            "The ZIP must be expanded in build_file_catalog_from_uploads first."
+        )
+
+    if suffix not in [".csv", ".xlsx", ".xls"]:
+        raise ValueError(f"Unsupported file type: {suffix} | file={row.get('File Name', '')}")
+
     if row["Source"] == "Folder":
         path = Path(row["File Path"])
-        if suffix == ".csv": df, title, generated = parse_csv_path(path)
-        else: df, title, generated = parse_excel_path(path)
+        if suffix == ".csv":
+            df, title, generated = parse_csv_path(path)
+        else:
+            df, title, generated = parse_excel_path(path)
     else:
         file_bytes = row["File Bytes"]
-        if suffix == ".csv": df, title, generated = parse_csv_bytes(file_bytes)
-        else: df, title, generated = parse_excel_bytes(file_bytes)
-    return standardize_df(df, row["Report Label"], row["Report Date"], int(row["Report Order"]), row["File Name"], title, generated)
+        if file_bytes is None or (isinstance(file_bytes, float) and pd.isna(file_bytes)):
+            raise ValueError(f"Missing file bytes for uploaded file: {row.get('File Name', '')}")
+        if suffix == ".csv":
+            df, title, generated = parse_csv_bytes(file_bytes)
+        else:
+            df, title, generated = parse_excel_bytes(file_bytes, suffix=suffix)
 
+    return standardize_df(
+        df,
+        row["Report Label"],
+        row["Report Date"],
+        int(row["Report Order"]),
+        row["File Name"],
+        title,
+        generated,
+    )
 
 # ============================================================
 # Data Aggregation & Logic (Enhanced with Emojis)
@@ -1596,14 +1689,13 @@ def render_pace_cards(df):
 # Main UI Execution
 # ============================================================
 
-st.title("📊 G5 D4cast Revenue Dashboard")
+st.title("📊 G5 D4cast Revenue Dashboard — Presentation Layout")
 st.caption("Daily G5 folder → D4cast momentum → movement vs Yesterday / 7D / 1st Month → pace benchmark")
-st.caption("Deployment note: on Streamlit Cloud, use Manual upload unless Google Drive API integration is added.")
 
 # --- PRO SIDEBAR ---
 with st.sidebar:
     st.markdown("## ⚙️ Data Source")
-    mode = st.radio("Input mode", ["Folder auto-load", "Manual upload"], index=1, horizontal=True, label_visibility="collapsed")
+    mode = st.radio("Input mode", ["Folder auto-load", "Manual upload"], horizontal=True, label_visibility="collapsed")
     
     if mode == "Folder auto-load":
         folder_path = st.text_input("📁 G5 folder path", value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review")
@@ -1618,17 +1710,11 @@ with st.sidebar:
             st.error(str(e))
             st.stop()
     else:
-     uploaded = st.file_uploader(
-        "Upload G5 files",
-        type=["zip","csv", "xlsx", "xls"],
-        accept_multiple_files=True
-    )
-
-    if not uploaded:
-        st.info("Upload daily G5 files to start.")
-        st.stop()
-
-    file_catalog = build_file_catalog_from_uploads(uploaded)
+        uploaded = st.file_uploader("Upload G5 files or ZIP folder", type=["zip", "csv", "xlsx", "xls"], accept_multiple_files=True, help="Upload multiple daily files, or upload one ZIP file containing the whole report folder.")
+        if not uploaded:
+            st.info("💡 Upload daily G5 files to start.")
+            st.stop()
+        file_catalog = build_file_catalog_from_uploads(uploaded)
     
     st.divider()
     
@@ -1642,10 +1728,7 @@ with st.sidebar:
     role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
     selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
     selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
-    
-    if mode == "Manual upload":
-        upload_map = {f.name: f.getvalue() for f in uploaded}
-        selected_file_catalog["File Bytes"] = selected_file_catalog["File Name"].map(upload_map)
+    # Manual-upload catalog already contains File Bytes. Do not remap by uploaded filename, especially for ZIP inner files.
     
     with st.spinner("Crunching numbers..."):
         combined_df = pd.concat([parse_record(row) for _, row in selected_file_catalog.iterrows()], ignore_index=True)
