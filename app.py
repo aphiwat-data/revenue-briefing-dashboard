@@ -1616,11 +1616,17 @@ with st.sidebar:
             st.error(str(e))
             st.stop()
     else:
-        uploaded = st.file_uploader("Upload G5 files", type=["csv", "xlsx", "xls"], accept_multiple_files=True)
-        if not uploaded:
-            st.info("💡 Upload daily G5 files to start.")
-            st.stop()
-        file_catalog = build_file_catalog_from_uploads(uploaded)
+     uploaded = st.file_uploader(
+        "Upload G5 files",
+        type=["csv", "xlsx", "xls"],
+        accept_multiple_files=True
+    )
+
+    if not uploaded:
+        st.info("Upload daily G5 files to start.")
+        st.stop()
+
+    file_catalog = build_file_catalog_from_uploads(uploaded)
     
     st.divider()
     
