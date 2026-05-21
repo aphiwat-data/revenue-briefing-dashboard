@@ -2351,7 +2351,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
         color="Direction",
         color_discrete_map=color_map,
         hover_data={"Forecast": ":,.2f", "Budget": ":,.2f", "Budget Variance %": ":.2f"},
-        title=f"Hotel Sort Board by {sort_choice} ({metric_choice})",
+        title=f"Budget Sort Board by {sort_choice} ({metric_choice})",
     )
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
@@ -2959,15 +2959,15 @@ def build_budget_review_summary_view(budget_df, view_level):
 
 def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, stay_month_selection):
     """
-    Revenue-friendly Hotel Sort Board for All Month usage.
+    Revenue-friendly Budget Sort Board for All Month usage.
 
     Default behavior:
     - Aggregate to Summary by Hotel to avoid huge unreadable all-month charts
     - Show cards/table first
     - Chart only Top/Bottom rows
     """
-    st.markdown('<div class="section-title">Hotel Budget Sort Board</div>', unsafe_allow_html=True)
-    st.caption("Revenue-friendly view for All Month: use priority cards first, then open full table or optional chart only when needed.")
+    st.markdown('<div class="section-title">Budget Sort Board</div>', unsafe_allow_html=True)
+    st.caption("Main budget page: Forecast vs Budget, priority cards, full table, and optional chart. This replaces the old Budget Review tab.")
 
     base_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
     base_metric_data = apply_stay_month_filter(base_metric_data, stay_month_selection)
@@ -3394,14 +3394,13 @@ st.markdown("""
 # ============================================================
 # Main Tabs
 # ============================================================
-tab0, tab_budget, tab_movement, tab_weekly, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
+tab0, tab_movement, tab_weekly, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
     "Forecast Pivot",
-    "Budget Review",
     "Forecast Movement",
     "Weekly Movement",
     "Budget Sort Board",
     "Forecast Trend",
-    "Revenue Analysis",
+    "Advanced Analysis",
     "Export & Settings",
 ])
 
@@ -3413,9 +3412,6 @@ with tab0:
     render_compact_hotel_tabs(latest_pivot)
 
 
-
-with tab_budget:
-    budget_vs_d4cast_summary = render_budget_review(metric_data, role_selection)
 
 
 with tab_movement:
@@ -3699,24 +3695,15 @@ with tab1:
 
 
 with tab_analysis:
-    st.markdown('<div class="section-title">Analysis Tables</div>', unsafe_allow_html=True)
-    st.caption("Movement, Recommended Pace, and D4cast vs Final are shown together for faster review. Use each section's filters and view mode.")
-
-    # -------------------------
-    # Budget Variance Review
-    # -------------------------
-    st.markdown("### 1) Budget Variance Review")
-    st.caption("Revenue-focused replacement for old movement table: compare latest forecast against Budget.")
-
-    analysis_budget_summary = render_budget_review(metric_data, role_selection, key_prefix="analysis_budget")
-
-    st.divider()
+    st.markdown('<div class="section-title">Advanced Revenue Analysis</div>', unsafe_allow_html=True)
+    st.info("Budget Sort Board is the main budget page. This tab is for secondary analysis only: pace benchmark and historical final comparison.")
+    st.caption("Secondary analysis for revenue review. Budget comparison is handled in Budget Sort Board; this page keeps pace benchmark and historical final comparison only.")
 
     # -------------------------
     # Recommended Pace
     # -------------------------
-    st.markdown("### 2) Recommended Pace")
-    st.caption("Recommended Pace uses the best same-time benchmark. Compact view avoids horizontal scrolling.")
+    st.markdown("### 1) Same-Time Pace Benchmark")
+    st.caption("Compares today/latest forecast against the best same-time benchmark among STLY / ST2Y / ST3Y. Use this as pace context, not budget decision.")
 
     if pace_summary.empty:
         st.info("No pace data.")
@@ -3756,8 +3743,8 @@ with tab_analysis:
     # -------------------------
     # D4cast vs Final
     # -------------------------
-    st.markdown("### 3) D4cast vs Final")
-    st.caption("Forecast compared with Final LY / Final 2Y / Final 3Y.")
+    st.markdown("### 2) Historical Final Comparison")
+    st.caption("Forecast compared with Historical Final values: Final LY / Final 2Y / Final 3Y. Use this as historical context, not budget decision.")
 
     if final_comparison.empty:
         st.info("No final comparison data.")
