@@ -76,6 +76,89 @@ st.markdown(
         gap: 1rem;
     }
 
+    
+    /* ============================================================
+       Revenue Dashboard Color System
+       Green = positive / above / up
+       Red = negative / below / down
+       Yellow = flat / neutral
+       Blue = forecast/info
+       ============================================================ */
+
+    .rev-legend-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 8px 0 18px 0;
+    }
+
+    .rev-pill {
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 0.88rem;
+        font-weight: 800;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+
+    .rev-green {
+        background: #bbf7d0;
+        color: #14532d;
+        border-color: #22c55e;
+    }
+
+    .rev-red {
+        background: #fecaca;
+        color: #7f1d1d;
+        border-color: #ef4444;
+    }
+
+    .rev-yellow {
+        background: #fef08a;
+        color: #713f12;
+        border-color: #eab308;
+    }
+
+    .rev-blue {
+        background: #bfdbfe;
+        color: #1e3a8a;
+        border-color: #3b82f6;
+    }
+
+    .rev-card-good {
+        background: linear-gradient(90deg, #bbf7d0 0%, #f0fdf4 100%);
+        border-left: 8px solid #15803d;
+        color: #14532d;
+    }
+
+    .rev-card-bad {
+        background: linear-gradient(90deg, #fecaca 0%, #fff1f2 100%);
+        border-left: 8px solid #b91c1c;
+        color: #7f1d1d;
+    }
+
+    .rev-card-flat {
+        background: linear-gradient(90deg, #fef9c3 0%, #fffbeb 100%);
+        border-left: 8px solid #ca8a04;
+        color: #713f12;
+    }
+
+    .rev-card-info {
+        background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 100%);
+        border-left: 8px solid #2563eb;
+        color: #1e3a8a;
+    }
+
+    div[data-testid="stDataFrame"] {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+    }
+
+    div[data-testid="stMetric"] {
+        border-top: 4px solid #2563eb;
+    }
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -893,9 +976,9 @@ def render_hotel_leaderboard(metric_long, role_selection, selected_hotels, stay_
     )
 
     color_map = {
-        "Up": "#16a34a",
-        "Down": "#dc2626",
-        "Flat": "#0284c7",
+        "Up": "#15803d",
+        "Down": "#b91c1c",
+        "Flat": "#ca8a04",
     }
 
     fig = px.bar(
@@ -1053,10 +1136,10 @@ def style_compare_matrix(df):
 
         if isinstance(val, (int, float)):
             if val > 0:
-                return "background-color: #dcfce7; color: #14532d; font-weight: 600"
+                return "background-color: #bbf7d0; color: #14532d; font-weight: 600"
             if val < 0:
-                return "background-color: #fee2e2; color: #7f1d1d; font-weight: 600"
-            return "background-color: #e0f2fe; color: #075985; font-weight: 600"
+                return "background-color: #fecaca; color: #7f1d1d; font-weight: 600"
+            return "background-color: #fef08a; color: #713f12; font-weight: 600"
 
         return ""
 
@@ -1069,11 +1152,11 @@ def style_compare_matrix(df):
 
         if "Status" in data.columns:
             styles["Status"] = data["Status"].apply(
-                lambda x: "background-color: #dcfce7; color: #14532d; font-weight: 700"
+                lambda x: "background-color: #bbf7d0; color: #14532d; font-weight: 700"
                 if "Up" in str(x)
-                else "background-color: #fee2e2; color: #7f1d1d; font-weight: 700"
+                else "background-color: #fecaca; color: #7f1d1d; font-weight: 700"
                 if "Down" in str(x)
-                else "background-color: #e0f2fe; color: #075985; font-weight: 700"
+                else "background-color: #fef08a; color: #713f12; font-weight: 700"
             )
 
         return styles
@@ -1143,7 +1226,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
                 chart_df["Direction"] = chart_df[chart_value].apply(
                     lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
                 )
-                color_map = {"Up": "#16a34a", "Down": "#dc2626", "Flat": "#0284c7"}
+                color_map = {"Up": "#15803d", "Down": "#b91c1c", "Flat": "#ca8a04"}
                 fig = px.bar(
                     chart_df,
                     x=chart_value,
@@ -1210,7 +1293,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
         lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
     )
 
-    color_map = {"Up": "#16a34a", "Down": "#dc2626", "Flat": "#0284c7"}
+    color_map = {"Up": "#15803d", "Down": "#b91c1c", "Flat": "#ca8a04"}
 
     fig = px.bar(
         chart_df,
@@ -1426,20 +1509,20 @@ def render_color_matrix_no_clip(matrix):
                 elif c == "Latest D4cast":
                     styles.loc[idx, c] = "background-color: #eef2ff; color: #1e293b; font-weight: 600"
                 elif val > 0:
-                    styles.loc[idx, c] = "background-color: #dcfce7; color: #14532d; font-weight: 600"
+                    styles.loc[idx, c] = "background-color: #bbf7d0; color: #14532d; font-weight: 600"
                 elif val < 0:
-                    styles.loc[idx, c] = "background-color: #fee2e2; color: #7f1d1d; font-weight: 600"
+                    styles.loc[idx, c] = "background-color: #fecaca; color: #7f1d1d; font-weight: 600"
                 else:
-                    styles.loc[idx, c] = "background-color: #e0f2fe; color: #075985; font-weight: 600"
+                    styles.loc[idx, c] = "background-color: #fef08a; color: #713f12; font-weight: 600"
 
         if "Status" in show.columns:
             for idx, val in show["Status"].items():
                 if "Up" in str(val):
-                    styles.loc[idx, "Status"] = "background-color: #dcfce7; color: #14532d; font-weight: 700"
+                    styles.loc[idx, "Status"] = "background-color: #bbf7d0; color: #14532d; font-weight: 700"
                 elif "Down" in str(val):
-                    styles.loc[idx, "Status"] = "background-color: #fee2e2; color: #7f1d1d; font-weight: 700"
+                    styles.loc[idx, "Status"] = "background-color: #fecaca; color: #7f1d1d; font-weight: 700"
                 else:
-                    styles.loc[idx, "Status"] = "background-color: #e0f2fe; color: #075985; font-weight: 700"
+                    styles.loc[idx, "Status"] = "background-color: #fef08a; color: #713f12; font-weight: 700"
 
         return styles
 
@@ -1656,7 +1739,7 @@ def render_pace_cards(df):
             sub = compact[compact["Hotel"] == hotel].copy()
             for _, row in sub.iterrows():
                 status = str(row.get("Status", ""))
-                border = "#16a34a" if "Ahead" in status or "Up" in status else "#dc2626" if "Behind" in status or "Down" in status else "#0284c7"
+                border = "#15803d" if "Ahead" in status or "Up" in status else "#b91c1c" if "Behind" in status or "Down" in status else "#ca8a04"
 
                 st.markdown(
                     f"""
@@ -1742,14 +1825,14 @@ def render_budget_vs_d4cast(metric_data, role_selection):
     def style_budget(_):
         styles=pd.DataFrame("", index=show.index, columns=show.columns)
         for idx,val in raw["Variance"].items():
-            color="#dcfce7" if pd.notna(val) and val>0 else "#fee2e2" if pd.notna(val) and val<0 else "#e0f2fe"
+            color="#bbf7d0" if pd.notna(val) and val>0 else "#fecaca" if pd.notna(val) and val<0 else "#fef08a"
             for col in ["Variance","Variance %","Status"]:
                 if col in styles.columns: styles.loc[idx,col]=f"background-color: {color}; font-weight: 700"
         return styles
     st.dataframe(show.style.apply(style_budget, axis=None), use_container_width=True, hide_index=True, height=min(620,48+38*len(show)))
     chart=raw.copy()
     chart["Direction"]=chart["Variance"].apply(lambda x: "Above Budget" if pd.notna(x) and x>0 else "Below Budget" if pd.notna(x) and x<0 else "On Budget")
-    fig=px.bar(chart, x="Variance", y="Hotel", orientation="h", color="Direction", color_discrete_map={"Above Budget":"#16a34a","Below Budget":"#dc2626","On Budget":"#0284c7"}, hover_data={"Forecast":":,.2f","Budget":":,.2f","Variance %":":.2f","Direction":False}, title=f"Budget Variance by Hotel ({metric})")
+    fig=px.bar(chart, x="Variance", y="Hotel", orientation="h", color="Direction", color_discrete_map={"Above Budget":"#15803d","Below Budget":"#b91c1c","On Budget":"#ca8a04"}, hover_data={"Forecast":":,.2f","Budget":":,.2f","Variance %":":.2f","Direction":False}, title=f"Budget Variance by Hotel ({metric})")
     fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=max(420,46*chart["Hotel"].nunique()), yaxis=dict(categoryorder="total ascending"), margin=dict(l=20,r=20,t=60,b=20))
     fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo":False})
@@ -1808,13 +1891,13 @@ def render_weekly_movement(metric_data):
     def style_week(_):
         styles=pd.DataFrame("", index=show.index, columns=show.columns)
         for idx,val in raw["Weekly PU"].items():
-            color="#dcfce7" if val>0 else "#fee2e2" if val<0 else "#e0f2fe"
+            color="#bbf7d0" if val>0 else "#fecaca" if val<0 else "#fef08a"
             for col in ["Weekly PU","Weekly PU %","Status"]:
                 if col in styles.columns: styles.loc[idx,col]=f"background-color: {color}; font-weight: 700"
         return styles
     st.dataframe(show.style.apply(style_week, axis=None), use_container_width=True, hide_index=True, height=min(620,48+36*len(show)))
     chart=raw.copy(); chart["Direction"]=chart["Weekly PU"].apply(lambda x:"Up" if x>0 else "Down" if x<0 else "Flat")
-    fig=px.bar(chart, x="Weekly PU", y="Hotel", color="Direction", orientation="h", color_discrete_map={"Up":"#16a34a","Down":"#dc2626","Flat":"#0284c7"}, hover_data={"Report Week":True,"Stay Month":True,"Week Start Forecast":":,.2f","Week End Forecast":":,.2f","Weekly PU %":":.2f"}, title=f"Weekly Movement by Hotel ({metric})")
+    fig=px.bar(chart, x="Weekly PU", y="Hotel", color="Direction", orientation="h", color_discrete_map={"Up":"#15803d","Down":"#b91c1c","Flat":"#ca8a04"}, hover_data={"Report Week":True,"Stay Month":True,"Week Start Forecast":":,.2f","Week End Forecast":":,.2f","Weekly PU %":":.2f"}, title=f"Weekly Movement by Hotel ({metric})")
     fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", height=max(420,46*chart["Hotel"].nunique()), yaxis=dict(categoryorder="total ascending"), margin=dict(l=20,r=20,t=60,b=20))
     fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
     st.plotly_chart(fig, use_container_width=True, config={"displaylogo":False})
@@ -1972,7 +2055,7 @@ def render_weekly_movement_v2(metric_data):
         y="Hotel Short",
         z="Weekly Movement",
         histfunc="sum",
-        color_continuous_scale="RdYlGn",
+        color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
         title=f"Weekly Movement Heatmap ({metric_filter})",
     )
     fig_heat.update_layout(
@@ -2002,7 +2085,7 @@ def render_weekly_movement_v2(metric_data):
     def style_week(_):
         styles = pd.DataFrame("", index=show.index, columns=show.columns)
         for idx, val in raw["Weekly Movement"].items():
-            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            color = "#bbf7d0" if val > 0 else "#fecaca" if val < 0 else "#fef08a"
             for col in ["Weekly Movement", "Weekly Movement %", "Status"]:
                 if col in styles.columns:
                     styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
@@ -2088,7 +2171,7 @@ def render_budget_review(metric_data, role_selection, key_prefix="budget_review"
     def style_budget(_):
         styles = pd.DataFrame("", index=show.index, columns=show.columns)
         for idx, val in raw["Budget Variance"].items():
-            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            color = "#bbf7d0" if val > 0 else "#fecaca" if val < 0 else "#fef08a"
             for col in ["Budget Variance", "Budget Variance %", "Status"]:
                 styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
         return styles
@@ -2105,7 +2188,7 @@ def render_budget_review(metric_data, role_selection, key_prefix="budget_review"
         return budget_df
 
     chart["Direction"] = chart["Budget Variance"].apply(lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget")
-    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+    color_map = {"Above Budget": "#15803d", "Below Budget": "#b91c1c", "On Budget": "#ca8a04"}
 
     fig = px.bar(
         chart,
@@ -2241,7 +2324,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
     def style_perf(_):
         styles = pd.DataFrame("", index=show.index, columns=show.columns)
         for idx, val in raw["Budget Variance"].items():
-            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            color = "#bbf7d0" if val > 0 else "#fecaca" if val < 0 else "#fef08a"
             for col in ["Budget Variance", "Budget Variance %", "Status"]:
                 if col in styles.columns:
                     styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
@@ -2258,7 +2341,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
     chart["Direction"] = chart["Budget Variance"].apply(
         lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget"
     )
-    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+    color_map = {"Above Budget": "#15803d", "Below Budget": "#b91c1c", "On Budget": "#ca8a04"}
 
     fig = px.bar(
         chart,
@@ -2507,8 +2590,8 @@ def render_weekly_movement_v3(metric_data):
 
         for _, row in card_df.iterrows():
             move = row["Weekly Movement"]
-            color = "#dcfce7" if move > 0 else "#fee2e2" if move < 0 else "#e0f2fe"
-            border = "#16a34a" if move > 0 else "#dc2626" if move < 0 else "#0284c7"
+            color = "#bbf7d0" if move > 0 else "#fecaca" if move < 0 else "#fef08a"
+            border = "#15803d" if move > 0 else "#b91c1c" if move < 0 else "#ca8a04"
             st.markdown(
                 f"""
                 <div style="background:{color}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
@@ -2529,7 +2612,7 @@ def render_weekly_movement_v3(metric_data):
         heat["Hotel Short"] = heat["Hotel"].apply(short_hotel_name) if "short_hotel_name" in globals() else heat["Hotel"]
         fig = px.density_heatmap(
             heat, x="Week", y="Hotel Short", z="Weekly Movement", histfunc="sum",
-            color_continuous_scale="RdYlGn", title=f"Weekly Movement Heatmap ({metric_filter})"
+            color_continuous_scale=["#b91c1c", "#facc15", "#15803d"], title=f"Weekly Movement Heatmap ({metric_filter})"
         )
         fig.update_layout(
             plot_bgcolor="rgba(0,0,0,0)", height=max(420, 42 * heat["Hotel Short"].nunique()),
@@ -2547,7 +2630,7 @@ def render_weekly_movement_v3(metric_data):
         def style_week(_):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx, val in raw["Weekly Movement"].items():
-                color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+                color = "#bbf7d0" if val > 0 else "#fecaca" if val < 0 else "#fef08a"
                 for c in ["Weekly Movement", "Weekly Movement %", "Status"]:
                     if c in styles.columns:
                         styles.loc[idx, c] = f"background-color:{color}; font-weight:700"
@@ -2759,8 +2842,8 @@ def render_forecast_movement_v31(metric_data, role_selection):
 
         for _, row in card_df.iterrows():
             move = row["Movement"]
-            color = "#dcfce7" if pd.notna(move) and move > 0 else "#fee2e2" if pd.notna(move) and move < 0 else "#e0f2fe"
-            border = "#16a34a" if pd.notna(move) and move > 0 else "#dc2626" if pd.notna(move) and move < 0 else "#0284c7"
+            color = "#bbf7d0" if pd.notna(move) and move > 0 else "#fecaca" if pd.notna(move) and move < 0 else "#fef08a"
+            border = "#15803d" if pd.notna(move) and move > 0 else "#b91c1c" if pd.notna(move) and move < 0 else "#ca8a04"
             st.markdown(
                 f"""
                 <div style="background:{color}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
@@ -2786,7 +2869,7 @@ def render_forecast_movement_v31(metric_data, role_selection):
         def style_move(_):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx, val in raw["Movement"].items():
-                color = "#dcfce7" if pd.notna(val) and val > 0 else "#fee2e2" if pd.notna(val) and val < 0 else "#e0f2fe"
+                color = "#bbf7d0" if pd.notna(val) and val > 0 else "#fecaca" if pd.notna(val) and val < 0 else "#fef08a"
                 for col in ["Movement", "Movement %", "Status", "Risk"]:
                     if col in styles.columns:
                         styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
@@ -2797,7 +2880,7 @@ def render_forecast_movement_v31(metric_data, role_selection):
     else:
         chart = view.copy()
         chart["Direction"] = chart["Movement"].apply(lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat")
-        color_map = {"Up": "#16a34a", "Down": "#dc2626", "Flat": "#0284c7"}
+        color_map = {"Up": "#15803d", "Down": "#b91c1c", "Flat": "#ca8a04"}
         fig = px.bar(
             chart,
             x="Movement",
@@ -2965,8 +3048,8 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
 
     for _, row in card_df.iterrows():
         variance = row["Budget Variance"]
-        bg = "#dcfce7" if variance > 0 else "#fee2e2" if variance < 0 else "#e0f2fe"
-        border = "#16a34a" if variance > 0 else "#dc2626" if variance < 0 else "#0284c7"
+        bg = "#bbf7d0" if variance > 0 else "#fecaca" if variance < 0 else "#fef08a"
+        border = "#15803d" if variance > 0 else "#b91c1c" if variance < 0 else "#ca8a04"
 
         title_parts = [str(row.get("Hotel", ""))]
         if "Stay Month" in row.index:
@@ -3013,7 +3096,7 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         if view_level == "Detail by Month" and "Stay Month" in chart.columns:
             chart["Label Name"] = chart["Hotel"].astype(str) + " | " + chart["Stay Month"].astype(str)
 
-        color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+        color_map = {"Above Budget": "#15803d", "Below Budget": "#b91c1c", "On Budget": "#ca8a04"}
 
         fig = px.bar(
             chart,
@@ -3057,7 +3140,7 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         def style_budget_table(_):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx, val in raw["Budget Variance"].items():
-                color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+                color = "#bbf7d0" if val > 0 else "#fecaca" if val < 0 else "#fef08a"
                 for c in ["Budget Variance", "Budget Variance %", "Status"]:
                     if c in styles.columns:
                         styles.loc[idx, c] = f"background-color:{color}; font-weight:700"
@@ -3073,11 +3156,75 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
     return view
 
 
+
+def render_revenue_color_legend():
+    st.markdown(
+        """
+        <div class="rev-legend-wrap">
+            <span class="rev-pill rev-green">Green = Above Budget / Up / Positive</span>
+            <span class="rev-pill rev-red">Red = Below Budget / Down / Risk</span>
+            <span class="rev-pill rev-yellow">Yellow = Flat / On Budget / Neutral</span>
+            <span class="rev-pill rev-blue">Blue = Forecast / Information</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def revenue_status_colors(value):
+    """
+    Return strong UI colors for positive / negative / flat.
+    """
+    if pd.isna(value):
+        return "#dbeafe", "#2563eb", "#1e3a8a", "rev-card-info"
+    if value > 0:
+        return "#bbf7d0", "#15803d", "#14532d", "rev-card-good"
+    if value < 0:
+        return "#fecaca", "#b91c1c", "#7f1d1d", "rev-card-bad"
+    return "#fef08a", "#ca8a04", "#713f12", "rev-card-flat"
+
+def style_revenue_variance_table(show_df, raw_df, value_col, status_cols=None):
+    """
+    Stronger coloring for revenue tables.
+    """
+    if status_cols is None:
+        status_cols = []
+
+    def apply_style(_):
+        styles = pd.DataFrame("", index=show_df.index, columns=show_df.columns)
+
+        if value_col not in raw_df.columns:
+            return styles
+
+        for idx, val in raw_df[value_col].items():
+            bg, border, text, _ = revenue_status_colors(val)
+
+            target_cols = [value_col] + status_cols
+            pct_col = f"{value_col} %"
+            if pct_col in show_df.columns:
+                target_cols.append(pct_col)
+
+            # Common alternative percentage column names
+            for alt in ["Budget Variance %", "Movement %", "Weekly Movement %", "Daily Movement %", "Variance %"]:
+                if alt in show_df.columns and alt not in target_cols:
+                    target_cols.append(alt)
+
+            for col in target_cols:
+                if col in styles.columns:
+                    styles.loc[idx, col] = (
+                        f"background-color:{bg}; color:{text}; "
+                        f"font-weight:900; border-left:4px solid {border};"
+                    )
+
+        return styles
+
+    return show_df.style.apply(apply_style, axis=None)
+
+
 # ============================================================
 # Main UI Execution
 # ============================================================
 
-st.title("Daily Revenue Briefing Dashboard")
+st.title("📊 Daily Revenue Briefing Dashboard")
 st.caption("Revenue briefing dashboard: budget variance first, weekly movement, hotel risk, and forecast trend by stay month.")
 
 # --- PRO SIDEBAR ---
@@ -3238,9 +3385,9 @@ st.markdown("<br>", unsafe_allow_html=True)
 render_metric_dictionary()
 st.markdown("""
 <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-  <span style="background:#dcfce7; color:#14532d; padding:6px 10px; border-radius:999px; font-weight:600;">Green = Above / Up</span>
-  <span style="background:#fee2e2; color:#7f1d1d; padding:6px 10px; border-radius:999px; font-weight:600;">Red = Below / Down</span>
-  <span style="background:#e0f2fe; color:#075985; padding:6px 10px; border-radius:999px; font-weight:600;">Blue = Flat / Neutral</span>
+  <span style="background:#bbf7d0; color:#14532d; padding:6px 10px; border-radius:999px; font-weight:600;">Green = Above / Up</span>
+  <span style="background:#fecaca; color:#7f1d1d; padding:6px 10px; border-radius:999px; font-weight:600;">Red = Below / Down</span>
+  <span style="background:#fef08a; color:#713f12; padding:6px 10px; border-radius:999px; font-weight:600;">Blue = Flat / Neutral</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -3419,7 +3566,7 @@ with tab1:
                 "Bubble Size": False,
             },
             title=f"Hotel-level Forecast Momentum / Daily PU ({selected_metric})",
-            color_continuous_scale="RdYlGn",
+            color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
             size_max=34,
         )
 
@@ -3496,14 +3643,14 @@ with tab1:
             if pd.notna(daily_pu) and daily_pu > 0:
                 for col in ["Daily PU", "Daily PU %", "Status"]:
                     if col in styles.index:
-                        styles[col] = "background-color: #dcfce7; font-weight: 700"
+                        styles[col] = "background-color: #bbf7d0; font-weight: 700"
             elif pd.notna(daily_pu) and daily_pu < 0:
                 for col in ["Daily PU", "Daily PU %", "Status"]:
                     if col in styles.index:
-                        styles[col] = "background-color: #fee2e2; font-weight: 700"
+                        styles[col] = "background-color: #fecaca; font-weight: 700"
             else:
                 if "Status" in styles.index:
-                    styles["Status"] = "background-color: #e0f2fe; font-weight: 700"
+                    styles["Status"] = "background-color: #fef08a; font-weight: 700"
             return styles
 
         st.dataframe(
