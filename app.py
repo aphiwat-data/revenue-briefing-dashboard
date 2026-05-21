@@ -3220,6 +3220,178 @@ def style_revenue_variance_table(show_df, raw_df, value_col, status_cols=None):
     return show_df.style.apply(apply_style, axis=None)
 
 
+
+def render_forecast_movement_table_only(metric_data, role_selection):
+    """
+    Presentation-friendly Forecast Movement page.
+
+    Design decision:
+    - Table only, no cards and no bar chart.
+    - Default metric = All Metrics so Revenue Team can present all key metrics together.
+    - Movement periods = 1 Day / 7 Days / First Day of Month.
+    """
+    st.markdown('<div class="section-title">Forecast Movement</div>', unsafe_allow_html=True)
+    st.caption("Table-only view for presentation. Shows how latest forecast moved versus 1 Day, 7 Days, and First Day of Month.")
+
+    # Use whichever movement builder exists.
+    if "build_forecast_movement_v31" in globals():
+        movement = build_forecast_movement_v31(metric_data, role_selection)
+    elif "build_duetto_movement_summary" in globals():
+        movement = build_duetto_movement_summary(metric_data, role_selection)
+    else:
+        movement = build_movement_summary(metric_data, role_selection) if "build_movement_summary" in globals() else pd.DataFrame()
+
+    if movement is None or movement.empty:
+        st.info("No movement data. Upload multiple report dates to compare.")
+        return pd.DataFrame()
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+
+    metric_filter = c1.selectbox(
+        "Metric",
+        ["All Metrics", "Rev", "Occ", "Room", "ADR"],
+        index=0,
+        key="movement_table_only_metric",
+        help="Default is All Metrics so the team can present all key metrics together.",
+    )
+
+    period_filter = c2.selectbox(
+        "Compare with",
+        ["All Periods", "1 Day", "7 Days", "First Day of Month"],
+        index=0,
+        key="movement_table_only_period",
+    )
+
+    sort_mode = c3.selectbox(
+        "Sort",
+        ["Worst movement first", "Best movement first", "Hotel order"],
+        index=0,
+        key="movement_table_only_sort",
+    )
+
+    view = movement.copy()
+
+    # Normalize possible older column names
+    rename_map = {
+        "Latest D4cast": "Latest Forecast",
+        "Base D4cast": "Base Forecast",
+        "D4cast Diff": "Movement",
+        "D4cast Diff %": "Movement %",
+        "Compare": "Period",
+    }
+    for old, new in rename_map.items():
+        if old in view.columns and new not in view.columns:
+            view = view.rename(columns={old: new})
+
+    if metric_filter != "All Metrics":
+        view = view[view["Metric"] == metric_filter].copy()
+
+    if period_filter != "All Periods":
+        view = view[view["Period"] == period_filter].copy()
+
+    if view.empty:
+        st.info("No movement data for selected filters.")
+        return movement
+
+    # Sort for presentation
+    if sort_mode == "Worst movement first" and "Movement" in view.columns:
+        view = view.sort_values(["Movement", "Hotel", "Metric"], ascending=[True, True, True]).reset_index(drop=True)
+    elif sort_mode == "Best movement first" and "Movement" in view.columns:
+        view = view.sort_values(["Movement", "Hotel", "Metric"], ascending=[False, True, True]).reset_index(drop=True)
+    else:
+        view = view.sort_values(["Hotel", "Stay Month", "Metric", "Period"]).reset_index(drop=True)
+
+    # Top KPI row
+    total_move = view["Movement"].sum() if "Movement" in view.columns else 0
+    up_rows = int((view["Movement"] > 0).sum()) if "Movement" in view.columns else 0
+    down_rows = int((view["Movement"] < 0).sum()) if "Movement" in view.columns else 0
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total Movement", fmt_raw2(total_move))
+    k2.metric("Rows Up", up_rows)
+    k3.metric("Rows Down", down_rows)
+
+    st.markdown("#### Movement table")
+
+    # Keep only presentation-friendly columns
+    preferred_cols = [
+        "Hotel",
+        "Stay Month",
+        "Metric",
+        "Period",
+        "Latest Forecast",
+        "Base Forecast",
+        "Movement",
+        "Movement %",
+        "Status",
+        "Risk",
+    ]
+    cols = [c for c in preferred_cols if c in view.columns]
+    show = view[cols].copy()
+    raw = view[cols].copy()
+
+    for col in ["Latest Forecast", "Base Forecast", "Movement"]:
+        if col in show.columns:
+            show[col] = show[col].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+    if "Movement %" in show.columns:
+        show["Movement %"] = show["Movement %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+    def style_movement_table(_):
+        styles = pd.DataFrame("", index=show.index, columns=show.columns)
+
+        if "Movement" not in raw.columns:
+            return styles
+
+        for idx, val in raw["Movement"].items():
+            if pd.isna(val):
+                bg = "#dbeafe"
+                text = "#1e3a8a"
+                border = "#2563eb"
+            elif val > 0:
+                bg = "#bbf7d0"
+                text = "#14532d"
+                border = "#15803d"
+            elif val < 0:
+                bg = "#fecaca"
+                text = "#7f1d1d"
+                border = "#b91c1c"
+            else:
+                bg = "#fef08a"
+                text = "#713f12"
+                border = "#ca8a04"
+
+            for col in ["Movement", "Movement %", "Status", "Risk"]:
+                if col in styles.columns:
+                    styles.loc[idx, col] = (
+                        f"background-color:{bg}; color:{text}; "
+                        f"font-weight:900; border-left:4px solid {border};"
+                    )
+
+        return styles
+
+    st.dataframe(
+        show.style.apply(style_movement_table, axis=None),
+        use_container_width=True,
+        hide_index=True,
+        height=min(700, 48 + 34 * len(show)),
+    )
+
+    with st.expander("How to read Forecast Movement"):
+        st.markdown("""
+        **Movement = Latest Forecast - Base Forecast**
+
+        - **1 Day** = Latest Forecast vs previous report forecast  
+        - **7 Days** = Latest Forecast vs report around 7 days ago  
+        - **First Day of Month** = Latest Forecast vs first report of the month  
+
+        **Green** means forecast moved up.  
+        **Red** means forecast moved down.  
+        **Yellow** means flat / no movement.
+        """)
+
+    return movement
+
+
 # ============================================================
 # Main UI Execution
 # ============================================================
@@ -3415,7 +3587,7 @@ with tab0:
 
 
 with tab_movement:
-    forecast_movement_summary = render_forecast_movement_v31(metric_data, role_selection)
+    forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
 
 
 with tab_weekly:
