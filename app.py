@@ -1787,7 +1787,7 @@ def build_budget_vs_d4cast(metric_data, role_selection):
     out = d4.merge(budget, on=["Hotel", "Stay Month", "Metric"], how="left")
     out["Variance"] = out["Forecast"] - out["Budget"]
     out["Variance %"] = out["Variance"] / out["Budget"] * 100
-    out["Status"] = out["Variance"].apply(lambda x: "🟢 Above Budget" if pd.notna(x) and x > 0 else "🔴 Below Budget" if pd.notna(x) and x < 0 else "🟡 On Budget")
+    out["Status"] = out["Variance"].apply(budget_status_from_variance)
     if not out.empty:
         out["Metric"] = pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
         out = out.sort_values(["Metric", "Variance"]).reset_index(drop=True)
@@ -2121,13 +2121,10 @@ def build_budget_review(metric_data, role_selection):
     )["Value"].sum().rename(columns={"Value": "Budget"})
 
     out = d4.merge(budget, on=["Hotel", "Stay Month", "Metric"], how="left")
-    out["Budget Variance"] = out["Forecast"] - out["Budget"]
-    out["Budget Variance %"] = out["Budget Variance"] / out["Budget"] * 100
-    out["Status"] = out["Budget Variance"].apply(
-        lambda x: "🟢 Above Budget" if pd.notna(x) and x > 0 else
-                  "🔴 Below Budget" if pd.notna(x) and x < 0 else
-                  "🟡 On Budget"
-    )
+    budget_calc = out.apply(lambda r: calc_budget_variance(r["Forecast"], r["Budget"]), axis=1).apply(pd.Series)
+    out["Budget Variance"] = budget_calc[0]
+    out["Budget Variance %"] = budget_calc[1]
+    out["Status"] = out["Budget Variance"].apply(budget_status_from_variance)
     return out
 
 
@@ -2159,7 +2156,7 @@ def render_budget_review(metric_data, role_selection, key_prefix="budget_review"
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Forecast", fmt_raw2(total_forecast))
     k2.metric("Budget", fmt_raw2(total_budget))
-    k3.metric("Budget Variance", fmt_raw2(total_var), safe_delta(total_forecast, total_budget))
+    k3.metric("Budget Variance", fmt_raw2(total_var), budget_delta_text(calc_budget_variance(total_forecast, total_budget)[1]))
     k4.metric("Below Budget Rows", int((view["Budget Variance"] < 0).sum()))
 
     raw = view.copy()
@@ -2311,7 +2308,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Budget", fmt_raw2(total_budget))
     k2.metric("Forecast", fmt_raw2(total_forecast))
-    k3.metric("Variance vs Budget", fmt_raw2(total_var), safe_delta(total_forecast, total_budget))
+    k3.metric("Variance vs Budget", fmt_raw2(total_var), budget_delta_text(calc_budget_variance(total_forecast, total_budget)[1]))
     k4.metric("Below Budget Rows", int((view["Budget Variance"] < 0).sum()))
 
     raw = view.copy()
@@ -2387,13 +2384,12 @@ def _latest_budget_totals_for_metric(d4_data, metric_data, role_selection, metri
     forecast = latest[latest["Reference"] == "Duetto"]["Value"].sum()
     budget = latest[latest["Reference"] == "Budget"]["Value"].sum()
 
-    variance = forecast - budget if pd.notna(budget) and budget != 0 else None
-    variance_pct = variance / budget * 100 if variance is not None and budget != 0 else None
+    variance, variance_pct = calc_budget_variance(forecast, budget)
 
     return forecast, budget, variance, variance_pct
 
 
-def render_budget_first_kpi_section(metric_data, role_selection, selected_metric):
+def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
     """
     Revenue-focused KPI cards:
     Budget vs Forecast.
@@ -2466,7 +2462,7 @@ def render_executive_budget_cards(metric_data, role_selection):
     )
 
 
-def render_budget_first_kpi_section(metric_data, role_selection, selected_metric):
+def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
     card_mode = st.radio(
         "KPI view",
         ["Executive cards", "Detailed metric cards"],
@@ -2943,13 +2939,10 @@ def build_budget_review_summary_view(budget_df, view_level):
         .sum()
     )
 
-    out["Budget Variance"] = out["Forecast"] - out["Budget"]
-    out["Budget Variance %"] = out["Budget Variance"] / out["Budget"] * 100
-    out["Status"] = out["Budget Variance"].apply(
-        lambda x: "🟢 Above Budget" if pd.notna(x) and x > 0 else
-                  "🔴 Below Budget" if pd.notna(x) and x < 0 else
-                  "🟡 On Budget"
-    )
+    budget_calc = out.apply(lambda r: calc_budget_variance(r["Forecast"], r["Budget"]), axis=1).apply(pd.Series)
+    out["Budget Variance"] = budget_calc[0]
+    out["Budget Variance %"] = budget_calc[1]
+    out["Status"] = out["Budget Variance"].apply(budget_status_from_variance)
 
     if "Metric" in out.columns:
         out["Metric"] = pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
@@ -3029,7 +3022,7 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
     k1, k2, k3, k4 = st.columns(4)
     k1.metric("Budget", fmt_raw2(total_budget))
     k2.metric("Forecast", fmt_raw2(total_forecast))
-    k3.metric("Variance vs Budget", fmt_raw2(total_variance), safe_delta(total_forecast, total_budget))
+    k3.metric("Variance vs Budget", fmt_raw2(total_variance), budget_delta_text(calc_budget_variance(total_forecast, total_budget)[1]))
     k4.metric("Below Budget Rows", below_rows)
 
     st.markdown("#### Priority budget cards")
@@ -3403,7 +3396,7 @@ def render_budget_first_kpi_cards(metric_data, role_selection, selected_metric):
     3. Variance vs Budget = Forecast - Budget
     4. Variance vs Budget % = Variance / Budget * 100
     """
-    st.caption("Revenue KPI logic: Budget is the target. Forecast is compared against Budget.")
+    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget × 100.")
 
     metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
 
@@ -3450,7 +3443,7 @@ def render_budget_first_executive_cards(metric_data, role_selection):
     cols[3].metric("Variance vs Budget %", fmt_pct2(variance_pct))
 
 
-def render_budget_first_kpi_section(metric_data, role_selection, selected_metric):
+def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
     """
     Keep layout simple:
     - Executive cards for Rev summary
@@ -3468,6 +3461,132 @@ def render_budget_first_kpi_section(metric_data, role_selection, selected_metric
         render_budget_first_executive_cards(metric_data, role_selection)
     else:
         render_budget_first_kpi_cards(metric_data, role_selection, selected_metric)
+
+
+
+def calc_budget_variance(forecast, budget):
+    """
+    Single source of truth for Budget vs Forecast.
+
+    Budget is the target/base.
+    Forecast is the latest expected result.
+
+    Variance = Forecast - Budget
+    Variance % = Variance / Budget * 100
+    """
+    if pd.isna(forecast):
+        forecast = 0
+    if pd.isna(budget):
+        budget = 0
+
+    variance = forecast - budget
+
+    if budget is None or pd.isna(budget) or budget == 0:
+        variance_pct = None
+    else:
+        variance_pct = variance / budget * 100
+
+    return variance, variance_pct
+
+
+def budget_status_from_variance(variance):
+    if variance is None or pd.isna(variance):
+        return "⚪ No Budget"
+    if variance > 0:
+        return "🟢 Above Budget"
+    if variance < 0:
+        return "🔴 Below Budget"
+    return "🟡 On Budget"
+
+
+def budget_delta_text(variance_pct):
+    """
+    Streamlit metric delta text.
+    Use already-calculated budget variance %, not safe_delta().
+    """
+    if variance_pct is None or pd.isna(variance_pct):
+        return None
+    return fmt_pct2(variance_pct)
+
+
+def _latest_budget_totals_for_metric_v39(metric_data, role_selection, metric_name):
+    latest_label = role_selection.loc[
+        role_selection["Role"] == "Today / Latest", "Report Label"
+    ].iloc[0]
+
+    if pd.isna(latest_label):
+        return 0, 0, 0, None
+
+    latest = metric_data[
+        (metric_data["Report Label"] == latest_label)
+        & (metric_data["Metric"] == metric_name)
+    ].copy()
+
+    forecast = latest[latest["Reference"] == "Duetto"]["Value"].sum()
+    budget = latest[latest["Reference"] == "Budget"]["Value"].sum()
+
+    variance, variance_pct = calc_budget_variance(forecast, budget)
+
+    return forecast, budget, variance, variance_pct
+
+
+def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
+    """
+    Correct Budget-first KPI cards.
+
+    Order:
+    Budget -> Latest Forecast -> Variance vs Budget -> Variance vs Budget %
+
+    Formula:
+    Variance % = (Forecast - Budget) / Budget * 100
+    """
+    kpi_mode = st.radio(
+        "KPI view",
+        ["Executive Rev", "Detailed by Metric"],
+        horizontal=True,
+        index=0,
+        key="budget_first_kpi_mode_v39",
+    )
+
+    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget × 100.")
+
+    if kpi_mode == "Executive Rev":
+        budget_df = build_budget_review(metric_data, role_selection)
+
+        if budget_df.empty:
+            st.info("No Budget data found.")
+            return
+
+        rev_df = budget_df[budget_df["Metric"] == "Rev"].copy()
+        if rev_df.empty:
+            rev_df = budget_df.copy()
+
+        budget = rev_df["Budget"].sum()
+        forecast = rev_df["Forecast"].sum()
+        variance, variance_pct = calc_budget_variance(forecast, budget)
+
+        cols = st.columns([1.25, 1.25, 1.1, 1.1])
+        cols[0].metric("Revenue Budget", fmt_raw2(budget))
+        cols[1].metric("Revenue Forecast", fmt_raw2(forecast))
+        cols[2].metric("Variance vs Budget", fmt_raw2(variance), budget_delta_text(variance_pct))
+        cols[3].metric("Variance vs Budget %", fmt_pct2(variance_pct))
+
+    else:
+        metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
+
+        for m in metrics_to_show:
+            forecast, budget, variance, variance_pct = _latest_budget_totals_for_metric_v39(
+                metric_data=metric_data,
+                role_selection=role_selection,
+                metric_name=m,
+            )
+
+            st.markdown(f"#### {m}")
+            cols = st.columns([1.25, 1.25, 1.1, 1.1])
+            cols[0].metric("Budget", fmt_raw2(budget))
+            cols[1].metric("Latest Forecast", fmt_raw2(forecast))
+            cols[2].metric("Variance vs Budget", fmt_raw2(variance), budget_delta_text(variance_pct))
+            cols[3].metric("Variance vs Budget %", fmt_pct2(variance_pct))
 
 
 # ============================================================
@@ -3629,7 +3748,7 @@ hotel_momentum = d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month
 # ============================================================
 st.markdown(f"### View: `{selected_metric}` | Stay Month: `{stay_month_label(stay_month_selection)}`")
 
-render_budget_first_kpi_section(metric_data, role_selection, selected_metric)
+render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric)
 
 st.markdown("<br>", unsafe_allow_html=True)
 render_metric_dictionary()
