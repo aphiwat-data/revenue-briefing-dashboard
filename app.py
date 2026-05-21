@@ -2601,457 +2601,221 @@ def render_forecast_trend_by_month_v2(metric_data):
     return trend
 
 
-# ============================================================
-# Main UI Execution
-# ============================================================
 
-st.title("📊 Daily Revenue Briefing Dashboard")
-st.caption("Revenue briefing dashboard: budget variance first, weekly movement, hotel risk, and forecast trend by stay month.")
-
-# --- PRO SIDEBAR ---
-with st.sidebar:
-    st.markdown("## ⚙️ Data Source")
-    mode = st.radio("Input mode", ["Folder auto-load", "Manual upload"], horizontal=True, label_visibility="collapsed")
-    
-    if mode == "Folder auto-load":
-        folder_path = st.text_input("📁 G5 folder path", value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review")
-        if st.button("🔄 Refresh Data", use_container_width=True, type="primary"):
-            st.cache_data.clear()
-            st.rerun()
-        try:
-            with st.spinner("Scanning directory..."):
-                file_catalog = build_file_catalog_from_folder(folder_path)
-            st.success("Data loaded!")
-        except Exception as e:
-            st.error(str(e))
-            st.stop()
-    else:
-        uploaded = st.file_uploader("Upload G5 files or ZIP folder", type=["zip", "csv", "xlsx", "xls"], accept_multiple_files=True, help="Upload multiple daily files, or upload one ZIP file containing the whole report folder.")
-        if not uploaded:
-            st.info("💡 Upload daily G5 files to start.")
-            st.stop()
-        file_catalog = build_file_catalog_from_uploads(uploaded)
-    
-    st.divider()
-    
-    st.markdown("## 🎯 Filters")
-    report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
-    latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
-    
-    report_file_month = st.selectbox("📅 Report file month", report_file_months, index=report_file_months.index(latest_report_month))
-    
-    # Process files
-    role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
-    selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
-    selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
-    # Manual-upload catalog already contains File Bytes. Do not remap by uploaded filename, especially for ZIP inner files.
-    
-    with st.spinner("Crunching numbers..."):
-        combined_df = pd.concat([parse_record(row) for _, row in selected_file_catalog.iterrows()], ignore_index=True)
-        ref_col_map = build_ref_col_map(combined_df)
-        if not ref_col_map.get("Duetto"):
-            st.error("🚨 No Forecast / Duetto / Forecast columns detected.")
-            st.stop()
-        metric_long = build_metric_long(combined_df, ref_col_map)
-        
-    all_hotels = sorted(metric_long["Hotel"].dropna().unique())
-    all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
-    
-    stay_month_options = all_stay_months
-    default_report_month = report_file_month if report_file_month in all_stay_months else (all_stay_months[0] if all_stay_months else None)
-
-    st.markdown("#### 🗓️ Stay Month")
-
-    stay_month_mode = st.selectbox(
-        "Stay Month mode",
-        ["Report month only", "All months", "Custom months"],
-        index=0,
-        help="Use Report month only for normal morning review. Use All months for full-year view.",
-    )
-
-    if stay_month_mode == "Report month only":
-        selected_stay_months_raw = [default_report_month] if default_report_month else []
-        st.caption(f"Selected: {default_report_month}")
-
-    elif stay_month_mode == "All months":
-        selected_stay_months_raw = all_stay_months
-        stay_month_selection = "All"
-        st.caption(f"Selected: All months ({len(all_stay_months)})")
-
-    else:
-        custom_default = [default_report_month] if default_report_month else all_stay_months[:1]
-
-        selected_stay_months_raw = st.multiselect(
-            "Choose stay month(s)",
-            options=stay_month_options,
-            default=custom_default,
-            help="Choose one or multiple stay months.",
-        )
-
-        if not selected_stay_months_raw:
-            st.warning("Please select at least one Stay Month.")
-            st.stop()
-
-        st.caption(f"Selected: {stay_month_label(selected_stay_months_raw)}")
-
-    if stay_month_mode != "All months":
-        stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
-    
-    st.markdown("#### 🏨 Hotels")
-    st.caption("Use buttons for reliable selection. Checkboxes below are the source of truth.")
-
-    def hotel_key(hotel_name):
-        safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
-        return f"hotel_checkbox_{safe}"
-
-    btn_select_all, btn_clear_all = st.columns(2)
-
-    if btn_select_all.button("Select all", use_container_width=True, key="hotel_select_all_btn"):
-        for hotel in all_hotels:
-            st.session_state[hotel_key(hotel)] = True
-        st.rerun()
-
-    if btn_clear_all.button("Clear", use_container_width=True, key="hotel_clear_all_btn"):
-        for hotel in all_hotels:
-            st.session_state[hotel_key(hotel)] = False
-        st.rerun()
-
-    selected_hotels = []
-    with st.expander("Hotel checklist", expanded=True):
-        for hotel in all_hotels:
-            key = hotel_key(hotel)
-            if key not in st.session_state:
-                st.session_state[key] = True
-            checked = st.checkbox(str(hotel), key=key)
-            if checked:
-                selected_hotels.append(hotel)
-
-    st.caption(f"Selected hotels: {len(selected_hotels)} / {len(all_hotels)}")
-    
-    selected_metric = st.selectbox("📏 Metric", get_metric_options_with_all(), index=0)
-
-if not selected_hotels:
-    st.warning("⚠️ Please select at least one hotel.")
-    st.stop()
-
-# --- FILTER DATA ---
-metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
-if selected_metric != "All Metrics":
-    metric_data = metric_data[metric_data["Metric"] == selected_metric].copy()
-metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
-
-if metric_data.empty:
-    st.warning("📭 No data available for the selected filters.")
-    st.stop()
-
-# Build Summaries
-movement_summary = build_movement_summary(metric_data, role_selection)
-pace_summary = build_pace_summary(metric_data, role_selection)
-final_comparison = build_final_comparison(metric_data, role_selection)
-
-# Momentum specific data
-d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
-momentum_summary = d4.groupby(["Report Date", "Report Label"])["Value"].sum().reset_index().sort_values("Report Date") if not d4.empty else pd.DataFrame()
-hotel_momentum = d4.groupby(["Report Date", "Report Label", "Hotel"])["Value"].sum().reset_index().sort_values(["Hotel", "Report Date"]) if not d4.empty else pd.DataFrame()
-
-
-# ============================================================
-# Header KPIs — Revenue Budget Focus
-# ============================================================
-st.markdown(f"### View: `{selected_metric}` | Stay Month: `{stay_month_label(stay_month_selection)}`")
-
-render_budget_kpi_cards_v2(metric_data, role_selection, selected_metric)
-
-st.markdown("<br>", unsafe_allow_html=True)
-render_metric_dictionary()
-st.markdown("""
-<div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-  <span style="background:#dcfce7; color:#14532d; padding:6px 10px; border-radius:999px; font-weight:600;">Green = Above / Up</span>
-  <span style="background:#fee2e2; color:#7f1d1d; padding:6px 10px; border-radius:999px; font-weight:600;">Red = Below / Down</span>
-  <span style="background:#e0f2fe; color:#075985; padding:6px 10px; border-radius:999px; font-weight:600;">Blue = Flat / Neutral</span>
-</div>
-""", unsafe_allow_html=True)
-
-# ============================================================
-# Main Tabs
-# ============================================================
-tab0, tab_budget, tab_weekly, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs(["Forecast Pivot", "Budget Review", "Weekly Movement", "Hotel Sort Board", "Forecast Trend", "Revenue Analysis", "Export & Settings"])
-
-
-with tab0:
-    st.markdown('<div class="section-title">Forecast Pivot View</div>', unsafe_allow_html=True)
-    st.caption("Compact hotel tabs like the original forecast pivot view. Supports one or multiple Stay Months. Metric order is Occ → Room → ADR → Rev.")
-    latest_pivot = build_latest_pivot_table(metric_data, role_selection)
-    render_compact_hotel_tabs(latest_pivot)
-
-
-
-with tab_budget:
-    budget_vs_d4cast_summary = render_budget_review(metric_data, role_selection)
-
-
-with tab_weekly:
-    weekly_movement_summary = render_weekly_movement_v3(metric_data)
-
-
-with tab_leaderboard:
-    leaderboard_summary = render_color_leaderboard(
-        metric_long=metric_long,
-        role_selection=role_selection,
-        selected_hotels=selected_hotels,
-        stay_month_selection=stay_month_selection,
-    )
-
-
-
-with tab1:
-    trend_summary = render_forecast_trend_by_month_v2(metric_data)
-
-    st.markdown('<div class="section-title">Hotel-level Momentum Bubble Chart</div>', unsafe_allow_html=True)
-    st.caption("Default view focuses on Daily PU. Use dropdowns to show Top N / All hotels and choose what the bubble size represents.")
-
-    if hotel_momentum.empty:
-        st.info("No hotel momentum data.")
-    else:
-        bubble = hotel_momentum.copy()
-        bubble = bubble.sort_values(["Hotel", "Report Date"])
-        bubble["Previous Forecast"] = bubble.groupby("Hotel")["Value"].shift(1)
-        bubble["Daily Change"] = bubble["Value"] - bubble["Previous Forecast"]
-        bubble["Daily Change %"] = bubble["Daily Change"] / bubble["Previous Forecast"] * 100
-        bubble["Bubble Size"] = bubble["Value"].abs()
-
-        latest_date_bubble = bubble["Report Date"].max()
-        latest_by_hotel = (
-            bubble[bubble["Report Date"] == latest_date_bubble]
-            .groupby("Hotel", as_index=False)["Value"]
-            .sum()
-            .sort_values("Value", ascending=False)
-        )
-
-        # Latest snapshot per hotel, used for ranking/filtering the bubble chart.
-        latest_snapshot = (
-            bubble.sort_values(["Hotel", "Report Date"])
-            .groupby("Hotel", as_index=False)
-            .tail(1)
-            .copy()
-        )
-        latest_snapshot["Abs Daily PU"] = latest_snapshot["Daily Change"].abs()
-
-        ctl1, ctl2, ctl3 = st.columns([1.1, 1.1, 1.1])
-
-        max_hotels = int(max(1, latest_snapshot["Hotel"].nunique()))
-        top_options_raw = [5, 8, 10, 15, 20]
-        top_options = [f"Top {n}" for n in top_options_raw if n <= max_hotels]
-        if not top_options:
-            top_options = [f"Top {max_hotels}"]
-        top_options.append("All selected hotels")
-
-        default_display = "Top 8" if "Top 8" in top_options else top_options[0]
-
-        display_hotels = ctl1.selectbox(
-            "Display hotels",
-            top_options,
-            index=top_options.index(default_display),
-            key="bubble_display_hotels_dropdown",
-        )
-
-        focus_mode = ctl2.selectbox(
-            "Focus by",
-            [
-                "Biggest movement",
-                "Biggest drop",
-                "Biggest gain",
-                "Highest Forecast",
-            ],
-            index=0,
-            key="bubble_focus_mode_dropdown",
-        )
-
-        size_mode = ctl3.selectbox(
-            "Bubble size",
-            [
-                "Abs Daily PU",
-                "Latest D4cast",
-            ],
-            index=0,
-            key="bubble_size_mode_dropdown",
-        )
-
-        # Rank hotels based on what the user wants to focus on.
-        if focus_mode == "Biggest movement":
-            ranked_hotels = latest_snapshot.sort_values("Abs Daily PU", ascending=False)
-        elif focus_mode == "Biggest drop":
-            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=True)
-        elif focus_mode == "Biggest gain":
-            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=False)
-        else:
-            ranked_hotels = latest_snapshot.sort_values("Value", ascending=False)
-
-        if display_hotels == "All selected hotels":
-            visible_hotels = ranked_hotels["Hotel"].tolist()
-        else:
-            top_n = int(display_hotels.replace("Top ", ""))
-            visible_hotels = ranked_hotels.head(top_n)["Hotel"].tolist()
-
-        bubble_view = bubble[bubble["Hotel"].isin(visible_hotels)].copy()
-
-        if size_mode == "Abs Daily PU":
-            bubble_view["Bubble Size"] = bubble_view["Daily Change"].abs().fillna(0)
-            # Avoid invisible first-date bubbles.
-            if bubble_view["Bubble Size"].max() == 0:
-                bubble_view["Bubble Size"] = bubble_view["Value"].abs()
-        else:
-            bubble_view["Bubble Size"] = bubble_view["Value"].abs()
-
-        bubble_view["Latest D4cast"] = bubble_view["Value"]
-        bubble_view["Daily PU"] = bubble_view["Daily Change"]
-        bubble_view["Daily PU %"] = bubble_view["Daily Change %"]
-
-        fig_hotel = px.scatter(
-            bubble_view,
-            x="Report Date",
-            y="Hotel",
-            size="Bubble Size",
-            color="Daily Change",
-            hover_data={
-                "Report Label": True,
-                "Latest D4cast": ":,.2f",
-                "Previous Forecast": ":,.2f",
-                "Daily PU": ":,.2f",
-                "Daily PU %": ":.2f",
-                "Bubble Size": False,
-            },
-            title=f"Hotel-level Forecast Momentum / Daily PU ({selected_metric})",
-            color_continuous_scale="RdYlGn",
-            size_max=34,
-        )
-
-        fig_hotel.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(
-                title="Report Date",
-                showgrid=True,
-                gridcolor="#f1f5f9",
-                tickformat="%d %b",
-            ),
-            yaxis=dict(
-                title="Hotel",
-                showgrid=True,
-                gridcolor="#f8fafc",
-                categoryorder="array",
-                categoryarray=list(reversed(bubble_view["Hotel"].dropna().unique())),
-            ),
-            height=max(420, 46 * bubble_view["Hotel"].nunique()),
-            margin=dict(l=20, r=20, t=60, b=20),
-            coloraxis_colorbar=dict(title="Daily PU"),
-        )
-
-        fig_hotel.update_traces(
-            marker=dict(line=dict(width=0.7, color="white"), opacity=0.86),
-            selector=dict(mode="markers"),
-        )
-
-        st.plotly_chart(
-            fig_hotel,
-            use_container_width=True,
-            config={
-                "displayModeBar": True,
-                "displaylogo": False,
-                "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-            },
-        )
-
-        st.markdown("#### Hotel momentum summary")
-
-        latest_rows = (
-            bubble.sort_values(["Hotel", "Report Date"])
-            .groupby("Hotel", as_index=False)
-            .tail(1)
-            .copy()
-        )
-
-        latest_rows["Status"] = latest_rows["Daily Change"].apply(
-            lambda x: "🟢 Up" if pd.notna(x) and x > 0 else "🔴 Down" if pd.notna(x) and x < 0 else "🟡 Flat"
-        )
-
-        summary_cols = [
-            "Hotel",
-            "Report Date",
-            "Value",
-            "Previous Forecast",
-            "Daily Change",
-            "Daily Change %",
-            "Status",
-        ]
-
-        summary_view = latest_rows[summary_cols].copy()
-        summary_view = summary_view.rename(columns={
-            "Value": "Latest D4cast",
-            "Daily Change": "Daily PU",
-            "Daily Change %": "Daily PU %",
-        })
-        summary_view = summary_view.sort_values("Daily PU", ascending=True).reset_index(drop=True)
-
-        def color_momentum_row(row):
-            styles = pd.Series("", index=row.index)
-            daily_pu = row.get("Daily PU")
-            if pd.notna(daily_pu) and daily_pu > 0:
-                for col in ["Daily PU", "Daily PU %", "Status"]:
-                    if col in styles.index:
-                        styles[col] = "background-color: #dcfce7; font-weight: 700"
-            elif pd.notna(daily_pu) and daily_pu < 0:
-                for col in ["Daily PU", "Daily PU %", "Status"]:
-                    if col in styles.index:
-                        styles[col] = "background-color: #fee2e2; font-weight: 700"
+def build_duetto_movement_summary(metric_data, role_selection):
+    """
+    Duetto / Forecast movement view.
+    Returns latest forecast movement vs:
+    - Previous report / 1 Day
+    - Around 7 days ago
+    - First report of selected month
+    """
+    role_map = {
+        row["Role"]: row["Report Label"]
+        for _, row in role_selection.iterrows()
+        if pd.notna(row["Report Label"])
+    }
+
+    latest_label = role_map.get("Today / Latest")
+    base_roles = {
+        "1 Day": role_map.get("Yesterday / Previous"),
+        "7 Days": role_map.get("Last 7D"),
+        "First Day of Month": role_map.get("1st Month"),
+    }
+
+    latest_df = metric_data[
+        (metric_data["Report Label"] == latest_label)
+        & (metric_data["Reference"] == "Duetto")
+    ].copy()
+
+    rows = []
+    for keys, group in latest_df.groupby(["Hotel", "Stay Month", "Metric"]):
+        hotel, stay_month, metric = keys
+        latest_value = group["Value"].sum()
+
+        for period, base_label in base_roles.items():
+            if base_label is None:
+                base_value = None
+                movement = None
+                movement_pct = None
+                status = "⚪ No Base"
             else:
-                if "Status" in styles.index:
-                    styles["Status"] = "background-color: #e0f2fe; font-weight: 700"
-            return styles
+                base_value = metric_data[
+                    (metric_data["Hotel"] == hotel)
+                    & (metric_data["Stay Month"] == stay_month)
+                    & (metric_data["Metric"] == metric)
+                    & (metric_data["Report Label"] == base_label)
+                    & (metric_data["Reference"] == "Duetto")
+                ]["Value"].sum()
 
-        st.dataframe(
-            summary_view.style.format({
-                "Latest D4cast": fmt_raw2,
-                "Previous Forecast": fmt_raw2,
-                "Daily PU": fmt_raw2,
-                "Daily PU %": fmt_pct2,
-            }).apply(color_momentum_row, axis=1),
-            use_container_width=True,
-            hide_index=True,
-            height=min(520, 44 + 36 * len(summary_view)),
-        )
+                if pd.isna(base_value) or base_value == 0:
+                    movement = None
+                    movement_pct = None
+                    status = "⚪ No Base"
+                else:
+                    movement = latest_value - base_value
+                    movement_pct = movement / base_value * 100
+                    status = "🟢 Up" if movement > 0 else "🔴 Down" if movement < 0 else "🟡 Flat"
 
-        with st.expander("Full hotel-level daily data"):
-            full_view = bubble[[
-                "Report Date",
-                "Report Label",
-                "Hotel",
-                "Value",
-                "Previous Forecast",
-                "Daily Change",
-                "Daily Change %",
-            ]].sort_values(["Hotel", "Report Date"]).reset_index(drop=True)
-
-            full_view = full_view.rename(columns={
-                "Value": "Forecast",
-                "Daily Change": "Daily PU",
-                "Daily Change %": "Daily PU %",
+            rows.append({
+                "Hotel": hotel,
+                "Stay Month": stay_month,
+                "Metric": metric,
+                "Period": period,
+                "Latest Forecast": latest_value,
+                "Base Forecast": base_value,
+                "Movement": movement,
+                "Movement %": movement_pct,
+                "Status": status,
+                "Risk": risk_level(movement_pct),
             })
 
-            st.dataframe(
-                full_view,
-                use_container_width=True,
-                hide_index=True,
-                height=520,
-                column_config={
-                    "Report Date": st.column_config.DateColumn("Report Date", format="DD MMM YYYY"),
-                    "Forecast": st.column_config.NumberColumn("Forecast", format="%,.2f"),
-                    "Previous Forecast": st.column_config.NumberColumn("Previous Forecast", format="%,.2f"),
-                    "Daily PU": st.column_config.NumberColumn("Daily PU", format="%,.2f"),
-                    "Daily PU %": st.column_config.NumberColumn("Daily PU %", format="%.2f%%"),
-                },
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+
+    out["Period"] = pd.Categorical(out["Period"], ["1 Day", "7 Days", "First Day of Month"], ordered=True)
+    out["Metric"] = pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
+    return out.sort_values(["Period", "Metric", "Movement"]).reset_index(drop=True)
+
+
+def render_duetto_movement(metric_data, role_selection):
+    st.markdown('<div class="section-title">Forecast Movement</div>', unsafe_allow_html=True)
+    st.caption("Purpose: track Duetto/Forecast movement vs 1 Day, 7 Days, and First Day of Month. This is not Budget; this is movement tracking.")
+
+    movement = build_duetto_movement_summary(metric_data, role_selection)
+    if movement.empty:
+        st.info("No movement data. Upload multiple report dates to compare.")
+        return pd.DataFrame()
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    metric_filter = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR", "All Metrics"],
+        index=0,
+        key="duetto_movement_metric",
+    )
+    period_filter = c2.selectbox(
+        "Compare period",
+        ["1 Day", "7 Days", "First Day of Month", "All Periods"],
+        index=0,
+        key="duetto_movement_period",
+    )
+    view_mode = c3.selectbox(
+        "View",
+        ["Summary cards", "Color table", "Bar chart"],
+        index=0,
+        key="duetto_movement_view",
+    )
+
+    view = movement.copy()
+    if metric_filter != "All Metrics":
+        view = view[view["Metric"] == metric_filter].copy()
+    if period_filter != "All Periods":
+        view = view[view["Period"] == period_filter].copy()
+
+    if view.empty:
+        st.info("No movement data for selected filters.")
+        return movement
+
+    total_movement = view["Movement"].sum()
+    up_rows = int((view["Movement"] > 0).sum())
+    down_rows = int((view["Movement"] < 0).sum())
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total Movement", fmt_raw2(total_movement))
+    k2.metric("Rows Up", up_rows)
+    k3.metric("Rows Down", down_rows)
+
+    if view_mode == "Summary cards":
+        card_df = view.sort_values("Movement", ascending=True).copy()
+        show_mode = st.selectbox("Show", ["Worst 5", "Worst 10", "All"], index=0, key="duetto_movement_show")
+        if show_mode != "All":
+            n = int(show_mode.replace("Worst ", ""))
+            card_df = card_df.head(n)
+
+        for _, row in card_df.iterrows():
+            move = row["Movement"]
+            color = "#dcfce7" if pd.notna(move) and move > 0 else "#fee2e2" if pd.notna(move) and move < 0 else "#e0f2fe"
+            border = "#16a34a" if pd.notna(move) and move > 0 else "#dc2626" if pd.notna(move) and move < 0 else "#0284c7"
+            st.markdown(
+                f"""
+                <div style="background:{color}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
+                    <div style="font-weight:800; font-size:1.02rem;">{row['Hotel']} · {row['Metric']} · {row['Stay Month']} · {row['Period']}</div>
+                    <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-top:8px;">
+                        <div><span style="color:#64748b;">Latest</span><br><b>{fmt_raw2(row['Latest Forecast'])}</b></div>
+                        <div><span style="color:#64748b;">Base</span><br><b>{fmt_raw2(row['Base Forecast'])}</b></div>
+                        <div><span style="color:#64748b;">Movement</span><br><b>{fmt_raw2(row['Movement'])}</b></div>
+                        <div><span style="color:#64748b;">Movement %</span><br><b>{fmt_pct2(row['Movement %'])}</b></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
+    elif view_mode == "Color table":
+        show = view[["Hotel", "Stay Month", "Metric", "Period", "Latest Forecast", "Base Forecast", "Movement", "Movement %", "Status", "Risk"]].copy()
+        raw = view.copy()
+
+        for c in ["Latest Forecast", "Base Forecast", "Movement"]:
+            show[c] = show[c].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+        show["Movement %"] = show["Movement %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+        def style_move(_):
+            styles = pd.DataFrame("", index=show.index, columns=show.columns)
+            for idx, val in raw["Movement"].items():
+                color = "#dcfce7" if pd.notna(val) and val > 0 else "#fee2e2" if pd.notna(val) and val < 0 else "#e0f2fe"
+                for col in ["Movement", "Movement %", "Status", "Risk"]:
+                    if col in styles.columns:
+                        styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
+            return styles
+
+        st.dataframe(show.style.apply(style_move, axis=None), use_container_width=True, hide_index=True, height=min(620, 48 + 36 * len(show)))
+
+    else:
+        chart = view.copy()
+        chart["Direction"] = chart["Movement"].apply(lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat")
+        color_map = {"Up": "#16a34a", "Down": "#dc2626", "Flat": "#0284c7"}
+        fig = px.bar(
+            chart,
+            x="Movement",
+            y="Hotel",
+            color="Direction",
+            orientation="h",
+            color_discrete_map=color_map,
+            hover_data={
+                "Stay Month": True,
+                "Metric": True,
+                "Period": True,
+                "Latest Forecast": ":,.2f",
+                "Base Forecast": ":,.2f",
+                "Movement %": ":.2f",
+                "Direction": False,
+            },
+            title=f"Forecast Movement by Hotel ({metric_filter}, {period_filter})",
+        )
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=max(420, 46 * chart["Hotel"].nunique()),
+            yaxis=dict(categoryorder="total ascending"),
+            xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+            margin=dict(l=20, r=20, t=60, b=20),
+        )
+        fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="duetto_movement_bar_chart")
+
+    with st.expander("Full movement detail"):
+        full = movement.copy()
+        for c in ["Latest Forecast", "Base Forecast", "Movement"]:
+            full[c] = full[c].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+        full["Movement %"] = full["Movement %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+        st.dataframe(full, use_container_width=True, hide_index=True, height=520)
+
+    return movement
+
+
+def render_hotel_level_momentum_bubble_v2(hotel_momentum, selected_metric):
+    render_hotel_level_momentum_bubble_v2(hotel_momentum, selected_metric)
 
 
 with tab_analysis:
@@ -3158,6 +2922,7 @@ with tab5:
             "Budget Review": build_budget_review(metric_data, role_selection),
             "Weekly Movement": build_weekly_movement_v3(metric_data),
             "D4cast Momentum": momentum_summary,
+            "Forecast Movement": build_duetto_movement_summary(metric_data, role_selection),
             "Movement Table": movement_summary,
             "Recommended Pace": pace_summary,
             "D4cast vs Final": final_comparison,
