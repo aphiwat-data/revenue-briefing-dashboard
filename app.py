@@ -27,7 +27,7 @@ import plotly.express as px
 # ============================================================
 
 st.set_page_config(
-    page_title="G5 D4cast Revenue Dashboard",
+    page_title="Daily Revenue Dashboard",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1836,12 +1836,454 @@ def render_metric_dictionary():
         **D4cast vs Final** = current forecast compared with previous-year final actual.
         """)
 
+
+def friendly_week_label(start_date, end_date):
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date)
+    if pd.isna(start) or pd.isna(end):
+        return ""
+    return f"{start.strftime('%d %b')} - {end.strftime('%d %b')}"
+
+
+def build_weekly_movement_v2(metric_data):
+    """
+    Weekly revenue movement for Revenue Team.
+
+    Weekly Movement = Week End Forecast - Week Start Forecast.
+    This is split by Hotel / Stay Month / Metric / Week.
+    """
+    if metric_data is None or metric_data.empty:
+        return pd.DataFrame()
+
+    d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
+    if d4.empty:
+        return pd.DataFrame()
+
+    d4["Report Date"] = pd.to_datetime(d4["Report Date"])
+    d4["Week Start"] = d4["Report Date"].dt.to_period("W-MON").apply(lambda p: p.start_time.normalize())
+    d4["Week End"] = d4["Report Date"].dt.to_period("W-MON").apply(lambda p: p.end_time.normalize())
+    d4["Week Label"] = d4.apply(lambda r: friendly_week_label(r["Week Start"], r["Week End"]), axis=1)
+
+    rows = []
+    group_cols = ["Hotel", "Stay Month", "Metric", "Week Start", "Week End", "Week Label"]
+
+    for keys, group in d4.sort_values("Report Date").groupby(group_cols):
+        hotel, stay_month, metric, week_start, week_end, week_label = keys
+        g = group.sort_values("Report Date")
+        start_value = g.iloc[0]["Value"]
+        end_value = g.iloc[-1]["Value"]
+        first_report = g.iloc[0]["Report Date"]
+        last_report = g.iloc[-1]["Report Date"]
+
+        weekly_move = end_value - start_value
+        weekly_move_pct = weekly_move / start_value * 100 if pd.notna(start_value) and start_value != 0 else None
+
+        rows.append({
+            "Hotel": hotel,
+            "Stay Month": stay_month,
+            "Metric": metric,
+            "Week": week_label,
+            "First Report": first_report,
+            "Last Report": last_report,
+            "Start Forecast": start_value,
+            "End Forecast": end_value,
+            "Weekly Movement": weekly_move,
+            "Weekly Movement %": weekly_move_pct,
+            "Status": "🟢 Up" if weekly_move > 0 else "🔴 Down" if weekly_move < 0 else "🟡 Flat",
+        })
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+
+    out["Metric"] = pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
+    out = out.sort_values(["Week", "Metric", "Weekly Movement"]).reset_index(drop=True)
+    return out
+
+
+def render_weekly_movement_v2(metric_data):
+    st.markdown('<div class="section-title">Weekly Revenue Movement</div>', unsafe_allow_html=True)
+    st.caption("Purpose: see which hotel moved up/down by week. Weekly Movement = End-of-week forecast − Start-of-week forecast.")
+
+    weekly = build_weekly_movement_v2(metric_data)
+    if weekly.empty:
+        st.info("Upload multiple report dates to enable weekly movement.")
+        return pd.DataFrame()
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    metric_filter = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR", "All Metrics"],
+        index=0,
+        key="weekly_v2_metric",
+    )
+
+    week_options = weekly["Week"].dropna().unique().tolist()
+    week_filter = c2.selectbox(
+        "Week",
+        ["All Weeks"] + week_options,
+        index=0,
+        key="weekly_v2_week",
+    )
+
+    focus = c3.selectbox(
+        "Focus",
+        ["Worst movement", "Best movement", "Highest end forecast"],
+        index=0,
+        key="weekly_v2_focus",
+    )
+
+    view = weekly.copy()
+    if metric_filter != "All Metrics":
+        view = view[view["Metric"] == metric_filter].copy()
+    if week_filter != "All Weeks":
+        view = view[view["Week"] == week_filter].copy()
+
+    if view.empty:
+        st.info("No weekly data for selected filters.")
+        return weekly
+
+    if focus == "Worst movement":
+        view = view.sort_values("Weekly Movement", ascending=True).reset_index(drop=True)
+    elif focus == "Best movement":
+        view = view.sort_values("Weekly Movement", ascending=False).reset_index(drop=True)
+    else:
+        view = view.sort_values("End Forecast", ascending=False).reset_index(drop=True)
+
+    total_move = view["Weekly Movement"].sum()
+    up_rows = (view["Weekly Movement"] > 0).sum()
+    down_rows = (view["Weekly Movement"] < 0).sum()
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Total Weekly Movement", fmt_raw2(total_move))
+    k2.metric("Rows Up", int(up_rows))
+    k3.metric("Rows Down", int(down_rows))
+
+    # Heatmap-style matrix: Hotel x Week, color = movement.
+    st.markdown("#### Weekly movement heatmap")
+
+    heat = view.copy()
+    heat["Hotel Short"] = heat["Hotel"].apply(short_hotel_name) if "short_hotel_name" in globals() else heat["Hotel"]
+    heat["Display"] = heat["Weekly Movement"].apply(fmt_raw2)
+
+    fig_heat = px.density_heatmap(
+        heat,
+        x="Week",
+        y="Hotel Short",
+        z="Weekly Movement",
+        histfunc="sum",
+        color_continuous_scale="RdYlGn",
+        title=f"Weekly Movement Heatmap ({metric_filter})",
+    )
+    fig_heat.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=max(420, 42 * heat["Hotel Short"].nunique()),
+        xaxis_title="Week",
+        yaxis_title="Hotel",
+        margin=dict(l=20, r=20, t=60, b=20),
+        coloraxis_colorbar=dict(title="Movement"),
+    )
+    st.plotly_chart(fig_heat, use_container_width=True, config={"displaylogo": False})
+
+    st.markdown("#### Weekly movement table")
+
+    show = view[[
+        "Hotel", "Stay Month", "Metric", "Week",
+        "Start Forecast", "End Forecast", "Weekly Movement", "Weekly Movement %",
+        "Status"
+    ]].copy()
+
+    raw = view.copy()
+
+    for c in ["Start Forecast", "End Forecast", "Weekly Movement"]:
+        show[c] = show[c].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+    show["Weekly Movement %"] = show["Weekly Movement %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+    def style_week(_):
+        styles = pd.DataFrame("", index=show.index, columns=show.columns)
+        for idx, val in raw["Weekly Movement"].items():
+            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            for col in ["Weekly Movement", "Weekly Movement %", "Status"]:
+                if col in styles.columns:
+                    styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
+        return styles
+
+    st.dataframe(
+        show.style.apply(style_week, axis=None),
+        use_container_width=True,
+        hide_index=True,
+        height=min(620, 48 + 36 * len(show)),
+    )
+
+    return weekly
+
+
+def build_budget_review(metric_data, role_selection):
+    if metric_data is None or metric_data.empty:
+        return pd.DataFrame()
+
+    role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
+    latest_label = role_map.get("Today / Latest")
+    latest = metric_data[metric_data["Report Label"] == latest_label].copy()
+
+    if latest.empty:
+        return pd.DataFrame()
+
+    d4 = latest[latest["Reference"] == "Duetto"].groupby(
+        ["Hotel", "Stay Month", "Metric"], as_index=False
+    )["Value"].sum().rename(columns={"Value": "Forecast"})
+
+    budget = latest[latest["Reference"] == "Budget"].groupby(
+        ["Hotel", "Stay Month", "Metric"], as_index=False
+    )["Value"].sum().rename(columns={"Value": "Budget"})
+
+    out = d4.merge(budget, on=["Hotel", "Stay Month", "Metric"], how="left")
+    out["Budget Variance"] = out["Forecast"] - out["Budget"]
+    out["Budget Variance %"] = out["Budget Variance"] / out["Budget"] * 100
+    out["Status"] = out["Budget Variance"].apply(
+        lambda x: "🟢 Above Budget" if pd.notna(x) and x > 0 else
+                  "🔴 Below Budget" if pd.notna(x) and x < 0 else
+                  "🟡 On Budget"
+    )
+    return out
+
+
+def render_budget_review(metric_data, role_selection, key_prefix="budget_review"):
+    st.markdown('<div class="section-title">Budget Review</div>', unsafe_allow_html=True)
+    st.caption("Revenue purpose: compare latest forecast against Budget. This is the primary decision view for revenue brief.")
+
+    budget_df = build_budget_review(metric_data, role_selection)
+    if budget_df.empty:
+        st.info("No Budget data found.")
+        return pd.DataFrame()
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    metric_choice = c1.selectbox("Metric", ["Rev", "Occ", "Room", "ADR", "All Metrics"], index=0, key=f"{key_prefix}_metric")
+    sort_by = c2.selectbox("Sort by", ["Budget Variance", "Budget Variance %", "Forecast", "Budget"], index=0, key=f"{key_prefix}_sort")
+    order = c3.selectbox("Order", ["Worst first", "Best first"], index=0, key=f"{key_prefix}_order")
+
+    view = budget_df.copy()
+    if metric_choice != "All Metrics":
+        view = view[view["Metric"] == metric_choice].copy()
+
+    if sort_by in view.columns:
+        view = view.sort_values(sort_by, ascending=(order == "Worst first")).reset_index(drop=True)
+
+    total_forecast = view["Forecast"].sum()
+    total_budget = view["Budget"].sum()
+    total_var = total_forecast - total_budget
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Forecast", fmt_raw2(total_forecast))
+    k2.metric("Budget", fmt_raw2(total_budget))
+    k3.metric("Budget Variance", fmt_raw2(total_var), safe_delta(total_forecast, total_budget))
+    k4.metric("Below Budget Rows", int((view["Budget Variance"] < 0).sum()))
+
+    raw = view.copy()
+    show = view[["Hotel", "Stay Month", "Metric", "Forecast", "Budget", "Budget Variance", "Budget Variance %", "Status"]].copy()
+    for c in ["Forecast", "Budget", "Budget Variance"]:
+        show[c] = show[c].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+    show["Budget Variance %"] = show["Budget Variance %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+    def style_budget(_):
+        styles = pd.DataFrame("", index=show.index, columns=show.columns)
+        for idx, val in raw["Budget Variance"].items():
+            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            for col in ["Budget Variance", "Budget Variance %", "Status"]:
+                styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
+        return styles
+
+    st.dataframe(
+        show.style.apply(style_budget, axis=None),
+        use_container_width=True,
+        hide_index=True,
+        height=min(560, 48 + 36 * len(show)),
+    )
+
+    chart = raw.copy()
+    if chart.empty:
+        return budget_df
+
+    chart["Direction"] = chart["Budget Variance"].apply(lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget")
+    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+
+    fig = px.bar(
+        chart,
+        x="Budget Variance",
+        y="Hotel",
+        orientation="h",
+        color="Direction",
+        color_discrete_map=color_map,
+        hover_data={"Forecast": ":,.2f", "Budget": ":,.2f", "Budget Variance %": ":.2f"},
+        title=f"Budget Variance by Hotel ({metric_choice})",
+    )
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=max(420, 46 * chart["Hotel"].nunique()),
+        yaxis=dict(categoryorder="total ascending"),
+        xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+    fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+
+    return budget_df
+
+
+def render_forecast_trend_by_month(metric_data):
+    st.markdown('<div class="section-title">Revenue Forecast Trend</div>', unsafe_allow_html=True)
+    st.caption("Trend is split by Stay Month so the line colors clearly show which month is moving.")
+
+    d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
+    if d4.empty:
+        st.info("No forecast trend data.")
+        return pd.DataFrame()
+
+    c1, c2 = st.columns([1, 1])
+    metric_choice = c1.selectbox("Metric", ["Rev", "Occ", "Room", "ADR", "All Metrics"], index=0, key="trend_metric")
+    trend_mode = c2.selectbox("Group line by", ["Stay Month", "Hotel", "Stay Month + Hotel"], index=0, key="trend_group")
+
+    view = d4.copy()
+    if metric_choice != "All Metrics":
+        view = view[view["Metric"] == metric_choice].copy()
+
+    if trend_mode == "Stay Month":
+        trend = view.groupby(["Report Date", "Stay Month"], as_index=False)["Value"].sum()
+        color_col = "Stay Month"
+        line_group = "Stay Month"
+    elif trend_mode == "Hotel":
+        trend = view.groupby(["Report Date", "Hotel"], as_index=False)["Value"].sum()
+        color_col = "Hotel"
+        line_group = "Hotel"
+    else:
+        view["Line"] = view["Stay Month"].astype(str) + " | " + view["Hotel"].astype(str)
+        trend = view.groupby(["Report Date", "Line"], as_index=False)["Value"].sum()
+        color_col = "Line"
+        line_group = "Line"
+
+    trend = trend.sort_values("Report Date")
+
+    fig = px.line(
+        trend,
+        x="Report Date",
+        y="Value",
+        color=color_col,
+        line_group=line_group,
+        markers=True,
+        title=f"Forecast Trend by {trend_mode} ({metric_choice})",
+    )
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(title="Report Date", tickformat="%d %b", showgrid=True, gridcolor="#f1f5f9"),
+        yaxis=dict(title="Forecast", showgrid=True, gridcolor="#f1f5f9"),
+        legend_title_text=trend_mode,
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+
+    return trend
+
+
+
+def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_month_selection):
+    st.markdown('<div class="section-title">Hotel Performance Sort Board</div>', unsafe_allow_html=True)
+    st.caption("Revenue-focused board. Default is Budget Variance, because revenue team mainly needs to see above/below budget.")
+
+    # Build base data from all selected metric_long, not only selected_metric.
+    base_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    base_metric_data = apply_stay_month_filter(base_metric_data, stay_month_selection)
+
+    budget_df = build_budget_review(base_metric_data, role_selection)
+
+    if budget_df.empty:
+        st.info("No Budget data found for leaderboard.")
+        return pd.DataFrame()
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    metric_choice = c1.selectbox("Metric", ["Rev", "Occ", "Room", "ADR", "All Metrics"], index=0, key="perf_metric")
+    sort_choice = c2.selectbox(
+        "Sort by",
+        ["Budget Variance", "Budget Variance %", "Forecast", "Budget"],
+        index=0,
+        key="perf_sort",
+        help="Pickup metrics were removed from the default board because budget variance is more useful for revenue brief.",
+    )
+    order = c3.selectbox("Order", ["Worst first", "Best first"], index=0, key="perf_order")
+
+    view = budget_df.copy()
+    if metric_choice != "All Metrics":
+        view = view[view["Metric"] == metric_choice].copy()
+
+    view = view.sort_values(sort_choice, ascending=(order == "Worst first")).reset_index(drop=True)
+
+    total_forecast = view["Forecast"].sum()
+    total_budget = view["Budget"].sum()
+    total_var = total_forecast - total_budget
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Forecast", fmt_raw2(total_forecast))
+    k2.metric("Budget", fmt_raw2(total_budget))
+    k3.metric("Variance", fmt_raw2(total_var), safe_delta(total_forecast, total_budget))
+    k4.metric("Below Budget Rows", int((view["Budget Variance"] < 0).sum()))
+
+    raw = view.copy()
+    show = view[["Hotel", "Stay Month", "Metric", "Forecast", "Budget", "Budget Variance", "Budget Variance %", "Status"]].copy()
+
+    for col in ["Forecast", "Budget", "Budget Variance"]:
+        show[col] = show[col].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+    show["Budget Variance %"] = show["Budget Variance %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+    def style_perf(_):
+        styles = pd.DataFrame("", index=show.index, columns=show.columns)
+        for idx, val in raw["Budget Variance"].items():
+            color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+            for col in ["Budget Variance", "Budget Variance %", "Status"]:
+                if col in styles.columns:
+                    styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
+        return styles
+
+    st.dataframe(
+        show.style.apply(style_perf, axis=None),
+        use_container_width=True,
+        hide_index=True,
+        height=min(600, 48 + 36 * len(show)),
+    )
+
+    chart = raw.copy()
+    chart["Direction"] = chart["Budget Variance"].apply(
+        lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget"
+    )
+    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+
+    fig = px.bar(
+        chart,
+        x=sort_choice,
+        y="Hotel",
+        orientation="h",
+        color="Direction",
+        color_discrete_map=color_map,
+        hover_data={"Forecast": ":,.2f", "Budget": ":,.2f", "Budget Variance %": ":.2f"},
+        title=f"Hotel Sort Board by {sort_choice} ({metric_choice})",
+    )
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=max(420, 46 * chart["Hotel"].nunique()),
+        yaxis=dict(categoryorder="total ascending"),
+        xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+    fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+
+    return view
+
+
 # ============================================================
 # Main UI Execution
 # ============================================================
 
-st.title("📊 G5 D4cast Revenue Dashboard — Presentation Layout")
-st.caption("Built to support Revenue Team morning brief: D4cast movement, pickup, budget variance, and hotel risk focus.")
+st.title("📊 Daily Revenue Dashboard")
+st.caption("Revenue Team morning brief: budget variance, weekly movement, hotel risk, and revenue forecast trend.")
 
 # --- PRO SIDEBAR ---
 with st.sidebar:
@@ -2048,23 +2490,23 @@ st.markdown("""
 # ============================================================
 # Main Tabs
 # ============================================================
-tab0, tab_budget, tab_weekly, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs(["G5 Pivot View", "Budget vs D4cast", "Weekly Movement", "Hotel Leaderboard", "D4cast Momentum", "Analysis Tables", "Export & Settings"])
+tab0, tab_budget, tab_weekly, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs(["Forecast Pivot", "Budget Review", "Weekly Movement", "Hotel Sort Board", "Forecast Trend", "Revenue Analysis", "Export & Settings"])
 
 
 with tab0:
-    st.markdown('<div class="section-title">Hotel Pivot View</div>', unsafe_allow_html=True)
-    st.caption("Compact hotel tabs like the original G5 pivot view. Supports one or multiple Stay Months. Metric order is Occ → Room → ADR → Rev.")
+    st.markdown('<div class="section-title">Forecast Pivot View</div>', unsafe_allow_html=True)
+    st.caption("Compact hotel tabs like the original forecast pivot view. Supports one or multiple Stay Months. Metric order is Occ → Room → ADR → Rev.")
     latest_pivot = build_latest_pivot_table(metric_data, role_selection)
     render_compact_hotel_tabs(latest_pivot)
 
 
 
 with tab_budget:
-    budget_vs_d4cast_summary = render_budget_vs_d4cast(metric_data, role_selection)
+    budget_vs_d4cast_summary = render_budget_review(metric_data, role_selection)
 
 
 with tab_weekly:
-    weekly_movement_summary = render_weekly_movement(metric_data)
+    weekly_movement_summary = render_weekly_movement_v2(metric_data)
 
 
 with tab_leaderboard:
@@ -2078,16 +2520,7 @@ with tab_leaderboard:
 
 
 with tab1:
-    if selected_metric == "All Metrics":
-        st.info("All Metrics selected: momentum is best read by metric. Use Hotel Leaderboard or G5 Pivot View for split metric comparison.")
-    st.markdown('<div class="section-title">Overall D4cast Momentum</div>', unsafe_allow_html=True)
-    if momentum_summary.empty: st.info("No momentum data.")
-    else:
-        # Plotly for professional interactive charts
-        fig = px.line(momentum_summary, x="Report Date", y="Value", markers=True, text="Value", title=f"Total D4cast Momentum ({selected_metric})", color_discrete_sequence=["#0ea5e9"])
-        fig.update_traces(textposition="top center", texttemplate='%{text:,.2f}')
-        fig.update_layout(plot_bgcolor="rgba(0,0,0,0)", yaxis=dict(showgrid=True, gridcolor='#f1f5f9'))
-        st.plotly_chart(fig, use_container_width=True)
+    trend_summary = render_forecast_trend_by_month(metric_data)
 
     st.markdown('<div class="section-title">Hotel-level Momentum Bubble Chart</div>', unsafe_allow_html=True)
     st.caption("Default view focuses on Daily PU. Use dropdowns to show Top N / All hotels and choose what the bubble size represents.")
@@ -2341,50 +2774,12 @@ with tab_analysis:
     st.caption("Movement, Recommended Pace, and D4cast vs Final are shown together for faster review. Use each section's filters and view mode.")
 
     # -------------------------
-    # Movement
+    # Budget Variance Review
     # -------------------------
-    st.markdown("### 1) Movement")
-    st.caption("Latest D4cast compared with Yesterday, 7D, and 1st Month.")
+    st.markdown("### 1) Budget Variance Review")
+    st.caption("Revenue-focused replacement for old movement table: compare latest forecast against Budget.")
 
-    if movement_summary.empty:
-        st.info("No movement data.")
-    else:
-        c1, c2, c3 = st.columns([1.1, 1.1, 1])
-        compare_filter = c1.multiselect(
-            "Comparison Base",
-            ["vs Yesterday", "vs 7D", "vs 1st Month"],
-            default=["vs Yesterday", "vs 7D", "vs 1st Month"],
-            key="analysis_compare_filter",
-        )
-        risk_filter = c2.multiselect(
-            "Risk Level",
-            ["🔴 High", "🟠 Medium", "🟢 Low", "⚪ Unknown"],
-            default=["🔴 High", "🟠 Medium", "🟢 Low", "⚪ Unknown"],
-            key="analysis_risk_filter",
-        )
-        view_mode_movement = c3.selectbox(
-            "View",
-            ["Hotel tabs", "List view"],
-            index=0,
-            key="analysis_movement_view",
-        )
-
-        shown_movement = movement_summary[
-            (movement_summary["Compare"].isin(compare_filter))
-            & (movement_summary["Risk"].isin(risk_filter))
-        ].copy()
-
-        movement_cols = {
-            "Hotel": st.column_config.TextColumn("Hotel", width="medium"),
-            "Latest D4cast": st.column_config.NumberColumn("Latest D4cast", format="%,.2f"),
-            "Base D4cast": st.column_config.NumberColumn("Base D4cast", format="%,.2f"),
-            "D4cast Diff": st.column_config.NumberColumn("Variance", format="%,.2f"),
-            "D4cast Diff %": st.column_config.NumberColumn("Variance %", format="%.2f%%"),
-            "Status": st.column_config.TextColumn("Status"),
-            "Risk": st.column_config.TextColumn("Risk Alert"),
-        }
-        movement_display = make_movement_compact(shown_movement)
-        render_compact_by_hotel(movement_display, view_mode_movement, "movement")
+    analysis_budget_summary = render_budget_review(metric_data, role_selection, key_prefix="analysis_budget")
 
     st.divider()
 
@@ -2475,8 +2870,8 @@ with tab5:
     with c1:
         sheets = {
             "Role Selection": role_selection,
-            "Budget vs D4cast": build_budget_vs_d4cast(metric_data, role_selection),
-            "Weekly Movement": build_weekly_movement(metric_data),
+            "Budget Review": build_budget_review(metric_data, role_selection),
+            "Weekly Movement": build_weekly_movement_v2(metric_data),
             "D4cast Momentum": momentum_summary,
             "Movement Table": movement_summary,
             "Recommended Pace": pace_summary,
