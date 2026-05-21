@@ -2558,23 +2558,59 @@ def render_weekly_movement_v3(metric_data):
     return weekly
 
 
-def render_forecast_trend_by_month_v2(metric_data):
+def render_forecast_trend_by_month_v3(metric_data):
     st.markdown('<div class="section-title">Forecast Trend by Stay Month</div>', unsafe_allow_html=True)
-    st.caption("Numbers on points show forecast values. X-axis uses short report dates.")
+    st.caption("Use this to see forecast trend by selected stay month. Point labels can be shown only on latest points to avoid clutter.")
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
     if d4.empty:
         st.info("No forecast trend data.")
         return pd.DataFrame()
 
-    c1, c2, c3 = st.columns([1, 1, 1])
-    metric_choice = c1.selectbox("Metric", ["Rev", "Occ", "Room", "ADR", "All Metrics"], index=0, key="trend_v2_metric")
-    group_by = c2.selectbox("Color by", ["Stay Month", "Hotel"], index=0, key="trend_v2_group")
-    label_mode = c3.selectbox("Point labels", ["Latest point only", "All points", "Hide labels"], index=0, key="trend_v2_labels")
+    month_options = sorted(d4["Stay Month"].dropna().unique(), key=month_sort_key)
+
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+
+    metric_choice = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR", "All Metrics"],
+        index=0,
+        key="trend_v3_metric",
+    )
+
+    trend_months = c2.multiselect(
+        "Stay Month",
+        options=month_options,
+        default=month_options[:1] if month_options else [],
+        key="trend_v3_month_filter",
+        help="Select one or more stay months for this trend chart. Keeping this focused makes the chart readable.",
+    )
+
+    group_by = c3.selectbox(
+        "Color by",
+        ["Stay Month", "Hotel"],
+        index=0,
+        key="trend_v3_group",
+    )
+
+    label_mode = c4.selectbox(
+        "Point labels",
+        ["Latest point only", "All points", "Hide labels"],
+        index=0,
+        key="trend_v3_labels",
+    )
 
     view = d4.copy()
+
     if metric_choice != "All Metrics":
         view = view[view["Metric"] == metric_choice].copy()
+
+    if trend_months:
+        view = view[view["Stay Month"].isin(trend_months)].copy()
+
+    if view.empty:
+        st.info("No trend data for selected filters.")
+        return pd.DataFrame()
 
     trend = view.groupby(["Report Date", group_by], as_index=False)["Value"].sum().sort_values("Report Date")
 
@@ -2587,19 +2623,30 @@ def render_forecast_trend_by_month_v2(metric_data):
         trend["Label"] = ""
 
     fig = px.line(
-        trend, x="Report Date", y="Value", color=group_by, markers=True, text="Label",
-        title=f"Forecast Trend by {group_by} ({metric_choice})"
+        trend,
+        x="Report Date",
+        y="Value",
+        color=group_by,
+        markers=True,
+        text="Label",
+        title=f"Forecast Trend by {group_by} ({metric_choice})",
     )
     fig.update_traces(textposition="top center")
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(title="Report Date", tickformat="%d %b", showgrid=True, gridcolor="#f1f5f9"),
         yaxis=dict(title="Forecast", showgrid=True, gridcolor="#f1f5f9"),
-        legend_title_text=group_by, margin=dict(l=20, r=20, t=60, b=20),
+        legend_title_text=group_by,
+        margin=dict(l=20, r=20, t=60, b=20),
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="forecast_trend_v2")
-    return trend
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="forecast_trend_v3")
 
+    with st.expander("Trend data"):
+        show = trend.copy()
+        show["Value"] = show["Value"].apply(fmt_raw2)
+        st.dataframe(show, use_container_width=True, hide_index=True, height=min(520, 48 + 34 * len(show)))
+
+    return trend
 
 
 def build_forecast_movement_v31(metric_data, role_selection):
@@ -2837,7 +2884,7 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
     - Chart only Top/Bottom rows
     """
     st.markdown('<div class="section-title">Hotel Budget Sort Board</div>', unsafe_allow_html=True)
-    st.caption("Revenue-friendly view: default summarizes selected months by hotel so All Month does not become unreadable.")
+    st.caption("Revenue-friendly view for All Month: use priority cards first, then open full table or optional chart only when needed.")
 
     base_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
     base_metric_data = apply_stay_month_filter(base_metric_data, stay_month_selection)
@@ -2902,7 +2949,7 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
     k3.metric("Variance", fmt_raw2(total_variance), safe_delta(total_forecast, total_budget))
     k4.metric("Below Budget Rows", below_rows)
 
-    st.markdown("#### Priority cards")
+    st.markdown("#### Priority budget cards")
 
     card_count = st.selectbox(
         "Show priority rows",
@@ -2941,64 +2988,65 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
             unsafe_allow_html=True,
         )
 
-    st.markdown("#### Budget variance chart")
+    with st.expander("Optional chart: budget variance"):
+        st.caption("Chart is optional because All Month view is easier to read as priority cards/table.")
 
-    chart_limit = st.selectbox(
-        "Chart rows",
-        ["Worst 5", "Worst 10", "Best 5", "Best 10"],
-        index=0,
-        key="sort_v32_chart_rows",
-    )
+        chart_limit = st.selectbox(
+            "Chart rows",
+            ["Worst 5", "Worst 10", "Best 5", "Best 10"],
+            index=0,
+            key="sort_v33_chart_rows",
+        )
 
-    chart = view.copy()
-    if "Worst" in chart_limit:
-        n = int(chart_limit.replace("Worst ", ""))
-        chart = chart.sort_values("Budget Variance", ascending=True).head(n)
-    else:
-        n = int(chart_limit.replace("Best ", ""))
-        chart = chart.sort_values("Budget Variance", ascending=False).head(n)
+        chart = view.copy()
+        if "Worst" in chart_limit:
+            n = int(chart_limit.replace("Worst ", ""))
+            chart = chart.sort_values("Budget Variance", ascending=True).head(n)
+        else:
+            n = int(chart_limit.replace("Best ", ""))
+            chart = chart.sort_values("Budget Variance", ascending=False).head(n)
 
-    chart["Direction"] = chart["Budget Variance"].apply(
-        lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget"
-    )
-    chart["Label Name"] = chart["Hotel"].astype(str)
-    if view_level == "Detail by Month" and "Stay Month" in chart.columns:
-        chart["Label Name"] = chart["Hotel"].astype(str) + " | " + chart["Stay Month"].astype(str)
+        chart["Direction"] = chart["Budget Variance"].apply(
+            lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget"
+        )
+        chart["Label Name"] = chart["Hotel"].astype(str)
+        if view_level == "Detail by Month" and "Stay Month" in chart.columns:
+            chart["Label Name"] = chart["Hotel"].astype(str) + " | " + chart["Stay Month"].astype(str)
 
-    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+        color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
 
-    fig = px.bar(
-        chart,
-        x="Budget Variance",
-        y="Label Name",
-        orientation="h",
-        color="Direction",
-        color_discrete_map=color_map,
-        hover_data={
-            "Forecast": ":,.2f",
-            "Budget": ":,.2f",
-            "Budget Variance %": ":.2f",
-            "Metric": True,
-            "Direction": False,
-        },
-        title=f"Top Priority Budget Variance ({metric_choice}, {view_level})",
-    )
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        height=max(360, 48 * len(chart)),
-        yaxis=dict(categoryorder="total ascending", title=""),
-        xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
-        margin=dict(l=20, r=20, t=60, b=20),
-        showlegend=True,
-    )
-    fig.update_traces(
-        texttemplate="%{x:,.0f}",
-        textposition="outside",
-        cliponaxis=False,
-    )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="sort_v32_priority_chart")
+        fig = px.bar(
+            chart,
+            x="Budget Variance",
+            y="Label Name",
+            orientation="h",
+            color="Direction",
+            color_discrete_map=color_map,
+            hover_data={
+                "Forecast": ":,.2f",
+                "Budget": ":,.2f",
+                "Budget Variance %": ":.2f",
+                "Metric": True,
+                "Direction": False,
+            },
+            title=f"Top Priority Budget Variance ({metric_choice}, {view_level})",
+        )
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=max(360, 48 * len(chart)),
+            yaxis=dict(categoryorder="total ascending", title=""),
+            xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+            margin=dict(l=20, r=20, t=60, b=20),
+            showlegend=True,
+        )
+        fig.update_traces(
+            texttemplate="%{x:,.0f}",
+            textposition="outside",
+            cliponaxis=False,
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="sort_v33_optional_chart")
 
-    with st.expander("Full budget table"):
+    with st.expander("Full budget table", expanded=True):
         show = view.copy()
         raw = view.copy()
 
@@ -3242,7 +3290,7 @@ with tab_leaderboard:
 
 
 with tab1:
-    trend_summary = render_forecast_trend_by_month_v2(metric_data)
+    trend_summary = render_forecast_trend_by_month_v3(metric_data)
 
     st.markdown('<div class="section-title">Hotel-level Momentum Bubble Chart</div>', unsafe_allow_html=True)
     st.caption("Default view focuses on Daily PU. Use dropdowns to show Top N / All hotels and choose what the bubble size represents.")
