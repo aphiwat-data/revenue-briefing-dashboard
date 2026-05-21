@@ -1983,7 +1983,7 @@ def render_weekly_movement_v2(metric_data):
         margin=dict(l=20, r=20, t=60, b=20),
         coloraxis_colorbar=dict(title="Movement"),
     )
-    st.plotly_chart(fig_heat, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(fig_heat, use_container_width=True, config={"displaylogo": False}, key="weekly_movement_heatmap_chart")
 
     st.markdown("#### Weekly movement table")
 
@@ -2125,7 +2125,12 @@ def render_budget_review(metric_data, role_selection, key_prefix="budget_review"
         margin=dict(l=20, r=20, t=60, b=20),
     )
     fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displaylogo": False},
+        key=f"{key_prefix}_budget_variance_chart",
+    )
 
     return budget_df
 
@@ -2179,7 +2184,7 @@ def render_forecast_trend_by_month(metric_data):
         legend_title_text=trend_mode,
         margin=dict(l=20, r=20, t=60, b=20),
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="forecast_trend_by_month_chart")
 
     return trend
 
@@ -2273,7 +2278,7 @@ def render_color_leaderboard(metric_long, role_selection, selected_hotels, stay_
         margin=dict(l=20, r=20, t=60, b=20),
     )
     fig.update_traces(texttemplate="%{x:,.2f}", textposition="outside", cliponaxis=False)
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False})
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="hotel_sort_board_budget_chart")
 
     return view
 
