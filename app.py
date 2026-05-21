@@ -2789,6 +2789,242 @@ def render_forecast_movement_v31(metric_data, role_selection):
     return movement
 
 
+
+def build_budget_review_summary_view(budget_df, view_level):
+    """
+    Make Budget Review/Sort Board easier for All Month usage.
+
+    view_level:
+    - Summary by Hotel: aggregate selected months into one row per Hotel + Metric
+    - Detail by Month: keep Hotel + Stay Month + Metric detail
+    """
+    if budget_df is None or budget_df.empty:
+        return pd.DataFrame()
+
+    df = budget_df.copy()
+
+    if view_level == "Summary by Hotel":
+        group_cols = ["Hotel", "Metric"]
+    else:
+        group_cols = ["Hotel", "Stay Month", "Metric"]
+
+    out = (
+        df.groupby(group_cols, as_index=False)[["Forecast", "Budget"]]
+        .sum()
+    )
+
+    out["Budget Variance"] = out["Forecast"] - out["Budget"]
+    out["Budget Variance %"] = out["Budget Variance"] / out["Budget"] * 100
+    out["Status"] = out["Budget Variance"].apply(
+        lambda x: "🟢 Above Budget" if pd.notna(x) and x > 0 else
+                  "🔴 Below Budget" if pd.notna(x) and x < 0 else
+                  "🟡 On Budget"
+    )
+
+    if "Metric" in out.columns:
+        out["Metric"] = pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
+
+    return out
+
+
+def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, stay_month_selection):
+    """
+    Revenue-friendly Hotel Sort Board for All Month usage.
+
+    Default behavior:
+    - Aggregate to Summary by Hotel to avoid huge unreadable all-month charts
+    - Show cards/table first
+    - Chart only Top/Bottom rows
+    """
+    st.markdown('<div class="section-title">Hotel Budget Sort Board</div>', unsafe_allow_html=True)
+    st.caption("Revenue-friendly view: default summarizes selected months by hotel so All Month does not become unreadable.")
+
+    base_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    base_metric_data = apply_stay_month_filter(base_metric_data, stay_month_selection)
+
+    budget_df = build_budget_review(base_metric_data, role_selection)
+
+    if budget_df.empty:
+        st.info("No Budget data found for selected filters.")
+        return pd.DataFrame()
+
+    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+
+    metric_choice = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR", "All Metrics"],
+        index=0,
+        key="sort_v32_metric",
+    )
+
+    view_level = c2.selectbox(
+        "Level",
+        ["Summary by Hotel", "Detail by Month"],
+        index=0,
+        key="sort_v32_level",
+        help="Use Summary by Hotel for All Month view. Use Detail by Month only when you need monthly breakdown.",
+    )
+
+    sort_choice = c3.selectbox(
+        "Sort by",
+        ["Budget Variance", "Budget Variance %", "Forecast", "Budget"],
+        index=0,
+        key="sort_v32_sort",
+    )
+
+    order = c4.selectbox(
+        "Order",
+        ["Worst first", "Best first"],
+        index=0,
+        key="sort_v32_order",
+    )
+
+    view = build_budget_review_summary_view(budget_df, view_level)
+
+    if metric_choice != "All Metrics":
+        view = view[view["Metric"] == metric_choice].copy()
+
+    if view.empty:
+        st.info("No rows after selected filters.")
+        return view
+
+    view = view.sort_values(sort_choice, ascending=(order == "Worst first")).reset_index(drop=True)
+
+    total_forecast = view["Forecast"].sum()
+    total_budget = view["Budget"].sum()
+    total_variance = total_forecast - total_budget
+    below_rows = int((view["Budget Variance"] < 0).sum())
+    above_rows = int((view["Budget Variance"] > 0).sum())
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Forecast", fmt_raw2(total_forecast))
+    k2.metric("Budget", fmt_raw2(total_budget))
+    k3.metric("Variance", fmt_raw2(total_variance), safe_delta(total_forecast, total_budget))
+    k4.metric("Below Budget Rows", below_rows)
+
+    st.markdown("#### Priority cards")
+
+    card_count = st.selectbox(
+        "Show priority rows",
+        ["Worst 5", "Worst 10", "All"],
+        index=0,
+        key="sort_v32_priority_rows",
+    )
+
+    card_df = view.copy()
+    if card_count != "All":
+        n = int(card_count.replace("Worst ", ""))
+        card_df = card_df.head(n)
+
+    for _, row in card_df.iterrows():
+        variance = row["Budget Variance"]
+        bg = "#dcfce7" if variance > 0 else "#fee2e2" if variance < 0 else "#e0f2fe"
+        border = "#16a34a" if variance > 0 else "#dc2626" if variance < 0 else "#0284c7"
+
+        title_parts = [str(row.get("Hotel", ""))]
+        if "Stay Month" in row.index:
+            title_parts.append(str(row.get("Stay Month", "")))
+        title_parts.append(str(row.get("Metric", "")))
+
+        st.markdown(
+            f"""
+            <div style="background:{bg}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
+                <div style="font-weight:800; font-size:1.02rem;">{" · ".join(title_parts)} · {row['Status']}</div>
+                <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-top:8px;">
+                    <div><span style="color:#64748b;">Forecast</span><br><b>{fmt_raw2(row['Forecast'])}</b></div>
+                    <div><span style="color:#64748b;">Budget</span><br><b>{fmt_raw2(row['Budget'])}</b></div>
+                    <div><span style="color:#64748b;">Variance</span><br><b>{fmt_raw2(row['Budget Variance'])}</b></div>
+                    <div><span style="color:#64748b;">Variance %</span><br><b>{fmt_pct2(row['Budget Variance %'])}</b></div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("#### Budget variance chart")
+
+    chart_limit = st.selectbox(
+        "Chart rows",
+        ["Worst 5", "Worst 10", "Best 5", "Best 10"],
+        index=0,
+        key="sort_v32_chart_rows",
+    )
+
+    chart = view.copy()
+    if "Worst" in chart_limit:
+        n = int(chart_limit.replace("Worst ", ""))
+        chart = chart.sort_values("Budget Variance", ascending=True).head(n)
+    else:
+        n = int(chart_limit.replace("Best ", ""))
+        chart = chart.sort_values("Budget Variance", ascending=False).head(n)
+
+    chart["Direction"] = chart["Budget Variance"].apply(
+        lambda x: "Above Budget" if x > 0 else "Below Budget" if x < 0 else "On Budget"
+    )
+    chart["Label Name"] = chart["Hotel"].astype(str)
+    if view_level == "Detail by Month" and "Stay Month" in chart.columns:
+        chart["Label Name"] = chart["Hotel"].astype(str) + " | " + chart["Stay Month"].astype(str)
+
+    color_map = {"Above Budget": "#16a34a", "Below Budget": "#dc2626", "On Budget": "#0284c7"}
+
+    fig = px.bar(
+        chart,
+        x="Budget Variance",
+        y="Label Name",
+        orientation="h",
+        color="Direction",
+        color_discrete_map=color_map,
+        hover_data={
+            "Forecast": ":,.2f",
+            "Budget": ":,.2f",
+            "Budget Variance %": ":.2f",
+            "Metric": True,
+            "Direction": False,
+        },
+        title=f"Top Priority Budget Variance ({metric_choice}, {view_level})",
+    )
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=max(360, 48 * len(chart)),
+        yaxis=dict(categoryorder="total ascending", title=""),
+        xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
+        margin=dict(l=20, r=20, t=60, b=20),
+        showlegend=True,
+    )
+    fig.update_traces(
+        texttemplate="%{x:,.0f}",
+        textposition="outside",
+        cliponaxis=False,
+    )
+    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="sort_v32_priority_chart")
+
+    with st.expander("Full budget table"):
+        show = view.copy()
+        raw = view.copy()
+
+        for col in ["Forecast", "Budget", "Budget Variance"]:
+            show[col] = show[col].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+        show["Budget Variance %"] = show["Budget Variance %"].apply(lambda x: "" if pd.isna(x) else fmt_pct2(x))
+
+        def style_budget_table(_):
+            styles = pd.DataFrame("", index=show.index, columns=show.columns)
+            for idx, val in raw["Budget Variance"].items():
+                color = "#dcfce7" if val > 0 else "#fee2e2" if val < 0 else "#e0f2fe"
+                for c in ["Budget Variance", "Budget Variance %", "Status"]:
+                    if c in styles.columns:
+                        styles.loc[idx, c] = f"background-color:{color}; font-weight:700"
+            return styles
+
+        st.dataframe(
+            show.style.apply(style_budget_table, axis=None),
+            use_container_width=True,
+            hide_index=True,
+            height=min(620, 48 + 36 * len(show)),
+        )
+
+    return view
+
+
 # ============================================================
 # Main UI Execution
 # ============================================================
@@ -2968,7 +3204,7 @@ tab0, tab_budget, tab_movement, tab_weekly, tab_leaderboard, tab1, tab_analysis,
     "Budget Review",
     "Forecast Movement",
     "Weekly Movement",
-    "Hotel Sort Board",
+    "Budget Sort Board",
     "Forecast Trend",
     "Revenue Analysis",
     "Export & Settings",
@@ -2996,7 +3232,7 @@ with tab_weekly:
 
 
 with tab_leaderboard:
-    leaderboard_summary = render_color_leaderboard(
+    leaderboard_summary = render_budget_sort_board_v32(
         metric_long=metric_long,
         role_selection=role_selection,
         selected_hotels=selected_hotels,
