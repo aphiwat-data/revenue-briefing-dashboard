@@ -1614,7 +1614,6 @@ def make_recommended_pace_compact(df):
             "Variance": format_compact_value(r.get("Pace Diff")),
             "Variance %": format_compact_value(r.get("Pace Diff %"), is_pct=True),
             "Status": r.get("Status"),
-            "Risk": r.get("Risk"),
             "Benchmarks": " | ".join(benchmark_text),
         })
 
@@ -1701,23 +1700,39 @@ def render_compact_by_hotel(df, view_mode, key_prefix, height_cap=620):
         for tab, hotel in zip(tabs, hotels):
             with tab:
                 sub = df[df["Hotel"] == hotel].drop(columns=["Hotel"]).reset_index(drop=True)
-                st.dataframe(
-                    sub,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=min(height_cap, 48 + 38 * len(sub)),
-                )
+                if key_prefix == "pace":
+                    st.dataframe(
+                        style_pace_variance_table(sub),
+                        use_container_width=True,
+                        hide_index=True,
+                        height=min(height_cap, 48 + 38 * len(sub)),
+                    )
+                else:
+                    st.dataframe(
+                        sub,
+                        use_container_width=True,
+                        hide_index=True,
+                        height=min(height_cap, 48 + 38 * len(sub)),
+                    )
     else:
         show = df.copy()
         if "Hotel" in show.columns and "short_hotel_name" in globals():
             show["Hotel"] = show["Hotel"].apply(short_hotel_name)
 
-        st.dataframe(
-            show,
-            use_container_width=True,
-            hide_index=True,
-            height=min(height_cap, 48 + 34 * len(show)),
-        )
+        if key_prefix == "pace":
+            st.dataframe(
+                style_pace_variance_table(show),
+                use_container_width=True,
+                hide_index=True,
+                height=min(height_cap, 48 + 34 * len(show)),
+            )
+        else:
+            st.dataframe(
+                show,
+                use_container_width=True,
+                hide_index=True,
+                height=min(height_cap, 48 + 34 * len(show)),
+            )
 
 
 def render_pace_cards(df):
@@ -2866,7 +2881,7 @@ def render_forecast_movement_v31(metric_data, role_selection):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx, val in raw["Movement"].items():
                 color = "#bbf7d0" if pd.notna(val) and val > 0 else "#fecaca" if pd.notna(val) and val < 0 else "#fef08a"
-                for col in ["Movement", "Movement %", "Status", "Risk"]:
+                for col in ["Movement", "Movement %", "Status"]:
                     if col in styles.columns:
                         styles.loc[idx, col] = f"background-color:{color}; font-weight:700"
             return styles
@@ -3280,7 +3295,6 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         "Movement",
         "Movement %",
         "Status",
-        "Risk",
     ]
     cols = [c for c in preferred_cols if c in view.columns]
     show = view[cols].copy()
@@ -3316,7 +3330,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
                 text = "#713f12"
                 border = "#ca8a04"
 
-            for col in ["Movement", "Movement %", "Status", "Risk"]:
+            for col in ["Movement", "Movement %", "Status"]:
                 if col in styles.columns:
                     styles.loc[idx, col] = (
                         f"background-color:{bg}; color:{text}; "
@@ -3644,6 +3658,71 @@ def render_priority_budget_table(view, default_rows="Worst 10"):
     )
 
     return table_df
+
+
+
+def style_pace_variance_table(df):
+    """
+    Color Same-Time Pace Benchmark table by Variance %.
+    Green = ahead, Red = behind, Yellow = on pace.
+    Risk column is intentionally not shown because Status + Variance % already explain the situation.
+    """
+    if df is None or df.empty:
+        return df
+
+    show = df.copy()
+    raw = df.copy()
+
+    # Drop Risk from UI if still present from older code paths.
+    if "Risk" in show.columns:
+        show = show.drop(columns=["Risk"])
+    if "Risk" in raw.columns:
+        raw = raw.drop(columns=["Risk"])
+
+    def parse_pct(v):
+        if pd.isna(v):
+            return None
+        if isinstance(v, str):
+            cleaned = v.replace("%", "").replace(",", "").strip()
+            if cleaned == "":
+                return None
+            try:
+                return float(cleaned)
+            except Exception:
+                return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    def apply_style(_):
+        styles = pd.DataFrame("", index=show.index, columns=show.columns)
+
+        if "Variance %" not in raw.columns:
+            return styles
+
+        for idx, val in raw["Variance %"].items():
+            num = parse_pct(val)
+
+            if num is None:
+                bg, text, border = "#dbeafe", "#1e3a8a", "#2563eb"
+            elif num > 0:
+                bg, text, border = "#bbf7d0", "#14532d", "#15803d"
+            elif num < 0:
+                bg, text, border = "#fecaca", "#7f1d1d", "#b91c1c"
+            else:
+                bg, text, border = "#fef08a", "#713f12", "#ca8a04"
+
+            for col in ["Variance %", "Variance", "Status"]:
+                if col in styles.columns:
+                    styles.loc[idx, col] = (
+                        f"background-color:{bg}; color:{text}; "
+                        f"font-weight:900; border-left:4px solid {border};"
+                    )
+
+        return styles
+
+    return show.style.apply(apply_style, axis=None)
 
 
 # ============================================================
@@ -4129,7 +4208,7 @@ with tab_analysis:
     # Recommended Pace
     # -------------------------
     st.markdown("### 1) Same-Time Pace Benchmark")
-    st.caption("Compares today/latest forecast against the best same-time benchmark among STLY / ST2Y / ST3Y. Use this as pace context, not budget decision.")
+    st.caption("Compares today/latest forecast against the best same-time benchmark among STLY / ST2Y / ST3Y. Variance % is colored for presentation clarity.")
 
     if pace_summary.empty:
         st.info("No pace data.")
