@@ -4405,37 +4405,8 @@ def style_pace_variance_table(df):
 # ── Page title — use native st.markdown h2, never custom <p>
 # ── (custom HTML <p> clips against Streamlit toolbar on Cloud)
 # ─────────────────────────────────────────────────────────────
-if _LOGO_B64:
-    st.markdown(
-        f"""
-        <div style="display:flex;align-items:center;gap:12px;
-                    margin-bottom:4px;padding-bottom:2px;">
-            <img
-                src="data:image/png;base64,{_LOGO_B64}"
-                style="
-                    width: 38px;
-                    height: 38px;
-                    border-radius: 8px;
-                    object-fit: cover;
-                    flex-shrink: 0;
-                "
-            />
-            <div style="display:flex;flex-direction:column;justify-content:center;">
-                <span style="font-size:1.28rem;font-weight:700;color:#111;
-                             letter-spacing:-0.01em;line-height:1.25;">
-                    Revenue Briefing
-                </span>
-                <span style="font-size:0.8rem;color:#999;margin-top:1px;">
-                    G5 Hotels &nbsp;&middot;&nbsp; D4cast daily forecast review
-                </span>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-else:
-    st.markdown("## Revenue Briefing")
-    st.caption("G5 Hotels · D4cast daily forecast review")
+st.markdown("## Revenue Briefing")
+st.caption("G5 Hotels · D4cast daily forecast review")
 
 # ── Sidebar ───────────────────────────────────────────────────
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
