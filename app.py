@@ -3411,6 +3411,99 @@ def _latest_budget_totals_for_metric_v39(metric_data, role_selection, metric_nam
     return forecast, budget, variance, variance_pct
 
 
+KPI_AXIS_MAP = {
+    "On The Book": "Today OTB",
+    "Budget": "Budget",
+    "Forecast": "Forecast",
+}
+KPI_AXIS_ORDER = list(KPI_AXIS_MAP)
+
+
+def sum_kpi_axis_values(budget_df, selected_axes):
+    return {
+        axis: budget_df[KPI_AXIS_MAP[axis]].sum(min_count=1)
+        if KPI_AXIS_MAP[axis] in budget_df.columns
+        else None
+        for axis in selected_axes
+    }
+
+
+def kpi_pair_variance(axis_a, axis_b, axis_values):
+    if "Budget" in [axis_a, axis_b]:
+        base_axis = "Budget"
+        compare_axis = axis_b if axis_a == "Budget" else axis_a
+    else:
+        axis_a_index = KPI_AXIS_ORDER.index(axis_a)
+        axis_b_index = KPI_AXIS_ORDER.index(axis_b)
+        base_axis, compare_axis = (axis_a, axis_b) if axis_a_index < axis_b_index else (axis_b, axis_a)
+
+    base_value = axis_values.get(base_axis)
+    compare_value = axis_values.get(compare_axis)
+    variance = None if pd.isna(compare_value) or pd.isna(base_value) else compare_value - base_value
+    variance_pct = (
+        variance / base_value * 100
+        if variance is not None and pd.notna(base_value) and base_value != 0
+        else None
+    )
+    return compare_axis, base_axis, variance, variance_pct
+
+
+def render_kpi_variance_card(container, label, variance, variance_pct, show_abs=False):
+    bg, border, text, _ = revenue_status_colors(variance)
+    value = fmt_raw2(variance) if show_abs else fmt_signed_pct2(variance_pct)
+    detail = fmt_signed_pct2(variance_pct) if show_abs else "Variance %"
+    container.markdown(
+        f"""
+        <div style="
+            background:{bg};
+            color:{text};
+            border-left:6px solid {border};
+            border-radius:8px;
+            min-height:120px;
+            padding:14px 16px;
+            margin-bottom:10px;
+        ">
+            <div style="font-size:0.88rem; font-weight:700;">{label}</div>
+            <div style="font-size:clamp(1.05rem, 1.45vw, 1.75rem); font-weight:800; margin-top:8px;">{value}</div>
+            <div style="font-size:0.86rem; font-weight:700; margin-top:6px;">{detail}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_kpi_axis_cards(budget_df, selected_axes):
+    axis_values = sum_kpi_axis_values(budget_df, selected_axes)
+    pairs = [
+        (selected_axes[left], selected_axes[right])
+        for left in range(len(selected_axes))
+        for right in range(left + 1, len(selected_axes))
+    ]
+
+    cards = [("value", axis) for axis in selected_axes]
+    if len(selected_axes) == 2:
+        cards.extend([("variance_abs", pairs[0]), ("variance_pct", pairs[0])])
+    else:
+        cards.extend([("variance_pct", pair) for pair in pairs])
+
+    cols = st.columns(len(cards))
+    for col, card in zip(cols, cards):
+        card_type, data = card
+        if card_type == "value":
+            col.metric(data, fmt_raw2(axis_values.get(data)))
+            continue
+
+        compare_axis, base_axis, variance, variance_pct = kpi_pair_variance(data[0], data[1], axis_values)
+        label = f"{compare_axis} vs {base_axis}" if card_type == "variance_abs" else f"{compare_axis} vs {base_axis} %"
+        render_kpi_variance_card(
+            col,
+            label,
+            variance,
+            variance_pct,
+            show_abs=(card_type == "variance_abs"),
+        )
+
+
 def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
     """
     Correct Budget-first KPI cards.
@@ -3421,6 +3514,18 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
     Formula:
     Variance % = (Forecast - Budget) / Budget * 100
     """
+    selected_axes = st.multiselect(
+        "Compare",
+        KPI_AXIS_ORDER,
+        default=["Budget", "Forecast"],
+        key="kpi_axis_selector",
+        help="Select 2 or 3 values to compare side by side.",
+    )
+
+    if len(selected_axes) < 2:
+        st.warning("Select at least 2 values to compare.")
+        return
+
     kpi_mode = st.radio(
         "KPI view",
         ["Executive Rev", "Detailed by Metric"],
@@ -3429,45 +3534,26 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
         key="budget_first_kpi_mode_v39",
     )
 
-    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget × 100.")
+    st.caption("Budget is the denominator whenever it is part of a comparison.")
+
+    budget_df = build_budget_review(metric_data, role_selection)
+    if budget_df.empty:
+        st.info("No Budget data found.")
+        return
 
     if kpi_mode == "Executive Rev":
-        budget_df = build_budget_review(metric_data, role_selection)
-
-        if budget_df.empty:
-            st.info("No Budget data found.")
-            return
-
         rev_df = budget_df[budget_df["Metric"] == "Rev"].copy()
-        if rev_df.empty:
-            rev_df = budget_df.copy()
+        render_kpi_axis_cards(rev_df if not rev_df.empty else budget_df, selected_axes)
+        return
 
-        budget = rev_df["Budget"].sum()
-        forecast = rev_df["Forecast"].sum()
-        variance, variance_pct = calc_budget_variance(forecast, budget)
-
-        cols = st.columns([1.25, 1.25, 1.1, 1.1])
-        cols[0].metric("Revenue Budget", fmt_raw2(budget))
-        cols[1].metric("Revenue Forecast", fmt_raw2(forecast))
-        cols[2].metric("Variance vs Budget", fmt_raw2(variance), budget_delta_text(variance_pct))
-        cols[3].metric("Variance vs Budget %", fmt_pct2(variance_pct))
-
-    else:
-        metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
-
-        for m in metrics_to_show:
-            forecast, budget, variance, variance_pct = _latest_budget_totals_for_metric_v39(
-                metric_data=metric_data,
-                role_selection=role_selection,
-                metric_name=m,
-            )
-
-            st.markdown(f"#### {m}")
-            cols = st.columns([1.25, 1.25, 1.1, 1.1])
-            cols[0].metric("Budget", fmt_raw2(budget))
-            cols[1].metric("Latest Forecast", fmt_raw2(forecast))
-            cols[2].metric("Variance vs Budget", fmt_raw2(variance), budget_delta_text(variance_pct))
-            cols[3].metric("Variance vs Budget %", fmt_pct2(variance_pct))
+    metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
+    for metric_name in metrics_to_show:
+        st.markdown(f"#### {metric_name}")
+        metric_df = budget_df[budget_df["Metric"] == metric_name].copy()
+        if metric_df.empty:
+            st.info(f"No KPI data found for {metric_name}.")
+            continue
+        render_kpi_axis_cards(metric_df, selected_axes)
 
 
 
