@@ -14,12 +14,27 @@ import io
 import zipfile
 import tempfile
 import re
+import base64
 from pathlib import Path
 from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+import plotly.graph_objects as go
+
+
+# ============================================================
+# Logo loader — base64-encodes assets/logo.png at startup
+# Works on both local and Streamlit Cloud (no static file server needed)
+# ============================================================
+def _load_logo_b64() -> str | None:
+    logo_path = Path(__file__).parent / "assets" / "logo.png"
+    if logo_path.exists():
+        return base64.b64encode(logo_path.read_bytes()).decode()
+    return None
+
+_LOGO_B64 = _load_logo_b64()
 
 
 # ============================================================
@@ -3508,6 +3523,196 @@ def style_revenue_variance_table(show_df, raw_df, value_col, status_cols=None):
 
 
 
+# ============================================================
+# Leaderboard by Stay Month
+# ============================================================
+
+def build_leaderboard_by_month(
+    metric_long, role_selection, selected_hotels,
+    stay_month_selection, lb_metric, rank_by
+):
+    """
+    Rank hotels per Stay Month by the chosen metric.
+    rank_by = "Budget Variance %" → rank 1 = most behind budget (needs attention)
+    rank_by = "Today OTB" / "Forecast" → rank 1 = highest value (best performer)
+    """
+    base = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    base = apply_stay_month_filter(base, stay_month_selection)
+    budget_df = build_budget_review(base, role_selection)
+
+    if budget_df.empty:
+        return pd.DataFrame()
+
+    if lb_metric != "All Metrics":
+        budget_df = budget_df[budget_df["Metric"] == lb_metric].copy()
+
+    if budget_df.empty:
+        return pd.DataFrame()
+
+    budget_df = budget_df.copy()
+    budget_df["Hotel Short"] = budget_df["Hotel"].apply(short_hotel_name)
+    budget_df["_month_sort"] = budget_df["Stay Month"].apply(month_sort_key)
+
+    # Rank within each Stay Month
+    # Budget Variance % ascending=True  → most negative = rank 1 (most behind)
+    # OTB / Forecast    ascending=False → highest = rank 1 (strongest)
+    asc_rank = (rank_by == "Budget Variance %")
+    rank_col = rank_by if rank_by in budget_df.columns else "Today OTB"
+    budget_df["Rank"] = (
+        budget_df.groupby("Stay Month")[rank_col]
+        .rank(method="dense", ascending=asc_rank)
+        .astype(int)
+    )
+
+    budget_df = budget_df.sort_values(
+        ["_month_sort", "Rank"], ascending=[True, True]
+    ).drop(columns=["_month_sort"])
+
+    return budget_df
+
+
+def render_leaderboard_by_month(
+    metric_long, role_selection, selected_hotels, stay_month_selection
+):
+    """Plotly-table leaderboard, one table per Stay Month."""
+    st.markdown(
+        '<div class="section-title">Hotel Leaderboard by Stay Month</div>',
+        unsafe_allow_html=True,
+    )
+    st.caption(
+        "Hotels ranked per stay month. "
+        "Budget Variance % cells: green = above budget · red = below budget. "
+        "Rank 1 = highest OTB/Forecast, or most behind budget when ranked by Variance %."
+    )
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    lb_metric = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR"],
+        index=0,
+        key="lb_metric",
+    )
+    rank_by = c2.selectbox(
+        "Rank by",
+        ["Today OTB", "Budget Variance %", "Forecast"],
+        index=0,
+        key="lb_rank_by",
+    )
+    max_months = c3.selectbox(
+        "Show months",
+        ["Current + Next 2", "All months"],
+        index=0,
+        key="lb_max_months",
+    )
+
+    lb_data = build_leaderboard_by_month(
+        metric_long, role_selection, selected_hotels,
+        stay_month_selection, lb_metric, rank_by,
+    )
+
+    if lb_data.empty:
+        st.info("No leaderboard data for selected filters.")
+        return pd.DataFrame()
+
+    stay_months = sorted(
+        lb_data["Stay Month"].dropna().unique(), key=month_sort_key
+    )
+    if max_months == "Current + Next 2":
+        stay_months = stay_months[:3]
+
+    # ── Cell color helper ────────────────────────────────────
+    def _var_color(val):
+        if pd.isna(val):  return "#dbeafe"
+        if val > 0:       return "#bbf7d0"
+        if val < 0:       return "#fecaca"
+        return "#fef08a"
+
+    def _fmt(val):
+        return fmt_raw2(val) if pd.notna(val) else "—"
+
+    def _fmt_pct(val):
+        return fmt_signed_pct2(val) if pd.notna(val) else "—"
+
+    # ── One Plotly table per Stay Month ──────────────────────
+    for stay_month in stay_months:
+        grp = lb_data[lb_data["Stay Month"] == stay_month].sort_values("Rank")
+        if grp.empty:
+            continue
+
+        n = len(grp)
+        colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
+        colors_otb  = ["#f0f7ff"] * n
+        colors_fct  = ["#eef2ff"] * n
+        colors_rank = ["#f8fafc"] * n
+        colors_name = ["#f1f5f9"] * n
+        colors_bgt  = ["#fafafa"] * n
+
+        # Rank badge: gold / silver / bronze for top 3
+        rank_display = []
+        badges = {1: "🥇", 2: "🥈", 3: "🥉"}
+        for r in grp["Rank"]:
+            rank_display.append(badges.get(r, str(r)))
+
+        fig = go.Figure(data=[go.Table(
+            columnwidth=[44, 140, 105, 105, 105, 105, 105],
+            header=dict(
+                values=[
+                    "<b>#</b>",
+                    "<b>Hotel</b>",
+                    "<b>Today OTB</b>",
+                    "<b>Budget</b>",
+                    "<b>Forecast</b>",
+                    "<b>vs Budget %</b>",
+                    "<b>vs Budget</b>",
+                ],
+                fill_color="#1e293b",
+                font=dict(color="white", size=12),
+                align=["center", "left", "right", "right", "right", "center", "right"],
+                height=34,
+            ),
+            cells=dict(
+                values=[
+                    rank_display,
+                    grp["Hotel Short"].tolist(),
+                    [_fmt(v) for v in grp["Today OTB"]],
+                    [_fmt(v) for v in grp["Budget"]],
+                    [_fmt(v) for v in grp["Forecast"]],
+                    [_fmt_pct(v) for v in grp["Budget Variance %"]],
+                    [_fmt(v) for v in grp["Budget Variance"]],
+                ],
+                fill_color=[
+                    colors_rank,
+                    colors_name,
+                    colors_otb,
+                    colors_bgt,
+                    colors_fct,
+                    colors_var,
+                    colors_var,
+                ],
+                font=dict(size=12),
+                align=["center", "left", "right", "right", "right", "center", "right"],
+                height=32,
+            ),
+        )])
+
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=0, b=4),
+            height=max(100, 38 + 32 * n),
+            paper_bgcolor="rgba(0,0,0,0)",
+        )
+
+        safe_key = re.sub(r"[^A-Za-z0-9]", "_", f"{stay_month}_{lb_metric}_{rank_by}")
+        st.markdown(f"#### {stay_month}")
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={"displaylogo": False},
+            key=f"lb_{safe_key}",
+        )
+
+    return lb_data
+
+
 def render_forecast_movement_table_only(metric_data, role_selection):
     """
     Presentation-friendly Forecast Movement page.
@@ -4200,8 +4405,37 @@ def style_pace_variance_table(df):
 # ── Page title — use native st.markdown h2, never custom <p>
 # ── (custom HTML <p> clips against Streamlit toolbar on Cloud)
 # ─────────────────────────────────────────────────────────────
-st.markdown("## Revenue Briefing")
-st.caption("G5 Hotels · D4cast daily forecast review")
+if _LOGO_B64:
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:2px;">
+            <img
+                src="data:image/png;base64,{_LOGO_B64}"
+                style="
+                    width: 42px;
+                    height: 42px;
+                    border-radius: 8px;
+                    object-fit: cover;
+                    flex-shrink: 0;
+                    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+                "
+            />
+            <div>
+                <div style="font-size:1.3rem;font-weight:700;color:#111;
+                            letter-spacing:-0.01em;line-height:1.2;">
+                    Revenue Briefing
+                </div>
+                <div style="font-size:0.82rem;color:#888;margin-top:1px;">
+                    G5 Hotels &middot; D4cast daily forecast review
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+else:
+    st.markdown("## Revenue Briefing")
+    st.caption("G5 Hotels · D4cast daily forecast review")
 
 # ── Sidebar ───────────────────────────────────────────────────
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
@@ -4218,6 +4452,30 @@ def hotel_key(hotel_name):
     return f"hotel_checkbox_{safe}"
 
 with st.sidebar:
+    # ── Brand logo ───────────────────────────────────────────
+    if _LOGO_B64:
+        st.markdown(
+            f"""
+            <div style="
+                text-align: center;
+                padding: 20px 12px 14px 12px;
+                margin-bottom: 4px;
+            ">
+                <img
+                    src="data:image/png;base64,{_LOGO_B64}"
+                    style="
+                        width: 88px;
+                        height: 88px;
+                        border-radius: 14px;
+                        object-fit: cover;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                    "
+                />
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     st.markdown("## Data source")
     mode = st.radio(
         "source_mode",
@@ -4458,10 +4716,11 @@ st.markdown(
 render_metric_dictionary()
 
 # ── Main tabs ─────────────────────────────────────────────────
-tab0, tab_movement, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
+tab0, tab_movement, tab_leaderboard, tab_lb, tab1, tab_analysis, tab5 = st.tabs([
     "Forecast Pivot",
     "Movement",
     "Budget Board",
+    "Leaderboard",
     "Trend",
     "Advanced",
     "Export",
@@ -4487,6 +4746,14 @@ with tab_leaderboard:
         stay_month_selection=stay_month_selection,
     )
 
+
+with tab_lb:
+    render_leaderboard_by_month(
+        metric_long=metric_long,
+        role_selection=role_selection,
+        selected_hotels=selected_hotels,
+        stay_month_selection=stay_month_selection,
+    )
 
 
 with tab1:
