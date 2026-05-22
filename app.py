@@ -2737,7 +2737,7 @@ def render_forecast_trend_by_month_v3(metric_data):
     trend_months = c2.multiselect(
         "Select Stay Months",
         options=month_options,
-        default=month_options,
+        default=month_options[:1],
         key="trend_v3_month_filter",
         help="Select one or more stay months for this trend chart.",
     )
@@ -2778,16 +2778,52 @@ def render_forecast_trend_by_month_v3(metric_data):
         markers=True,
         text="Label",
         title=f"Forecast Trend by Stay Month ({metric_choice})",
+        render_mode="webgl",
     )
-    fig.update_traces(textposition="top center")
+    fig.update_traces(
+        textposition="top center",
+        line=dict(width=2),
+        marker=dict(size=6),
+    )
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
-        xaxis=dict(title="Report Date", tickformat="%d %b", showgrid=True, gridcolor="#f1f5f9"),
-        yaxis=dict(title="Forecast", showgrid=True, gridcolor="#f1f5f9"),
-        legend_title_text="Stay Month",
-        margin=dict(l=20, r=20, t=60, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            title="Report Date",
+            tickformat="%d %b",
+            showgrid=True,
+            gridcolor="#f0f0f0",
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title="Forecast",
+            showgrid=True,
+            gridcolor="#f0f0f0",
+            zeroline=False,
+        ),
+        legend=dict(
+            title="Stay Month",
+            orientation="v",
+            x=1.01,
+            y=1,
+            bgcolor="rgba(0,0,0,0)",
+            bordercolor="#e4e4e4",
+            borderwidth=1,
+        ),
+        margin=dict(l=20, r=20, t=50, b=20),
+        height=400,
+        hovermode="x unified",
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displaylogo": False}, key="forecast_trend_v3")
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displaylogo": False,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+            "scrollZoom": False,
+        },
+        key="forecast_trend_v3",
+    )
 
     with st.expander("Trend data"):
         show = trend.copy()
@@ -4061,10 +4097,10 @@ with st.sidebar:
         # Hotels — Duetto-style property list
         st.markdown("#### Properties")
 
-        # Init individual hotel states
+        # Init individual hotel states — default: only Altera selected
         for h in all_hotels:
             if hotel_key(h) not in st.session_state:
-                st.session_state[hotel_key(h)] = True
+                st.session_state[hotel_key(h)] = "altera" in str(h).lower()
 
         # Sync "All Properties" master toggle state before rendering
         _all_sel = all(st.session_state.get(hotel_key(h), True) for h in all_hotels)
@@ -4513,6 +4549,7 @@ with tab_analysis:
         pace_layout = st.radio(
                 "Layout",
                 ["Compact table", "Cards"],
+                index=1,
                 horizontal=True,
                 key="pace_compact_layout",
             )
