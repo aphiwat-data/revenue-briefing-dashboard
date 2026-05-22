@@ -2725,7 +2725,7 @@ def render_forecast_trend_by_month_v3(metric_data):
 
     month_options = sorted(d4["Stay Month"].dropna().unique(), key=month_sort_key)
 
-    c1, c2, c3 = st.columns([1, 1.5, 1])
+    c1, c2, c3, c4 = st.columns([1, 1.5, 1, 0.9])
 
     metric_choice = c1.selectbox(
         "Metric",
@@ -2749,6 +2749,14 @@ def render_forecast_trend_by_month_v3(metric_data):
         key="trend_v3_labels",
     )
 
+    view_mode = c4.selectbox(
+        "View",
+        ["Value", "Daily % Change"],
+        index=0,
+        key="trend_v3_view_mode",
+        help="Daily % Change = (today − yesterday) / yesterday × 100 per stay month",
+    )
+
     view = d4.copy()
 
     if metric_choice != "All Metrics":
@@ -2760,24 +2768,53 @@ def render_forecast_trend_by_month_v3(metric_data):
         st.info("No trend data for selected filters.")
         return pd.DataFrame()
 
-    trend = view.groupby(["Report Date", "Stay Month"], as_index=False)["Value"].sum().sort_values("Report Date")
+    trend = (
+        view.groupby(["Report Date", "Stay Month"], as_index=False)["Value"]
+        .sum()
+        .sort_values(["Stay Month", "Report Date"])
+    )
+
+    # ── Daily % Change mode ───────────────────────────────────
+    is_pct_mode = (view_mode == "Daily % Change")
+    if is_pct_mode:
+        trend["Pct Change"] = (
+            trend.groupby("Stay Month")["Value"]
+            .pct_change() * 100
+        )
+        trend = trend.dropna(subset=["Pct Change"]).copy()
+        plot_col   = "Pct Change"
+        y_title    = "Daily % Change"
+        chart_title = f"Daily % Change — Forecast by Stay Month ({metric_choice})"
+    else:
+        plot_col   = "Value"
+        y_title    = "Forecast"
+        chart_title = f"Forecast Trend by Stay Month ({metric_choice})"
+
+    # ── Point labels ─────────────────────────────────────────
+    def _fmt_label(val):
+        if pd.isna(val):
+            return ""
+        return f"{val:+.2f}%" if is_pct_mode else fmt_raw2(val)
 
     if label_mode == "All points":
-        trend["Label"] = trend["Value"].apply(fmt_raw2)
+        trend["Label"] = trend[plot_col].apply(_fmt_label)
     elif label_mode == "Latest point only":
         latest_date = trend["Report Date"].max()
-        trend["Label"] = trend.apply(lambda r: fmt_raw2(r["Value"]) if r["Report Date"] == latest_date else "", axis=1)
+        trend["Label"] = trend.apply(
+            lambda r: _fmt_label(r[plot_col]) if r["Report Date"] == latest_date else "",
+            axis=1,
+        )
     else:
         trend["Label"] = ""
 
     fig = px.line(
         trend,
         x="Report Date",
-        y="Value",
+        y=plot_col,
         color="Stay Month",
         markers=True,
         text="Label",
-        title=f"Forecast Trend by Stay Month ({metric_choice})",
+        title=chart_title,
         render_mode="webgl",
     )
     fig.update_traces(
@@ -2796,10 +2833,13 @@ def render_forecast_trend_by_month_v3(metric_data):
             zeroline=False,
         ),
         yaxis=dict(
-            title="Forecast",
+            title=y_title,
             showgrid=True,
             gridcolor="#f0f0f0",
-            zeroline=False,
+            zeroline=is_pct_mode,
+            zerolinecolor="#999",
+            zerolinewidth=1,
+            ticksuffix="%" if is_pct_mode else "",
         ),
         legend=dict(
             title="Stay Month",
@@ -3627,10 +3667,12 @@ def _latest_budget_totals_for_metric_v39(metric_data, role_selection, metric_nam
 
 
 KPI_AXIS_MAP = {
-    "On The Book": "Today OTB",
     "Budget": "Budget",
     "Forecast": "Forecast",
+    "On The Book": "Today OTB",
 }
+# Order determines base axis: earlier = base.
+# Forecast before OTB → "On The Book vs Forecast" (OTB is compare, Forecast is base)
 KPI_AXIS_ORDER = list(KPI_AXIS_MAP)
 
 
