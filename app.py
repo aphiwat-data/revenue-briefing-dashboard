@@ -120,7 +120,8 @@ st.markdown(
         margin: 8px 0 16px 0;
     }
     .filter-bar b { color: #111; font-weight: 600; }
-    .filter-sep { color: #ccc; margin: 0 3px; }
+    .filter-label { color: #555; font-size: 0.79rem; font-weight: 500; margin-right: 2px; }
+    .filter-sep { color: #bbb; margin: 0 4px; }
 
     /* ── KPI cards ───────────────────────────────────────── */
     div[data-testid="stMetric"] {
@@ -4164,11 +4165,11 @@ hotel_momentum = (
 # ── Filter context bar ────────────────────────────────────────
 st.markdown(
     f'<div class="filter-bar">'
-    f'<span class="filter-sep">Metric</span> <b>{selected_metric}</b>'
+    f'<span class="filter-label">Metric</span> <b>{selected_metric}</b>'
     f'<span class="filter-sep"> · </span>'
-    f'<span class="filter-sep">Stay</span> <b>{stay_month_label(stay_month_selection)}</b>'
+    f'<span class="filter-label">Stay</span> <b>{stay_month_label(stay_month_selection)}</b>'
     f'<span class="filter-sep"> · </span>'
-    f'<span class="filter-sep">Properties</span> <b>{len(selected_hotels)}</b>'
+    f'<span class="filter-label">Properties</span> <b>{len(selected_hotels)}</b>'
     f'</div>',
     unsafe_allow_html=True,
 )
@@ -4339,7 +4340,7 @@ with tab1:
             x="Report Date",
             y="Hotel",
             size="Bubble Size",
-            color="Daily Change",
+            color="Daily Change %",
             hover_data={
                 "Report Label": True,
                 "Latest D4cast": ":,.2f",
@@ -4348,8 +4349,9 @@ with tab1:
                 "Daily PU %": ":.2f",
                 "Bubble Size": False,
             },
-            title=f"Hotel-level Forecast Momentum / Daily PU ({selected_metric})",
+            title=f"Hotel-level Forecast Momentum / Daily % ({selected_metric})",
             color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
+            color_continuous_midpoint=0,
             size_max=34,
         )
 
@@ -4371,7 +4373,7 @@ with tab1:
             ),
             height=max(420, 46 * bubble_view["Hotel"].nunique()),
             margin=dict(l=20, r=20, t=60, b=20),
-            coloraxis_colorbar=dict(title="Daily PU"),
+            coloraxis_colorbar=dict(title="Daily %", ticksuffix="%"),
         )
 
         fig_hotel.update_traces(
