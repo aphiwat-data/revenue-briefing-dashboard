@@ -38,7 +38,7 @@ st.markdown(
     <style>
     /* ================================================================
        G5 Revenue Dashboard — Readable Design System
-       Text scale: ไม่ต่ำกว่า 12px (0.75rem) ที่ใดก็ตาม
+       Text scale: minimum 12px (0.75rem) everywhere
        Color scale: secondary ≥ #555, labels ≥ #666, captions ≥ #888
        ================================================================ */
 
@@ -2874,14 +2874,14 @@ def render_forecast_trend_by_month_v3(metric_data):
 
 
 # ============================================================
-# Revenue Momentum % Change — กราฟแสดง % เปลี่ยนแปลง
-# (revenue_t - revenue_{t-1}) / revenue_{t-1} × 100 ต่อวัน
+# Revenue Momentum % Change chart
+# Formula: (revenue_t - revenue_{t-1}) / revenue_{t-1} × 100 per day
 # ============================================================
 def render_revenue_momentum_pct_chart(metric_data):
     st.markdown('<div class="section-title">Revenue Momentum — Daily % Change</div>', unsafe_allow_html=True)
     st.caption(
-        "แต่ละแท่ง = (Forecast วันนี้ − Forecast เมื่อวาน) ÷ Forecast เมื่อวาน × 100  "
-        "— 🟢 บวก = forecast เพิ่ม  🔴 ลบ = forecast ลด"
+        "Each bar = (Today's Forecast − Yesterday's Forecast) ÷ Yesterday's Forecast × 100  "
+        "— Green: forecast up  ·  Red: forecast down"
     )
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -4198,18 +4198,18 @@ def style_pace_variance_table(df):
 # ============================================================
 
 # ── Page title — use native st.markdown h2, never custom <p>
-# ── (custom HTML <p> ชนขอบ Streamlit toolbar บน Cloud)
+# ── (custom HTML <p> clips against Streamlit toolbar on Cloud)
 # ─────────────────────────────────────────────────────────────
 st.markdown("## Revenue Briefing")
 st.caption("G5 Hotels · D4cast daily forecast review")
 
 # ── Sidebar ───────────────────────────────────────────────────
-# RULE: ห้าม st.stop() ใน main area ก่อน with st.sidebar: ทำงาน
-# เพราะ stop ใน main area = sidebar ไม่ render = widget หาย
-# วิธีที่ถูก: ให้ sidebar รันเสร็จก่อน แล้วค่อย check ใน main area
+# RULE: never call st.stop() in main area before with st.sidebar: completes.
+# Reason: stop in main area = sidebar never renders = widgets disappear.
+# Correct pattern: let sidebar finish first, then guard-check in main area.
 # ─────────────────────────────────────────────────────────────
 
-# Default values — จะถูก overwrite ใน sidebar ถ้าข้อมูลโหลดได้
+# Default values — overwritten by sidebar once data is loaded
 file_catalog = None
 mode = "Upload"
 
@@ -4242,7 +4242,7 @@ with st.sidebar:
             st.caption(f"{len(file_catalog)} files found")
         except Exception as e:
             st.error(str(e))
-            # file_catalog ยัง None — จะ stop ใน main area ด้านล่าง
+            # file_catalog stays None — main area guard will stop rendering
     else:
         uploaded = st.file_uploader(
             "Files",
@@ -4255,9 +4255,9 @@ with st.sidebar:
             file_catalog = build_file_catalog_from_uploads(uploaded)
         else:
             st.caption("Drop files above to begin.")
-            # file_catalog ยัง None — จะ stop ใน main area ด้านล่าง
+            # file_catalog stays None — main area guard will stop rendering
 
-    # ── Filters (แสดงเฉพาะเมื่อข้อมูลพร้อม) ──────────────
+    # ── Filters (shown only when data is ready) ────────────
     if file_catalog is not None:
         st.divider()
         st.markdown("## Filters")
@@ -4282,7 +4282,7 @@ with st.sidebar:
             ref_col_map = build_ref_col_map(combined_df)
             if not ref_col_map.get("Duetto"):
                 st.error("No Forecast / Duetto columns found.")
-                file_catalog = None  # reset → main area จะ stop
+                file_catalog = None  # reset → main area guard will stop
             else:
                 metric_long = build_metric_long(combined_df, ref_col_map)
 
