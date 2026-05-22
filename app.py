@@ -66,7 +66,7 @@ st.markdown(
 
     /* ── Global font readable baseline ──────────────────── */
     html, body, [class*="css"] {
-        font-size: 14px;
+        font-size: 15px;
         color: #111;
     }
 
@@ -77,7 +77,7 @@ st.markdown(
     }
     /* "DATA SOURCE", "FILTERS" — section dividers */
     [data-testid="stSidebar"] .stMarkdown h2 {
-        font-size: 0.72rem !important;
+        font-size: 0.76rem !important;
         font-weight: 700 !important;
         text-transform: uppercase !important;
         letter-spacing: 0.08em !important;
@@ -88,19 +88,19 @@ st.markdown(
     }
     /* "Stay month", "Hotels", "Metric" */
     [data-testid="stSidebar"] .stMarkdown h4 {
-        font-size: 0.8rem !important;
+        font-size: 0.86rem !important;
         font-weight: 600 !important;
         color: #333 !important;
         margin: 0.9rem 0 0.25rem !important;
     }
     [data-testid="stSidebar"] label {
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
         color: #333 !important;
         font-weight: 400 !important;
     }
     [data-testid="stSidebar"] .stCaption,
     [data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
-        font-size: 0.78rem !important;
+        font-size: 0.82rem !important;
         color: #888 !important;
     }
     [data-testid="stSidebar"] hr {
@@ -108,13 +108,13 @@ st.markdown(
         margin: 0.6rem 0 !important;
     }
     [data-testid="stSidebar"] .stButton > button {
-        font-size: 0.82rem !important;
+        font-size: 0.88rem !important;
         border-radius: 5px !important;
     }
 
     /* ── Page h2 title ───────────────────────────────────── */
     .block-container h2 {
-        font-size: 1.3rem !important;
+        font-size: 1.45rem !important;
         font-weight: 700 !important;
         color: #111 !important;
         letter-spacing: -0.01em !important;
@@ -130,12 +130,12 @@ st.markdown(
         border: 1px solid #e4e4e4;
         border-radius: 4px;
         padding: 5px 12px;
-        font-size: 0.82rem;
+        font-size: 0.88rem;
         color: #555;
         margin: 8px 0 16px 0;
     }
     .filter-bar b { color: #111; font-weight: 600; }
-    .filter-label { color: #555; font-size: 0.79rem; font-weight: 500; margin-right: 2px; }
+    .filter-label { color: #555; font-size: 0.86rem; font-weight: 500; margin-right: 2px; }
     .filter-sep { color: #bbb; margin: 0 4px; }
 
     /* ── KPI cards ───────────────────────────────────────── */
@@ -146,21 +146,21 @@ st.markdown(
         padding: 14px 18px 12px 18px;
     }
     div[data-testid="stMetricLabel"] {
-        font-size: 0.74rem !important;
+        font-size: 0.8rem !important;
         font-weight: 600 !important;
         text-transform: uppercase !important;
         letter-spacing: 0.06em !important;
         color: #666 !important;
     }
     div[data-testid="stMetricValue"] {
-        font-size: clamp(1.1rem, 1.4vw, 1.55rem) !important;
+        font-size: clamp(1.2rem, 1.5vw, 1.65rem) !important;
         font-weight: 700 !important;
         color: #111 !important;
         letter-spacing: -0.01em !important;
         line-height: 1.2 !important;
     }
     div[data-testid="stMetricDelta"] {
-        font-size: 0.8rem !important;
+        font-size: 0.86rem !important;
         font-weight: 500 !important;
     }
 
@@ -170,7 +170,7 @@ st.markdown(
         border: 1px solid #d9d9d9 !important;
         border-radius: 4px !important;
         padding: 4px 12px 4px 8px !important;
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
         color: #333 !important;
         transition: all 0.15s !important;
@@ -187,7 +187,7 @@ st.markdown(
 
     /* ── Section titles ──────────────────────────────────── */
     .section-title {
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         font-weight: 600;
         color: #111;
         margin: 1.25rem 0 0.6rem 0;
@@ -207,7 +207,7 @@ st.markdown(
         border-bottom: 2px solid transparent !important;
         border-radius: 0 !important;
         padding: 10px 18px !important;
-        font-size: 0.875rem !important;
+        font-size: 0.92rem !important;
         font-weight: 500 !important;
         color: #666 !important;
         margin-bottom: -1px !important;
@@ -232,7 +232,7 @@ st.markdown(
     /* ── Buttons ─────────────────────────────────────────── */
     .stButton > button {
         border-radius: 5px !important;
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
     }
     .stButton > button[kind="primary"] {
@@ -247,12 +247,12 @@ st.markdown(
 
     /* ── Radio buttons ───────────────────────────────────── */
     .stRadio [data-testid="stWidgetLabel"] {
-        font-size: 0.78rem !important;
+        font-size: 0.82rem !important;
         font-weight: 600 !important;
         color: #555 !important;
     }
     .stRadio label {
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
         color: #333 !important;
     }
 
@@ -272,7 +272,7 @@ st.markdown(
         align-items: center;
         gap: 16px;
         margin: 8px 0 16px 0;
-        font-size: 0.8rem;
+        font-size: 0.84rem;
         color: #555;
     }
     .legend-dot {
@@ -284,14 +284,14 @@ st.markdown(
     }
 
     /* ── Status cards (inline HTML blocks) ───────────────── */
-    .rev-card-good  { background: #f6ffed; border-left: 3px solid #389e0d; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
-    .rev-card-bad   { background: #fff1f0; border-left: 3px solid #cf1322; color: #7f0000; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
-    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #d48806; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
-    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #096dd9; color: #003a8c; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
+    .rev-card-good  { background: #f6ffed; border-left: 3px solid #389e0d; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
+    .rev-card-bad   { background: #fff1f0; border-left: 3px solid #cf1322; color: #7f0000; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
+    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #d48806; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
+    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #096dd9; color: #003a8c; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
 
     /* ── Expanders ───────────────────────────────────────── */
     .streamlit-expanderHeader {
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
         color: #333 !important;
         background: #f7f7f7 !important;
@@ -303,12 +303,12 @@ st.markdown(
     .stSelectbox > div > div { border-radius: 5px !important; }
     .stTextInput > div > div > input {
         border-radius: 5px !important;
-        font-size: 0.84rem !important;
+        font-size: 0.9rem !important;
     }
 
     /* ── Captions (global) ───────────────────────────────── */
     .stCaption, div[data-testid="stCaptionContainer"] {
-        font-size: 0.78rem !important;
+        font-size: 0.82rem !important;
         color: #888 !important;
     }
 
@@ -332,7 +332,7 @@ st.markdown(
         border-radius: 4px !important;
         border: none !important;
         background: transparent !important;
-        font-size: 0.84rem !important;
+        font-size: 0.88rem !important;
         color: #333 !important;
         font-weight: 400 !important;
         gap: 8px !important;
@@ -4445,12 +4445,12 @@ with st.sidebar:
                         flex-shrink: 0;
                     "
                 />
-                <div style="line-height: 1.3;">
-                    <div style="font-size:0.78rem;font-weight:700;
-                                color:#222;letter-spacing:0.04em;">
+                <div style="line-height: 1.35;">
+                    <div style="font-size:0.95rem;font-weight:700;
+                                color:#111;letter-spacing:0.03em;">
                         ATMIND GROUP
                     </div>
-                    <div style="font-size:0.68rem;color:#999;">
+                    <div style="font-size:0.78rem;color:#888;">
                         Revenue Dashboard
                     </div>
                 </div>
