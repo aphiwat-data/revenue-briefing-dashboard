@@ -44,7 +44,7 @@ st.markdown(
 
     /* ── Layout & spacing ────────────────────────────────── */
     .block-container {
-        padding-top: 1.75rem;
+        padding-top: 2.5rem;
         padding-bottom: 2.5rem;
         max-width: 97%;
     }
@@ -92,18 +92,13 @@ st.markdown(
         padding: 0 10px !important;
     }
 
-    /* ── Page title ──────────────────────────────────────── */
-    .page-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        color: #1a1a1a;
-        margin: 0 0 2px 0;
-        letter-spacing: -0.01em;
-    }
-    .page-sub {
-        font-size: 0.8rem;
-        color: #8c8c8c;
-        margin: 0;
+    /* ── Page title (native st.markdown "## ...") ──────────── */
+    /* ใช้ h2 native เพื่อให้ Streamlit จัดการ spacing เองบน Cloud */
+    .block-container h2 {
+        font-size: 1.3rem !important;
+        font-weight: 600 !important;
+        color: #1a1a1a !important;
+        letter-spacing: -0.01em !important;
     }
     .filter-bar {
         display: inline-flex;
@@ -3879,41 +3874,27 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-# ── Page header ──────────────────────────────────────────────
-st.markdown(
-    '<p class="page-title">Revenue Briefing</p>'
-    '<p class="page-sub">G5 Hotels · D4cast daily forecast review</p>',
-    unsafe_allow_html=True,
-)
-
-# ── Upload empty state (shown before sidebar processes) ──────
-if st.session_state.get("_show_upload_prompt"):
-    st.markdown(
-        """
-        <div style="
-            margin: 60px auto 0 auto;
-            max-width: 420px;
-            text-align: center;
-            padding: 48px 32px;
-            border: 1px dashed #d9d9d9;
-            border-radius: 8px;
-            background: #fafafa;
-        ">
-            <p style="font-size:2rem;margin:0 0 12px 0;color:#bfbfbf;">&#8679;</p>
-            <p style="font-size:1rem;font-weight:600;color:#1a1a1a;margin:0 0 6px 0;">Upload report files</p>
-            <p style="font-size:0.83rem;color:#8c8c8c;margin:0;">
-                Drop CSV / Excel daily files or one ZIP folder<br>
-                using the uploader in the sidebar
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.stop()
+# ── Page title — use native st.markdown h2, never custom <p>
+# ── (custom HTML <p> ชนขอบ Streamlit toolbar บน Cloud)
+# ─────────────────────────────────────────────────────────────
+st.markdown("## Revenue Briefing")
+st.caption("G5 Hotels · D4cast daily forecast review")
 
 # ── Sidebar ───────────────────────────────────────────────────
+# RULE: ห้าม st.stop() ใน main area ก่อน with st.sidebar: ทำงาน
+# เพราะ stop ใน main area = sidebar ไม่ render = widget หาย
+# วิธีที่ถูก: ให้ sidebar รันเสร็จก่อน แล้วค่อย check ใน main area
+# ─────────────────────────────────────────────────────────────
+
+# Default values — จะถูก overwrite ใน sidebar ถ้าข้อมูลโหลดได้
+file_catalog = None
+mode = "Upload"
+
+def hotel_key(hotel_name):
+    safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
+    return f"hotel_checkbox_{safe}"
+
 with st.sidebar:
-    # ── Data source ──
     st.markdown("## Data source")
     mode = st.radio(
         "source_mode",
@@ -3923,11 +3904,11 @@ with st.sidebar:
         key="data_source_mode",
     )
 
+    # ── Load data ──────────────────────────────────────────
     if mode == "Folder":
         folder_path = st.text_input(
             "Path",
             value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
-            label_visibility="visible",
         )
         if st.button("Refresh", use_container_width=True, type="primary"):
             st.cache_data.clear()
@@ -3938,125 +3919,147 @@ with st.sidebar:
             st.caption(f"{len(file_catalog)} files found")
         except Exception as e:
             st.error(str(e))
-            st.stop()
+            # file_catalog ยัง None — จะ stop ใน main area ด้านล่าง
     else:
         uploaded = st.file_uploader(
             "Files",
             type=["zip", "csv", "xlsx", "xls"],
             accept_multiple_files=True,
             label_visibility="visible",
-            help="Drop daily G5 CSV/Excel files, or one ZIP containing the whole folder.",
+            help="Drop daily G5 CSV/Excel files, or one ZIP.",
         )
-        if not uploaded:
-            # Show upload prompt in main area before stopping
-            st.session_state["_show_upload_prompt"] = True
-            st.stop()
-        st.session_state["_show_upload_prompt"] = False
-        file_catalog = build_file_catalog_from_uploads(uploaded)
+        if uploaded:
+            file_catalog = build_file_catalog_from_uploads(uploaded)
+        else:
+            st.caption("Drop files above to begin.")
+            # file_catalog ยัง None — จะ stop ใน main area ด้านล่าง
 
-    st.divider()
+    # ── Filters (แสดงเฉพาะเมื่อข้อมูลพร้อม) ──────────────
+    if file_catalog is not None:
+        st.divider()
+        st.markdown("## Filters")
 
-    # ── Filters ──
-    st.markdown("## Filters")
-
-    report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
-    latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
-    report_file_month = st.selectbox(
-        "Report month",
-        report_file_months,
-        index=report_file_months.index(latest_report_month),
-    )
-
-    role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
-    selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
-    selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
-
-    with st.spinner("Processing…"):
-        combined_df = pd.concat(
-            [parse_record(row) for _, row in selected_file_catalog.iterrows()],
-            ignore_index=True,
+        report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
+        latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
+        report_file_month = st.selectbox(
+            "Report month",
+            report_file_months,
+            index=report_file_months.index(latest_report_month),
         )
-        ref_col_map = build_ref_col_map(combined_df)
-        if not ref_col_map.get("Duetto"):
-            st.error("No Forecast / Duetto columns found in these files.")
-            st.stop()
-        metric_long = build_metric_long(combined_df, ref_col_map)
 
-    all_hotels = sorted(metric_long["Hotel"].dropna().unique())
-    all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
-    default_report_month = (
-        report_file_month if report_file_month in all_stay_months
-        else (all_stay_months[0] if all_stay_months else None)
-    )
+        role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
+        selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
+        selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
 
-    # Stay month
-    st.markdown("#### Stay month")
-    stay_month_mode = st.selectbox(
-        "stay_month_mode",
-        ["Report month only", "All months", "Custom"],
-        index=0,
-        label_visibility="collapsed",
-    )
+        with st.spinner("Processing…"):
+            combined_df = pd.concat(
+                [parse_record(row) for _, row in selected_file_catalog.iterrows()],
+                ignore_index=True,
+            )
+            ref_col_map = build_ref_col_map(combined_df)
+            if not ref_col_map.get("Duetto"):
+                st.error("No Forecast / Duetto columns found.")
+                file_catalog = None  # reset → main area จะ stop
+            else:
+                metric_long = build_metric_long(combined_df, ref_col_map)
 
-    if stay_month_mode == "Report month only":
-        selected_stay_months_raw = [default_report_month] if default_report_month else []
-        st.caption(default_report_month or "—")
-    elif stay_month_mode == "All months":
-        selected_stay_months_raw = all_stay_months
-        stay_month_selection = "All"
-        st.caption(f"All ({len(all_stay_months)} months)")
-    else:
-        custom_default = [default_report_month] if default_report_month else all_stay_months[:1]
-        selected_stay_months_raw = st.multiselect(
-            "Pick months",
-            options=all_stay_months,
-            default=custom_default,
+    if file_catalog is not None:
+        all_hotels = sorted(metric_long["Hotel"].dropna().unique())
+        all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
+        default_report_month = (
+            report_file_month if report_file_month in all_stay_months
+            else (all_stay_months[0] if all_stay_months else None)
+        )
+
+        # Stay month
+        st.markdown("#### Stay month")
+        stay_month_mode = st.selectbox(
+            "stay_month_mode",
+            ["Report month only", "All months", "Custom"],
+            index=0,
             label_visibility="collapsed",
         )
-        if not selected_stay_months_raw:
-            st.warning("Select at least one month.")
-            st.stop()
-        st.caption(stay_month_label(selected_stay_months_raw))
 
-    if stay_month_mode != "All months":
-        stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
+        if stay_month_mode == "Report month only":
+            selected_stay_months_raw = [default_report_month] if default_report_month else []
+            st.caption(default_report_month or "—")
+        elif stay_month_mode == "All months":
+            selected_stay_months_raw = all_stay_months
+            stay_month_selection = "All"
+            st.caption(f"All ({len(all_stay_months)} months)")
+        else:
+            custom_default = [default_report_month] if default_report_month else all_stay_months[:1]
+            selected_stay_months_raw = st.multiselect(
+                "Pick months",
+                options=all_stay_months,
+                default=custom_default,
+                label_visibility="collapsed",
+            )
+            if not selected_stay_months_raw:
+                st.warning("Select at least one month.")
+                selected_stay_months_raw = custom_default
+            st.caption(stay_month_label(selected_stay_months_raw))
 
-    # Hotels
-    st.markdown("#### Hotels")
+        if stay_month_mode != "All months":
+            stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
 
-    def hotel_key(hotel_name):
-        safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
-        return f"hotel_checkbox_{safe}"
+        # Hotels
+        st.markdown("#### Hotels")
+        ca, cb = st.columns(2)
+        if ca.button("All", use_container_width=True, key="hotel_select_all_btn"):
+            for h in all_hotels:
+                st.session_state[hotel_key(h)] = True
+            st.rerun()
+        if cb.button("None", use_container_width=True, key="hotel_clear_all_btn"):
+            for h in all_hotels:
+                st.session_state[hotel_key(h)] = False
+            st.rerun()
 
-    ca, cb = st.columns(2)
-    if ca.button("All", use_container_width=True, key="hotel_select_all_btn"):
-        for h in all_hotels:
-            st.session_state[hotel_key(h)] = True
-        st.rerun()
-    if cb.button("None", use_container_width=True, key="hotel_clear_all_btn"):
-        for h in all_hotels:
-            st.session_state[hotel_key(h)] = False
-        st.rerun()
+        selected_hotels = []
+        with st.expander(f"Properties ({len(all_hotels)})", expanded=True):
+            for hotel in all_hotels:
+                key = hotel_key(hotel)
+                if key not in st.session_state:
+                    st.session_state[key] = True
+                if st.checkbox(str(hotel), key=key):
+                    selected_hotels.append(hotel)
+        st.caption(f"{len(selected_hotels)} / {len(all_hotels)} selected")
 
-    selected_hotels = []
-    with st.expander(f"Properties ({len(all_hotels)})", expanded=True):
-        for hotel in all_hotels:
-            key = hotel_key(hotel)
-            if key not in st.session_state:
-                st.session_state[key] = True
-            if st.checkbox(str(hotel), key=key):
-                selected_hotels.append(hotel)
+        # Metric
+        st.markdown("#### Metric")
+        selected_metric = st.selectbox(
+            "metric_sel",
+            get_metric_options_with_all(),
+            index=0,
+            label_visibility="collapsed",
+        )
 
-    st.caption(f"{len(selected_hotels)} / {len(all_hotels)} selected")
-
-    # Metric
-    st.markdown("#### Metric")
-    selected_metric = st.selectbox(
-        "metric_sel",
-        get_metric_options_with_all(),
-        index=0,
-        label_visibility="collapsed",
+# ── Main area: guard — no data loaded ────────────────────────
+if file_catalog is None:
+    st.markdown(
+        """
+        <div style="
+            margin: 48px auto 0 auto;
+            max-width: 400px;
+            text-align: center;
+            padding: 48px 32px;
+            border: 1px dashed #d9d9d9;
+            border-radius: 8px;
+            background: #fafafa;
+        ">
+            <p style="font-size:1.6rem;margin:0 0 14px 0;color:#d9d9d9;">&#8679;</p>
+            <p style="font-size:0.95rem;font-weight:600;color:#1a1a1a;margin:0 0 6px 0;">
+                Upload report files to begin
+            </p>
+            <p style="font-size:0.82rem;color:#8c8c8c;margin:0;line-height:1.5;">
+                Use the <b>sidebar</b> to upload CSV / Excel files<br>
+                or a single ZIP containing daily reports
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
+    st.stop()
 
 # ── Guard: no hotels selected ────────────────────────────────
 if not selected_hotels:
@@ -4074,9 +4077,9 @@ if metric_data.empty:
     st.stop()
 
 # ── Pre-build summaries ───────────────────────────────────────
-movement_summary  = build_movement_summary(metric_data, role_selection)
-pace_summary      = build_pace_summary(metric_data, role_selection)
-final_comparison  = build_final_comparison(metric_data, role_selection)
+movement_summary = build_movement_summary(metric_data, role_selection)
+pace_summary     = build_pace_summary(metric_data, role_selection)
+final_comparison = build_final_comparison(metric_data, role_selection)
 
 d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
 momentum_summary = (
