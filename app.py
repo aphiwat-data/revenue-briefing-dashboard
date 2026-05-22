@@ -3126,11 +3126,11 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         st.info("No Budget data found for selected filters.")
         return pd.DataFrame()
 
-    c1, c2, c3, c4 = st.columns([1, 1, 1, 1])
+    c1, c2, c3 = st.columns([1, 1, 1])
 
     metric_choice = c1.selectbox(
         "Metric",
-        ["Rev", "Occ", "Room", "ADR", "All Metrics"],
+        ["All Metrics", "Rev", "Occ", "Room", "ADR"],
         index=0,
         key="sort_v32_metric",
     )
@@ -3150,13 +3150,6 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         key="sort_v32_sort",
     )
 
-    order = c4.selectbox(
-        "Order",
-        ["Worst first", "Best first"],
-        index=0,
-        key="sort_v32_order",
-    )
-
     view = build_budget_review_summary_view(budget_df, view_level)
 
     if metric_choice != "All Metrics":
@@ -3166,7 +3159,8 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         st.info("No rows after selected filters.")
         return view
 
-    view = view.sort_values(sort_choice, ascending=(order == "Worst first")).reset_index(drop=True)
+    # Worst first = ascending (most negative variance at top)
+    view = view.sort_values(sort_choice, ascending=True).reset_index(drop=True)
 
     total_forecast = view["Forecast"].sum()
     total_budget = view["Budget"].sum()
@@ -3422,25 +3416,55 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         st.info("No movement data for selected filters.")
         return movement
 
-    # Sort for presentation
+    # ── Canonical sort keys ───────────────────────────────────
+    _M_ORD = {"Occ": 0, "Room": 1, "ADR": 2, "Rev": 3}
+    _P_ORD = {"1 Day": 0, "7 Days": 1, "First Day of Month": 2}
+    view["_mo"] = view["Metric"].map(_M_ORD).fillna(99)
+    view["_po"] = view["Period"].map(_P_ORD).fillna(99) if "Period" in view.columns else 0
+
     if sort_mode == "Worst movement % first" and "Movement %" in view.columns:
-        view = view.sort_values(["Movement %", "Hotel", "Metric"], ascending=[True, True, True]).reset_index(drop=True)
+        view = view.sort_values(
+            ["Movement %", "Hotel", "_mo", "_po"],
+            ascending=[True, True, True, True],
+        ).reset_index(drop=True)
     elif sort_mode == "Best movement % first" and "Movement %" in view.columns:
-
-
-        view = view.sort_values(["Movement %", "Hotel", "Metric"], ascending=[False, True, True]).reset_index(drop=True)
+        view = view.sort_values(
+            ["Movement %", "Hotel", "_mo", "_po"],
+            ascending=[False, True, True, True],
+        ).reset_index(drop=True)
     else:
-        view = view.sort_values(["Hotel", "Stay Month", "Metric", "Period"]).reset_index(drop=True)
+        view = view.sort_values(
+            ["Hotel", "Stay Month", "_mo", "_po"],
+        ).reset_index(drop=True)
 
-    # Top KPI row
+    view = view.drop(columns=["_mo", "_po"], errors="ignore")
+
+    # ── Top KPI row — colored ─────────────────────────────────
     total_move = view["Movement"].sum() if "Movement" in view.columns else 0
-    up_rows = int((view["Movement"] > 0).sum()) if "Movement" in view.columns else 0
+    up_rows   = int((view["Movement"] > 0).sum()) if "Movement" in view.columns else 0
     down_rows = int((view["Movement"] < 0).sum()) if "Movement" in view.columns else 0
 
+    def _kpi_html(label, value, color, bg):
+        return (
+            f'<div style="background:{bg};border-left:4px solid {color};border-radius:6px;'
+            f'padding:10px 14px;">'
+            f'<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;'
+            f'letter-spacing:0.06em;color:#666;">{label}</div>'
+            f'<div style="font-size:1.25rem;font-weight:700;color:{color};margin-top:3px;">{value}</div>'
+            f'</div>'
+        )
+
+    if total_move > 0:
+        move_color, move_bg = "#15803d", "#f6ffed"
+    elif total_move < 0:
+        move_color, move_bg = "#b91c1c", "#fff1f0"
+    else:
+        move_color, move_bg = "#d48806", "#fffbe6"
+
     k1, k2, k3 = st.columns(3)
-    k1.metric("Total Movement", fmt_raw2(total_move))
-    k2.metric("Rows Up", up_rows)
-    k3.metric("Rows Down", down_rows)
+    k1.markdown(_kpi_html("Total Movement", fmt_raw2(total_move), move_color, move_bg), unsafe_allow_html=True)
+    k2.markdown(_kpi_html("Rows Up ↑",   str(up_rows),   "#15803d", "#f6ffed"), unsafe_allow_html=True)
+    k3.markdown(_kpi_html("Rows Down ↓", str(down_rows), "#b91c1c", "#fff1f0"), unsafe_allow_html=True)
 
     st.markdown("#### Movement table")
 
@@ -3776,11 +3800,11 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
             unsafe_allow_html=True,
         )
         c_otb, _s1, c_bgt, _s2, c_fct = st.columns([1.4, 0.12, 1.1, 0.12, 1.2])
-        otb_on = c_otb.checkbox("On The Book", value=False, key="kpi_chk_otb")
+        otb_on = c_otb.checkbox("On The Book", value=True, key="kpi_chk_otb")
         _s1.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
         bgt_on = c_bgt.checkbox("Budget", value=True, key="kpi_chk_budget")
         _s2.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
-        fct_on = c_fct.checkbox("Forecast", value=True, key="kpi_chk_forecast")
+        fct_on = c_fct.checkbox("Forecast", value=False, key="kpi_chk_forecast")
 
     with ctrl_right:
         kpi_mode = st.radio(
