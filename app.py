@@ -3528,15 +3528,16 @@ def style_revenue_variance_table(show_df, raw_df, value_col, status_cols=None):
 # ============================================================
 
 def build_leaderboard_by_month(
-    metric_long, role_selection, selected_hotels,
+    metric_long, role_selection,
     stay_month_selection, lb_metric, rank_by
 ):
     """
-    Rank hotels per Stay Month by the chosen metric.
+    Rank ALL hotels per Stay Month by the chosen metric.
     rank_by = "Budget Variance %" → rank 1 = most behind budget (needs attention)
     rank_by = "Today OTB" / "Forecast" → rank 1 = highest value (best performer)
+    selected_hotels are highlighted at render time, not filtered here.
     """
-    base = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    base = metric_long.copy()                         # ALL properties
     base = apply_stay_month_filter(base, stay_month_selection)
     budget_df = build_budget_review(base, role_selection)
 
@@ -3574,14 +3575,17 @@ def build_leaderboard_by_month(
 def render_leaderboard_by_month(
     metric_long, role_selection, selected_hotels, stay_month_selection
 ):
-    """Plotly-table leaderboard, one table per Stay Month."""
+    """Plotly-table leaderboard, one table per Stay Month.
+    Shows ALL properties; selected_hotels are highlighted in blue.
+    """
     st.markdown(
         '<div class="section-title">Hotel Leaderboard by Stay Month</div>',
         unsafe_allow_html=True,
     )
     st.caption(
-        "Hotels ranked per stay month. "
-        "Budget Variance % cells: green = above budget · red = below budget. "
+        "All properties ranked per stay month. "
+        "Highlighted rows = your selected properties. "
+        "Budget Variance % cells: green = above budget · red = below · yellow = flat. "
         "Rank 1 = highest OTB/Forecast, or most behind budget when ranked by Variance %."
     )
 
@@ -3606,7 +3610,7 @@ def render_leaderboard_by_month(
     )
 
     lb_data = build_leaderboard_by_month(
-        metric_long, role_selection, selected_hotels,
+        metric_long, role_selection,
         stay_month_selection, lb_metric, rank_by,
     )
 
@@ -3620,7 +3624,10 @@ def render_leaderboard_by_month(
     if max_months == "Current + Next 2":
         stay_months = stay_months[:3]
 
-    # ── Cell color helper ────────────────────────────────────
+    # Fast lookup set for highlight check
+    selected_set = set(selected_hotels)
+
+    # ── Cell color helpers ───────────────────────────────────
     def _var_color(val):
         if pd.isna(val):  return "#dbeafe"
         if val > 0:       return "#bbf7d0"
@@ -3640,21 +3647,43 @@ def render_leaderboard_by_month(
             continue
 
         n = len(grp)
-        colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
-        colors_otb  = ["#f0f7ff"] * n
-        colors_fct  = ["#eef2ff"] * n
-        colors_rank = ["#f8fafc"] * n
-        colors_name = ["#f1f5f9"] * n
-        colors_bgt  = ["#fafafa"] * n
 
-        # Rank badge: gold / silver / bronze for top 3
-        rank_display = []
+        # Determine which rows belong to selected hotels
+        is_sel = [h in selected_set for h in grp["Hotel"].tolist()]
+
+        # ── Background colors ─────────────────────────────
+        # Selected rows: blue tint across data columns
+        # Non-selected: default muted tones
+        HL_RANK  = "#dbeafe"   # blue-100
+        HL_NAME  = "#bfdbfe"   # blue-200 (slightly stronger for the name)
+        HL_DATA  = "#dbeafe"   # blue-100 for value columns
+
+        colors_rank = [HL_RANK if s else "#f8fafc"  for s in is_sel]
+        colors_name = [HL_NAME if s else "#f1f5f9"  for s in is_sel]
+        colors_otb  = [HL_DATA if s else "#f0f7ff"  for s in is_sel]
+        colors_bgt  = [HL_DATA if s else "#fafafa"  for s in is_sel]
+        colors_fct  = [HL_DATA if s else "#eef2ff"  for s in is_sel]
+        # Variance columns keep semantic color regardless
+        colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
+
+        # ── Font colors (blue text for selected rows) ─────
+        fc_rank = ["#1d4ed8" if s else "#475569" for s in is_sel]
+        fc_name = ["#1d4ed8" if s else "#1e293b" for s in is_sel]
+        fc_data = ["#1d4ed8" if s else "#334155" for s in is_sel]
+        fc_var  = ["#374151"] * n   # variance text stays neutral
+
+        # ── Hotel name: bold for selected ─────────────────
+        hotel_names = [
+            f"<b>{name}</b>" if s else name
+            for name, s in zip(grp["Hotel Short"].tolist(), is_sel)
+        ]
+
+        # ── Rank badge: gold / silver / bronze for top 3 ──
         badges = {1: "🥇", 2: "🥈", 3: "🥉"}
-        for r in grp["Rank"]:
-            rank_display.append(badges.get(r, str(r)))
+        rank_display = [badges.get(r, str(r)) for r in grp["Rank"]]
 
         fig = go.Figure(data=[go.Table(
-            columnwidth=[44, 140, 105, 105, 105, 105, 105],
+            columnwidth=[44, 150, 105, 105, 105, 105, 105],
             header=dict(
                 values=[
                     "<b>#</b>",
@@ -3673,7 +3702,7 @@ def render_leaderboard_by_month(
             cells=dict(
                 values=[
                     rank_display,
-                    grp["Hotel Short"].tolist(),
+                    hotel_names,
                     [_fmt(v) for v in grp["Today OTB"]],
                     [_fmt(v) for v in grp["Budget"]],
                     [_fmt(v) for v in grp["Forecast"]],
@@ -3689,7 +3718,10 @@ def render_leaderboard_by_month(
                     colors_var,
                     colors_var,
                 ],
-                font=dict(size=12),
+                font=dict(
+                    size=12,
+                    color=[fc_rank, fc_name, fc_data, fc_data, fc_data, fc_var, fc_var],
+                ),
                 align=["center", "left", "right", "right", "right", "center", "right"],
                 height=32,
             ),
