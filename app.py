@@ -664,7 +664,7 @@ def render_hotel_table(df, view_mode, key_prefix, column_config=None):
     if view_mode == "Hotel tabs":
         hotels = sorted(df["Hotel"].dropna().unique()) if "Hotel" in df.columns else []
         if not hotels:
-us            st.dataframe(df, use_container_width=True, hide_index=True, column_config=column_config)
+            st.dataframe(df, use_container_width=True, hide_index=True, column_config=column_config)
             return
 
         tabs = st.tabs(hotels)
@@ -3204,6 +3204,13 @@ def render_forecast_movement_table_only(metric_data, role_selection):
     show = view[cols].copy()
     raw = view[cols].copy()
 
+    for col in ["Latest Forecast", "Base Forecast"]:
+        if col in show.columns:
+            show[col] = show[col].apply(lambda x: "" if pd.isna(x) else fmt_raw2(x))
+    if "Movement %" in show.columns:
+        show["Movement %"] = show["Movement %"].apply(lambda x: "" if pd.isna(x) else fmt_signed_pct2(x))
+
+    def style_movement_table(_):
         styles = pd.DataFrame("", index=show.index, columns=show.columns)
 
         if "Movement %" not in raw.columns:
@@ -4199,7 +4206,7 @@ with tab5:
     with c1:
         sheets = {
             "Role Selection": role_selection,
-            "Budget Revi
+            "Budget Sort Board": build_budget_review(metric_data, role_selection),
             "D4cast Momentum": momentum_summary,
             "Forecast Movement": build_forecast_movement_v31(metric_data, role_selection),
             "Movement Table": movement_summary,
