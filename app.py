@@ -36,79 +36,257 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* ── Layout ──────────────────────────────────────────── */
-    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 96%; }
+    /* ================================================================
+       G5 Revenue Dashboard — Design System
+       Inspired by: Ant Design data tools / Linear / Retool
+       Palette: neutral grays + single blue accent + semantic data colors
+       ================================================================ */
+
+    /* ── Layout & spacing ────────────────────────────────── */
+    .block-container {
+        padding-top: 1.75rem;
+        padding-bottom: 2.5rem;
+        max-width: 97%;
+    }
 
     /* ── Sidebar ─────────────────────────────────────────── */
-    [data-testid="stSidebar"] { background: #f9fafb; border-right: 1px solid #e5e7eb; }
+    [data-testid="stSidebar"] {
+        background: #fafafa;
+        border-right: 1px solid #f0f0f0;
+    }
+    /* Section label inside sidebar */
     [data-testid="stSidebar"] .stMarkdown h2 {
-        font-size: 0.68rem !important; font-weight: 700 !important;
-        text-transform: uppercase !important; letter-spacing: 0.09em !important;
-        color: #9ca3af !important; margin: 1rem 0 0.4rem !important;
-        padding-bottom: 0.3rem !important; border-bottom: 1px solid #e5e7eb !important;
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.1em !important;
+        color: #bfbfbf !important;
+        margin: 1.1rem 0 0.45rem !important;
+        padding-bottom: 0.3rem !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+    }
+    [data-testid="stSidebar"] .stMarkdown h4 {
+        font-size: 0.78rem !important;
+        font-weight: 600 !important;
+        color: #595959 !important;
+        margin: 0.85rem 0 0.3rem !important;
+    }
+    [data-testid="stSidebar"] label {
+        font-size: 0.8rem !important;
+        color: #595959 !important;
+    }
+    [data-testid="stSidebar"] .stCaption,
+    [data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
+        color: #bfbfbf !important;
+        font-size: 0.75rem !important;
+    }
+    [data-testid="stSidebar"] hr {
+        border-color: #f0f0f0 !important;
+        margin: 0.75rem 0 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button {
+        font-size: 0.8rem !important;
+        font-weight: 500 !important;
+        border-radius: 5px !important;
+        height: 32px !important;
+        padding: 0 10px !important;
     }
 
-    /* ── KPI Cards ───────────────────────────────────────── */
+    /* ── Page title ──────────────────────────────────────── */
+    .page-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 0 0 2px 0;
+        letter-spacing: -0.01em;
+    }
+    .page-sub {
+        font-size: 0.8rem;
+        color: #8c8c8c;
+        margin: 0;
+    }
+    .filter-bar {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #fafafa;
+        border: 1px solid #f0f0f0;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 0.78rem;
+        color: #595959;
+        margin: 10px 0 14px 0;
+    }
+    .filter-bar b { color: #1a1a1a; font-weight: 600; }
+    .filter-sep { color: #d9d9d9; margin: 0 2px; }
+
+    /* ── KPI cards ───────────────────────────────────────── */
     div[data-testid="stMetric"] {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-top: 2px solid #2563eb;
-        padding: 14px 16px;
-        border-radius: 8px;
+        background: #ffffff;
+        border: 1px solid #f0f0f0;
+        border-radius: 6px;
+        padding: 14px 16px 12px 16px;
     }
     div[data-testid="stMetricLabel"] {
-        font-size: 0.7rem !important; font-weight: 600 !important;
-        text-transform: uppercase !important; letter-spacing: 0.06em !important;
-        color: #6b7280 !important;
+        font-size: 0.68rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.08em !important;
+        color: #8c8c8c !important;
     }
     div[data-testid="stMetricValue"] {
-        font-size: clamp(1rem, 1.3vw, 1.45rem) !important;
-        font-weight: 700 !important; color: #111827 !important;
+        font-size: clamp(1.05rem, 1.35vw, 1.5rem) !important;
+        font-weight: 600 !important;
+        color: #1a1a1a !important;
+        letter-spacing: -0.01em !important;
     }
-    div[data-testid="stMetricDelta"] { font-size: 0.78rem !important; font-weight: 500 !important; }
+    div[data-testid="stMetricDelta"] {
+        font-size: 0.76rem !important;
+        font-weight: 500 !important;
+    }
 
-    /* ── Section titles ──────────────────────────────────── */
+    /* ── Compare toggle chips ────────────────────────────── */
+    .stCheckbox > label {
+        background: #fafafa !important;
+        border: 1px solid #e0e0e0 !important;
+        border-radius: 4px !important;
+        padding: 3px 10px 3px 6px !important;
+        font-size: 0.81rem !important;
+        font-weight: 500 !important;
+        color: #595959 !important;
+        transition: border-color 0.15s, background 0.15s, color 0.15s !important;
+        cursor: pointer !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
+    .stCheckbox > label:has(input:checked) {
+        background: #e6f4ff !important;
+        border-color: #1677ff !important;
+        color: #1677ff !important;
+    }
+
+    /* ── Section title ───────────────────────────────────── */
     .section-title {
-        font-size: 1rem; font-weight: 600; color: #111827;
-        margin: 1.25rem 0 0.5rem; padding-bottom: 0.4rem;
-        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin: 1.25rem 0 0.6rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #f0f0f0;
     }
 
     /* ── Tabs ────────────────────────────────────────────── */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 0 !important; border-bottom: 1px solid #e5e7eb !important;
-        background: transparent !important; padding: 0 !important;
+        gap: 0 !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+        background: transparent !important;
+        padding: 0 !important;
     }
     .stTabs [data-baseweb="tab"] {
-        background: transparent !important; border-bottom: 2px solid transparent !important;
-        border-radius: 0 !important; padding: 10px 16px !important;
-        font-size: 0.83rem !important; font-weight: 500 !important;
-        color: #6b7280 !important; margin-bottom: -1px !important;
+        background: transparent !important;
+        border-bottom: 2px solid transparent !important;
+        border-radius: 0 !important;
+        padding: 9px 18px !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        color: #8c8c8c !important;
+        margin-bottom: -1px !important;
+        transition: color 0.15s !important;
     }
     .stTabs [aria-selected="true"] {
-        color: #2563eb !important; border-bottom-color: #2563eb !important;
-        font-weight: 600 !important; background: transparent !important;
+        color: #1677ff !important;
+        border-bottom-color: #1677ff !important;
+        font-weight: 600 !important;
+        background: transparent !important;
     }
-    .stTabs [data-baseweb="tab-panel"] { padding-top: 16px !important; }
+    .stTabs [data-baseweb="tab-panel"] {
+        padding-top: 18px !important;
+    }
 
     /* ── Tables ──────────────────────────────────────────── */
     div[data-testid="stDataFrame"] {
-        border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;
+        border: 1px solid #f0f0f0 !important;
+        border-radius: 6px !important;
+        overflow: hidden !important;
     }
 
     /* ── Buttons ─────────────────────────────────────────── */
-    .stButton > button { border-radius: 6px !important; font-size: 0.83rem !important; font-weight: 500 !important; }
-    .stButton > button[kind="primary"] { background: #2563eb !important; border-color: #2563eb !important; }
+    .stButton > button {
+        border-radius: 5px !important;
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        transition: all 0.15s !important;
+    }
+    .stButton > button[kind="primary"] {
+        background: #1677ff !important;
+        border-color: #1677ff !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background: #4096ff !important;
+        border-color: #4096ff !important;
+    }
 
-    /* ── Status color classes (used inline in HTML) ──────── */
-    .rev-card-good  { background: #f0fdf4; border-left: 3px solid #16a34a; color: #15803d; padding: 10px 14px; border-radius: 6px; }
-    .rev-card-bad   { background: #fef2f2; border-left: 3px solid #dc2626; color: #b91c1c; padding: 10px 14px; border-radius: 6px; }
-    .rev-card-flat  { background: #fefce8; border-left: 3px solid #ca8a04; color: #92400e; padding: 10px 14px; border-radius: 6px; }
-    .rev-card-info  { background: #eff6ff; border-left: 3px solid #2563eb; color: #1d4ed8; padding: 10px 14px; border-radius: 6px; }
+    /* ── Radio ───────────────────────────────────────────── */
+    .stRadio [data-testid="stWidgetLabel"] {
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.07em !important;
+        color: #8c8c8c !important;
+    }
+
+    /* ── Divider between compare row items ───────────────── */
+    .compare-sep {
+        font-size: 1.1rem;
+        color: #e0e0e0;
+        text-align: center;
+        margin-top: 5px;
+        user-select: none;
+    }
+
+    /* ── Color legend row ────────────────────────────────── */
+    .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 10px 0 14px 0;
+        font-size: 0.77rem;
+        color: #8c8c8c;
+    }
+    .legend-dot {
+        display: inline-block;
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        margin-right: 5px;
+        vertical-align: middle;
+    }
+
+    /* ── Status cards used in HTML ───────────────────────── */
+    .rev-card-good  { background: #f6ffed; border-left: 3px solid #52c41a; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
+    .rev-card-bad   { background: #fff2f0; border-left: 3px solid #ff4d4f; color: #820014; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
+    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #faad14; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
+    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #1677ff; color: #003eb3; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
+
+    /* ── Expanders ───────────────────────────────────────── */
+    .streamlit-expanderHeader {
+        font-size: 0.82rem !important;
+        font-weight: 500 !important;
+        color: #595959 !important;
+        background: #fafafa !important;
+        border: 1px solid #f0f0f0 !important;
+        border-radius: 5px !important;
+    }
+
+    /* ── Selectbox / inputs ──────────────────────────────── */
+    .stSelectbox > div > div { border-radius: 5px !important; }
+    .stTextInput > div > div > input { border-radius: 5px !important; }
 
     /* ── Misc ────────────────────────────────────────────── */
     div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
-    .stCaption, div[data-testid="stCaptionContainer"] { color: #9ca3af !important; font-size: 0.78rem !important; }
+    .stCaption, div[data-testid="stCaptionContainer"] {
+        color: #8c8c8c !important;
+        font-size: 0.77rem !important;
+    }
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     </style>
@@ -3456,56 +3634,67 @@ def render_kpi_axis_cards(budget_df, selected_axes):
 
 
 def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
-    """Budget-first KPI cards with inline checkbox compare selector."""
-    # ── Compare selector: inline checkboxes with | separator ──
-    st.markdown(
-        '<p style="font-size:0.72rem;font-weight:600;text-transform:uppercase;'
-        'letter-spacing:0.07em;color:#6b7280;margin-bottom:4px;">Compare</p>',
-        unsafe_allow_html=True,
-    )
-    chk_cols = st.columns([1, 0.08, 1, 0.08, 1, 2])
-    otb_on  = chk_cols[0].checkbox("On The Book", value=False, key="kpi_chk_otb")
-    chk_cols[1].markdown('<p style="text-align:center;color:#d1d5db;margin-top:6px;">|</p>', unsafe_allow_html=True)
-    bgt_on  = chk_cols[2].checkbox("Budget", value=True, key="kpi_chk_budget")
-    chk_cols[3].markdown('<p style="text-align:center;color:#d1d5db;margin-top:6px;">|</p>', unsafe_allow_html=True)
-    fct_on  = chk_cols[4].checkbox("Forecast", value=True, key="kpi_chk_forecast")
+    """
+    KPI section — compare row (chip checkboxes) + view toggle + metric cards.
+    Layout: [Compare chips] spacer [View toggle]
+    """
+    # ── Top control row ───────────────────────────────────────
+    ctrl_left, ctrl_right = st.columns([3, 2])
+
+    with ctrl_left:
+        st.markdown(
+            '<p style="font-size:0.68rem;font-weight:700;text-transform:uppercase;'
+            'letter-spacing:0.09em;color:#8c8c8c;margin:0 0 4px 0;">Compare</p>',
+            unsafe_allow_html=True,
+        )
+        c_otb, _s1, c_bgt, _s2, c_fct = st.columns([1.4, 0.12, 1.1, 0.12, 1.2])
+        otb_on = c_otb.checkbox("On The Book", value=False, key="kpi_chk_otb")
+        _s1.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
+        bgt_on = c_bgt.checkbox("Budget", value=True, key="kpi_chk_budget")
+        _s2.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
+        fct_on = c_fct.checkbox("Forecast", value=True, key="kpi_chk_forecast")
+
+    with ctrl_right:
+        kpi_mode = st.radio(
+            "View",
+            ["Revenue summary", "By metric"],
+            horizontal=True,
+            index=0,
+            key="budget_first_kpi_mode_v39",
+        )
 
     selected_axes = (
         (["On The Book"] if otb_on else []) +
-        (["Budget"] if bgt_on else []) +
-        (["Forecast"] if fct_on else [])
+        (["Budget"]     if bgt_on else []) +
+        (["Forecast"]   if fct_on else [])
     )
-    if len(selected_axes) < 2:
-        st.caption("Select at least 2 items to compare.")
-        return
 
-    kpi_mode = st.radio(
-        "View",
-        ["Revenue summary", "By metric"],
-        horizontal=True,
-        index=0,
-        key="budget_first_kpi_mode_v39",
-        label_visibility="collapsed",
-    )
+    if len(selected_axes) < 2:
+        st.caption("Check at least 2 items to compare.")
+        return
 
     budget_df = build_budget_review(metric_data, role_selection)
     if budget_df.empty:
-        st.info("No budget data available.")
+        st.info("No budget data available for the current filters.")
         return
 
+    # ── Cards ─────────────────────────────────────────────────
     if kpi_mode == "Revenue summary":
         rev_df = budget_df[budget_df["Metric"] == "Rev"].copy()
         render_kpi_axis_cards(rev_df if not rev_df.empty else budget_df, selected_axes)
-        return
-
-    metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
-    for metric_name in metrics_to_show:
-        st.markdown(f"**{metric_name}**")
-        metric_df = budget_df[budget_df["Metric"] == metric_name].copy()
-        if metric_df.empty:
-            st.caption(f"No data for {metric_name}.")
-            continue
-        render_kpi_axis_cards(metric_df, selected_axes)
+    else:
+        metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
+        for metric_name in metrics_to_show:
+            st.markdown(
+                f'<p style="font-size:0.78rem;font-weight:600;color:#595959;'
+                f'margin:10px 0 4px 0;">{metric_name}</p>',
+                unsafe_allow_html=True,
+            )
+            metric_df = budget_df[budget_df["Metric"] == metric_name].copy()
+            if metric_df.empty:
+                st.caption(f"No data for {metric_name}.")
+                continue
+            render_kpi_axis_cards(metric_df, selected_axes)
 
 
 
@@ -3690,175 +3879,245 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-st.markdown("## Revenue Briefing")
-st.caption("D4cast · Budget variance first · Daily morning review")
+# ── Page header ──────────────────────────────────────────────
+st.markdown(
+    '<p class="page-title">Revenue Briefing</p>'
+    '<p class="page-sub">G5 Hotels · D4cast daily forecast review</p>',
+    unsafe_allow_html=True,
+)
 
-# --- PRO SIDEBAR ---
+# ── Upload empty state (shown before sidebar processes) ──────
+if st.session_state.get("_show_upload_prompt"):
+    st.markdown(
+        """
+        <div style="
+            margin: 60px auto 0 auto;
+            max-width: 420px;
+            text-align: center;
+            padding: 48px 32px;
+            border: 1px dashed #d9d9d9;
+            border-radius: 8px;
+            background: #fafafa;
+        ">
+            <p style="font-size:2rem;margin:0 0 12px 0;color:#bfbfbf;">&#8679;</p>
+            <p style="font-size:1rem;font-weight:600;color:#1a1a1a;margin:0 0 6px 0;">Upload report files</p>
+            <p style="font-size:0.83rem;color:#8c8c8c;margin:0;">
+                Drop CSV / Excel daily files or one ZIP folder<br>
+                using the uploader in the sidebar
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.stop()
+
+# ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## Data Source")
-    mode = st.radio("Input mode", ["Folder auto-load", "Manual upload"], horizontal=True, label_visibility="collapsed")
-    
-    if mode == "Folder auto-load":
-        folder_path = st.text_input("Folder path", value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review")
+    # ── Data source ──
+    st.markdown("## Data source")
+    mode = st.radio(
+        "source_mode",
+        ["Folder", "Upload"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="data_source_mode",
+    )
+
+    if mode == "Folder":
+        folder_path = st.text_input(
+            "Path",
+            value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
+            label_visibility="visible",
+        )
         if st.button("Refresh", use_container_width=True, type="primary"):
             st.cache_data.clear()
             st.rerun()
         try:
-            with st.spinner("Scanning directory..."):
+            with st.spinner("Loading…"):
                 file_catalog = build_file_catalog_from_folder(folder_path)
-            st.success("Data loaded!")
+            st.caption(f"{len(file_catalog)} files found")
         except Exception as e:
             st.error(str(e))
             st.stop()
     else:
-        uploaded = st.file_uploader("Upload G5 files or ZIP folder", type=["zip", "csv", "xlsx", "xls"], accept_multiple_files=True, help="Upload multiple daily files, or upload one ZIP file containing the whole report folder.")
+        uploaded = st.file_uploader(
+            "Files",
+            type=["zip", "csv", "xlsx", "xls"],
+            accept_multiple_files=True,
+            label_visibility="visible",
+            help="Drop daily G5 CSV/Excel files, or one ZIP containing the whole folder.",
+        )
         if not uploaded:
-            st.info("Upload daily G5 files to start.")
+            # Show upload prompt in main area before stopping
+            st.session_state["_show_upload_prompt"] = True
             st.stop()
+        st.session_state["_show_upload_prompt"] = False
         file_catalog = build_file_catalog_from_uploads(uploaded)
-    
+
     st.divider()
+
+    # ── Filters ──
     st.markdown("## Filters")
+
     report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
     latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
-    
-    report_file_month = st.selectbox("Report file month", report_file_months, index=report_file_months.index(latest_report_month))
-    
-    # Process files
+    report_file_month = st.selectbox(
+        "Report month",
+        report_file_months,
+        index=report_file_months.index(latest_report_month),
+    )
+
     role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
     selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
     selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
-    # Manual-upload catalog already contains File Bytes. Do not remap by uploaded filename, especially for ZIP inner files.
-    
-    with st.spinner("Crunching numbers..."):
-        combined_df = pd.concat([parse_record(row) for _, row in selected_file_catalog.iterrows()], ignore_index=True)
+
+    with st.spinner("Processing…"):
+        combined_df = pd.concat(
+            [parse_record(row) for _, row in selected_file_catalog.iterrows()],
+            ignore_index=True,
+        )
         ref_col_map = build_ref_col_map(combined_df)
         if not ref_col_map.get("Duetto"):
-            st.error("No Forecast / Duetto columns detected in the uploaded files.")
+            st.error("No Forecast / Duetto columns found in these files.")
             st.stop()
         metric_long = build_metric_long(combined_df, ref_col_map)
-        
+
     all_hotels = sorted(metric_long["Hotel"].dropna().unique())
     all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
-    
-    stay_month_options = all_stay_months
-    default_report_month = report_file_month if report_file_month in all_stay_months else (all_stay_months[0] if all_stay_months else None)
+    default_report_month = (
+        report_file_month if report_file_month in all_stay_months
+        else (all_stay_months[0] if all_stay_months else None)
+    )
 
-    st.markdown("#### Stay Month")
-
+    # Stay month
+    st.markdown("#### Stay month")
     stay_month_mode = st.selectbox(
-        "Stay Month mode",
-        ["Report month only", "All months", "Custom months"],
+        "stay_month_mode",
+        ["Report month only", "All months", "Custom"],
         index=0,
-        help="Use Report month only for normal morning review. Use All months for full-year view.",
+        label_visibility="collapsed",
     )
 
     if stay_month_mode == "Report month only":
         selected_stay_months_raw = [default_report_month] if default_report_month else []
-        st.caption(f"Selected: {default_report_month}")
-
+        st.caption(default_report_month or "—")
     elif stay_month_mode == "All months":
         selected_stay_months_raw = all_stay_months
         stay_month_selection = "All"
-        st.caption(f"Selected: All months ({len(all_stay_months)})")
-
+        st.caption(f"All ({len(all_stay_months)} months)")
     else:
         custom_default = [default_report_month] if default_report_month else all_stay_months[:1]
-
         selected_stay_months_raw = st.multiselect(
-            "Choose stay month(s)",
-            options=stay_month_options,
+            "Pick months",
+            options=all_stay_months,
             default=custom_default,
-            help="Choose one or multiple stay months.",
+            label_visibility="collapsed",
         )
-
         if not selected_stay_months_raw:
-            st.warning("Please select at least one Stay Month.")
+            st.warning("Select at least one month.")
             st.stop()
-
-        st.caption(f"Selected: {stay_month_label(selected_stay_months_raw)}")
+        st.caption(stay_month_label(selected_stay_months_raw))
 
     if stay_month_mode != "All months":
         stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
-    
+
+    # Hotels
     st.markdown("#### Hotels")
 
     def hotel_key(hotel_name):
         safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
         return f"hotel_checkbox_{safe}"
 
-    btn_select_all, btn_clear_all = st.columns(2)
-
-    if btn_select_all.button("Select all", use_container_width=True, key="hotel_select_all_btn"):
-        for hotel in all_hotels:
-            st.session_state[hotel_key(hotel)] = True
+    ca, cb = st.columns(2)
+    if ca.button("All", use_container_width=True, key="hotel_select_all_btn"):
+        for h in all_hotels:
+            st.session_state[hotel_key(h)] = True
         st.rerun()
-
-    if btn_clear_all.button("Clear", use_container_width=True, key="hotel_clear_all_btn"):
-        for hotel in all_hotels:
-            st.session_state[hotel_key(hotel)] = False
+    if cb.button("None", use_container_width=True, key="hotel_clear_all_btn"):
+        for h in all_hotels:
+            st.session_state[hotel_key(h)] = False
         st.rerun()
 
     selected_hotels = []
-    with st.expander("Hotel checklist", expanded=True):
+    with st.expander(f"Properties ({len(all_hotels)})", expanded=True):
         for hotel in all_hotels:
             key = hotel_key(hotel)
             if key not in st.session_state:
                 st.session_state[key] = True
-            checked = st.checkbox(str(hotel), key=key)
-            if checked:
+            if st.checkbox(str(hotel), key=key):
                 selected_hotels.append(hotel)
 
-    st.caption(f"Selected hotels: {len(selected_hotels)} / {len(all_hotels)}")
-    
-    selected_metric = st.selectbox("Metric", get_metric_options_with_all(), index=0)
+    st.caption(f"{len(selected_hotels)} / {len(all_hotels)} selected")
 
+    # Metric
+    st.markdown("#### Metric")
+    selected_metric = st.selectbox(
+        "metric_sel",
+        get_metric_options_with_all(),
+        index=0,
+        label_visibility="collapsed",
+    )
+
+# ── Guard: no hotels selected ────────────────────────────────
 if not selected_hotels:
-    st.warning("⚠️ Please select at least one hotel.")
+    st.warning("Select at least one property in the sidebar.")
     st.stop()
 
-# --- FILTER DATA ---
+# ── Filter data ───────────────────────────────────────────────
 metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
 if selected_metric != "All Metrics":
     metric_data = metric_data[metric_data["Metric"] == selected_metric].copy()
 metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
 
 if metric_data.empty:
-    st.warning("No data for the selected filters.")
+    st.warning("No data for the current filter selection.")
     st.stop()
 
-# Build Summaries
-movement_summary = build_movement_summary(metric_data, role_selection)
-pace_summary = build_pace_summary(metric_data, role_selection)
-final_comparison = build_final_comparison(metric_data, role_selection)
+# ── Pre-build summaries ───────────────────────────────────────
+movement_summary  = build_movement_summary(metric_data, role_selection)
+pace_summary      = build_pace_summary(metric_data, role_selection)
+final_comparison  = build_final_comparison(metric_data, role_selection)
 
-# Momentum specific data
 d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
-momentum_summary = d4.groupby(["Report Date", "Report Label"])["Value"].sum().reset_index().sort_values("Report Date") if not d4.empty else pd.DataFrame()
-hotel_momentum = d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month"])["Value"].sum().reset_index().sort_values(["Hotel", "Stay Month", "Report Date"]) if not d4.empty else pd.DataFrame()
+momentum_summary = (
+    d4.groupby(["Report Date", "Report Label"])["Value"].sum()
+    .reset_index().sort_values("Report Date")
+    if not d4.empty else pd.DataFrame()
+)
+hotel_momentum = (
+    d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month"])["Value"].sum()
+    .reset_index().sort_values(["Hotel", "Stay Month", "Report Date"])
+    if not d4.empty else pd.DataFrame()
+)
 
+# ── Filter context bar ────────────────────────────────────────
+st.markdown(
+    f'<div class="filter-bar">'
+    f'<span class="filter-sep">Metric</span> <b>{selected_metric}</b>'
+    f'<span class="filter-sep"> · </span>'
+    f'<span class="filter-sep">Stay</span> <b>{stay_month_label(stay_month_selection)}</b>'
+    f'<span class="filter-sep"> · </span>'
+    f'<span class="filter-sep">Properties</span> <b>{len(selected_hotels)}</b>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
 
-# ============================================================
-# Header KPIs — Revenue Budget Focus
-# ============================================================
-st.caption(f"Metric: **{selected_metric}** · Stay Month: **{stay_month_label(stay_month_selection)}**")
-
+# ── KPI section ───────────────────────────────────────────────
 render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric)
 
+# ── Color legend ──────────────────────────────────────────────
 st.markdown(
-    '<p style="font-size:0.78rem;color:#6b7280;margin:12px 0 4px;">'
-    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>Above / Up &nbsp;'
-    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dc2626;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Below / Down &nbsp;'
-    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ca8a04;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Flat / Neutral &nbsp;'
-    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2563eb;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Forecast / Info'
-    '</p>',
+    '<div class="legend-row">'
+    '<span><span class="legend-dot" style="background:#52c41a;"></span>Above / Up</span>'
+    '<span><span class="legend-dot" style="background:#ff4d4f;"></span>Below / Down</span>'
+    '<span><span class="legend-dot" style="background:#faad14;"></span>Flat / Neutral</span>'
+    '<span><span class="legend-dot" style="background:#1677ff;"></span>Forecast / Info</span>'
+    '</div>',
     unsafe_allow_html=True,
 )
 render_metric_dictionary()
 
-# ============================================================
-# Main Tabs
-# ============================================================
+# ── Main tabs ─────────────────────────────────────────────────
 tab0, tab_movement, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
     "Forecast Pivot",
     "Movement",
@@ -3870,8 +4129,6 @@ tab0, tab_movement, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
 
 
 with tab0:
-    st.markdown('<div class="section-title">Forecast Pivot View</div>', unsafe_allow_html=True)
-    st.caption("Compact hotel tabs like the original forecast pivot view. Supports one or multiple Stay Months. Metric order is Occ → Room → ADR → Rev.")
     latest_pivot = build_latest_pivot_table(metric_data, role_selection)
     render_compact_hotel_tabs(latest_pivot)
 
@@ -3895,8 +4152,7 @@ with tab_leaderboard:
 with tab1:
     trend_summary = render_forecast_trend_by_month_v3(metric_data)
 
-    st.markdown('<div class="section-title">Hotel-level Momentum Bubble Chart</div>', unsafe_allow_html=True)
-    st.caption("Default view focuses on Daily PU. Use dropdowns to show Top N / All hotels and choose what the bubble size represents.")
+    st.markdown('<div class="section-title">Hotel Momentum</div>', unsafe_allow_html=True)
 
     if hotel_momentum.empty:
         st.info("No hotel momentum data.")
@@ -4152,9 +4408,7 @@ with tab1:
 
 
 with tab_analysis:
-    st.markdown('<div class="section-title">Advanced Revenue Analysis</div>', unsafe_allow_html=True)
-    st.info("Budget Sort Board is the main budget page. This tab is for secondary analysis only: pace benchmark and historical final comparison.")
-    st.caption("Secondary analysis for revenue review. Budget comparison is handled in Budget Sort Board; this page keeps pace benchmark and historical final comparison only.")
+    st.markdown('<div class="section-title">Advanced Analysis</div>', unsafe_allow_html=True)
 
     # -------------------------
     # Recommended Pace
@@ -4225,7 +4479,7 @@ with tab_analysis:
 
 
 with tab5:
-    st.markdown('<div class="section-title">Deployment Checklist</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Export & Settings</div>', unsafe_allow_html=True)
     st.markdown("""
     - ✅ Use `python -m streamlit run <file>.py` for local presentation.
     - ✅ Make sure the Google Drive / local folder path points to the daily G5 report folder.
