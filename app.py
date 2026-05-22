@@ -37,119 +37,127 @@ st.markdown(
     """
     <style>
     /* ================================================================
-       G5 Revenue Dashboard — Design System
-       Inspired by: Ant Design data tools / Linear / Retool
-       Palette: neutral grays + single blue accent + semantic data colors
+       G5 Revenue Dashboard — Readable Design System
+       Text scale: ไม่ต่ำกว่า 12px (0.75rem) ที่ใดก็ตาม
+       Color scale: secondary ≥ #555, labels ≥ #666, captions ≥ #888
        ================================================================ */
 
-    /* ── Layout & spacing ────────────────────────────────── */
+    /* ── Layout ──────────────────────────────────────────── */
     .block-container {
-        padding-top: 2.5rem;
+        padding-top: 2rem;
         padding-bottom: 2.5rem;
         max-width: 97%;
     }
 
+    /* ── Global font readable baseline ──────────────────── */
+    html, body, [class*="css"] {
+        font-size: 14px;
+        color: #111;
+    }
+
     /* ── Sidebar ─────────────────────────────────────────── */
     [data-testid="stSidebar"] {
-        background: #fafafa;
-        border-right: 1px solid #f0f0f0;
+        background: #f7f7f7;
+        border-right: 1px solid #e4e4e4;
     }
-    /* Section label inside sidebar */
+    /* "DATA SOURCE", "FILTERS" — section dividers */
     [data-testid="stSidebar"] .stMarkdown h2 {
-        font-size: 0.65rem !important;
+        font-size: 0.72rem !important;
         font-weight: 700 !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.1em !important;
-        color: #bfbfbf !important;
-        margin: 1.1rem 0 0.45rem !important;
-        padding-bottom: 0.3rem !important;
-        border-bottom: 1px solid #f0f0f0 !important;
+        letter-spacing: 0.08em !important;
+        color: #888 !important;
+        margin: 1rem 0 0.5rem !important;
+        padding-bottom: 0.35rem !important;
+        border-bottom: 1px solid #e4e4e4 !important;
     }
+    /* "Stay month", "Hotels", "Metric" */
     [data-testid="stSidebar"] .stMarkdown h4 {
-        font-size: 0.78rem !important;
+        font-size: 0.8rem !important;
         font-weight: 600 !important;
-        color: #595959 !important;
-        margin: 0.85rem 0 0.3rem !important;
+        color: #333 !important;
+        margin: 0.9rem 0 0.25rem !important;
     }
     [data-testid="stSidebar"] label {
-        font-size: 0.8rem !important;
-        color: #595959 !important;
+        font-size: 0.84rem !important;
+        color: #333 !important;
+        font-weight: 400 !important;
     }
     [data-testid="stSidebar"] .stCaption,
     [data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
-        color: #bfbfbf !important;
-        font-size: 0.75rem !important;
+        font-size: 0.78rem !important;
+        color: #888 !important;
     }
     [data-testid="stSidebar"] hr {
-        border-color: #f0f0f0 !important;
-        margin: 0.75rem 0 !important;
+        border-color: #e4e4e4 !important;
+        margin: 0.6rem 0 !important;
     }
     [data-testid="stSidebar"] .stButton > button {
-        font-size: 0.8rem !important;
-        font-weight: 500 !important;
+        font-size: 0.82rem !important;
         border-radius: 5px !important;
-        height: 32px !important;
-        padding: 0 10px !important;
     }
 
-    /* ── Page title (native st.markdown "## ...") ──────────── */
-    /* ใช้ h2 native เพื่อให้ Streamlit จัดการ spacing เองบน Cloud */
+    /* ── Page h2 title ───────────────────────────────────── */
     .block-container h2 {
         font-size: 1.3rem !important;
-        font-weight: 600 !important;
-        color: #1a1a1a !important;
+        font-weight: 700 !important;
+        color: #111 !important;
         letter-spacing: -0.01em !important;
+        margin-bottom: 2px !important;
     }
+
+    /* ── Filter context bar ──────────────────────────────── */
     .filter-bar {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: #fafafa;
-        border: 1px solid #f0f0f0;
+        background: #f5f5f5;
+        border: 1px solid #e4e4e4;
         border-radius: 4px;
-        padding: 4px 10px;
-        font-size: 0.78rem;
-        color: #595959;
-        margin: 10px 0 14px 0;
+        padding: 5px 12px;
+        font-size: 0.82rem;
+        color: #555;
+        margin: 8px 0 16px 0;
     }
-    .filter-bar b { color: #1a1a1a; font-weight: 600; }
-    .filter-sep { color: #d9d9d9; margin: 0 2px; }
+    .filter-bar b { color: #111; font-weight: 600; }
+    .filter-sep { color: #ccc; margin: 0 3px; }
 
     /* ── KPI cards ───────────────────────────────────────── */
     div[data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid #f0f0f0;
+        background: #fff;
+        border: 1px solid #e4e4e4;
         border-radius: 6px;
-        padding: 14px 16px 12px 16px;
+        padding: 14px 18px 12px 18px;
     }
     div[data-testid="stMetricLabel"] {
-        font-size: 0.68rem !important;
+        font-size: 0.74rem !important;
         font-weight: 600 !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.08em !important;
-        color: #8c8c8c !important;
+        letter-spacing: 0.06em !important;
+        color: #666 !important;
     }
     div[data-testid="stMetricValue"] {
-        font-size: clamp(1.05rem, 1.35vw, 1.5rem) !important;
-        font-weight: 600 !important;
-        color: #1a1a1a !important;
+        font-size: clamp(1.1rem, 1.4vw, 1.55rem) !important;
+        font-weight: 700 !important;
+        color: #111 !important;
         letter-spacing: -0.01em !important;
+        line-height: 1.2 !important;
     }
     div[data-testid="stMetricDelta"] {
-        font-size: 0.76rem !important;
+        font-size: 0.8rem !important;
         font-weight: 500 !important;
     }
 
-    /* ── Compare toggle chips ────────────────────────────── */
+    /* ── Compare checkbox chips ──────────────────────────── */
     .stCheckbox > label {
-        background: #fafafa !important;
-        border: 1px solid #e0e0e0 !important;
+        background: #f5f5f5 !important;
+        border: 1px solid #d9d9d9 !important;
         border-radius: 4px !important;
-        padding: 3px 10px 3px 6px !important;
-        font-size: 0.81rem !important;
+        padding: 4px 12px 4px 8px !important;
+        font-size: 0.84rem !important;
         font-weight: 500 !important;
-        color: #595959 !important;
-        transition: border-color 0.15s, background 0.15s, color 0.15s !important;
+        color: #333 !important;
+        transition: all 0.15s !important;
         cursor: pointer !important;
         display: inline-flex !important;
         align-items: center !important;
@@ -158,22 +166,23 @@ st.markdown(
         background: #e6f4ff !important;
         border-color: #1677ff !important;
         color: #1677ff !important;
+        font-weight: 600 !important;
     }
 
-    /* ── Section title ───────────────────────────────────── */
+    /* ── Section titles ──────────────────────────────────── */
     .section-title {
-        font-size: 0.875rem;
+        font-size: 0.9rem;
         font-weight: 600;
-        color: #1a1a1a;
+        color: #111;
         margin: 1.25rem 0 0.6rem 0;
         padding-bottom: 0.5rem;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid #e8e8e8;
     }
 
     /* ── Tabs ────────────────────────────────────────────── */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0 !important;
-        border-bottom: 1px solid #f0f0f0 !important;
+        border-bottom: 1px solid #e4e4e4 !important;
         background: transparent !important;
         padding: 0 !important;
     }
@@ -181,12 +190,11 @@ st.markdown(
         background: transparent !important;
         border-bottom: 2px solid transparent !important;
         border-radius: 0 !important;
-        padding: 9px 18px !important;
-        font-size: 0.82rem !important;
+        padding: 10px 18px !important;
+        font-size: 0.875rem !important;
         font-weight: 500 !important;
-        color: #8c8c8c !important;
+        color: #666 !important;
         margin-bottom: -1px !important;
-        transition: color 0.15s !important;
     }
     .stTabs [aria-selected="true"] {
         color: #1677ff !important;
@@ -195,12 +203,12 @@ st.markdown(
         background: transparent !important;
     }
     .stTabs [data-baseweb="tab-panel"] {
-        padding-top: 18px !important;
+        padding-top: 20px !important;
     }
 
     /* ── Tables ──────────────────────────────────────────── */
     div[data-testid="stDataFrame"] {
-        border: 1px solid #f0f0f0 !important;
+        border: 1px solid #e4e4e4 !important;
         border-radius: 6px !important;
         overflow: hidden !important;
     }
@@ -208,80 +216,90 @@ st.markdown(
     /* ── Buttons ─────────────────────────────────────────── */
     .stButton > button {
         border-radius: 5px !important;
-        font-size: 0.82rem !important;
+        font-size: 0.84rem !important;
         font-weight: 500 !important;
-        transition: all 0.15s !important;
     }
     .stButton > button[kind="primary"] {
         background: #1677ff !important;
         border-color: #1677ff !important;
+        color: #fff !important;
     }
     .stButton > button[kind="primary"]:hover {
         background: #4096ff !important;
         border-color: #4096ff !important;
     }
 
-    /* ── Radio ───────────────────────────────────────────── */
+    /* ── Radio buttons ───────────────────────────────────── */
     .stRadio [data-testid="stWidgetLabel"] {
-        font-size: 0.75rem !important;
+        font-size: 0.78rem !important;
         font-weight: 600 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.07em !important;
-        color: #8c8c8c !important;
+        color: #555 !important;
+    }
+    .stRadio label {
+        font-size: 0.84rem !important;
+        color: #333 !important;
     }
 
-    /* ── Divider between compare row items ───────────────── */
+    /* ── Compare | separator ─────────────────────────────── */
     .compare-sep {
-        font-size: 1.1rem;
-        color: #e0e0e0;
+        font-size: 1rem;
+        color: #ccc;
         text-align: center;
-        margin-top: 5px;
+        margin-top: 6px;
         user-select: none;
+        line-height: 1;
     }
 
-    /* ── Color legend row ────────────────────────────────── */
+    /* ── Color legend ────────────────────────────────────── */
     .legend-row {
         display: flex;
         align-items: center;
-        gap: 14px;
-        margin: 10px 0 14px 0;
-        font-size: 0.77rem;
-        color: #8c8c8c;
+        gap: 16px;
+        margin: 8px 0 16px 0;
+        font-size: 0.8rem;
+        color: #555;
     }
     .legend-dot {
         display: inline-block;
-        width: 8px; height: 8px;
+        width: 9px; height: 9px;
         border-radius: 50%;
         margin-right: 5px;
         vertical-align: middle;
     }
 
-    /* ── Status cards used in HTML ───────────────────────── */
-    .rev-card-good  { background: #f6ffed; border-left: 3px solid #52c41a; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
-    .rev-card-bad   { background: #fff2f0; border-left: 3px solid #ff4d4f; color: #820014; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
-    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #faad14; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
-    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #1677ff; color: #003eb3; padding: 10px 14px; border-radius: 4px; margin: 3px 0; }
+    /* ── Status cards (inline HTML blocks) ───────────────── */
+    .rev-card-good  { background: #f6ffed; border-left: 3px solid #389e0d; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
+    .rev-card-bad   { background: #fff1f0; border-left: 3px solid #cf1322; color: #7f0000; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
+    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #d48806; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
+    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #096dd9; color: #003a8c; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.875rem; }
 
     /* ── Expanders ───────────────────────────────────────── */
     .streamlit-expanderHeader {
-        font-size: 0.82rem !important;
+        font-size: 0.84rem !important;
         font-weight: 500 !important;
-        color: #595959 !important;
-        background: #fafafa !important;
-        border: 1px solid #f0f0f0 !important;
+        color: #333 !important;
+        background: #f7f7f7 !important;
+        border: 1px solid #e4e4e4 !important;
         border-radius: 5px !important;
     }
 
-    /* ── Selectbox / inputs ──────────────────────────────── */
+    /* ── Selectbox / text inputs ─────────────────────────── */
     .stSelectbox > div > div { border-radius: 5px !important; }
-    .stTextInput > div > div > input { border-radius: 5px !important; }
-
-    /* ── Misc ────────────────────────────────────────────── */
-    div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
-    .stCaption, div[data-testid="stCaptionContainer"] {
-        color: #8c8c8c !important;
-        font-size: 0.77rem !important;
+    .stTextInput > div > div > input {
+        border-radius: 5px !important;
+        font-size: 0.84rem !important;
     }
+
+    /* ── Captions (global) ───────────────────────────────── */
+    .stCaption, div[data-testid="stCaptionContainer"] {
+        font-size: 0.78rem !important;
+        color: #888 !important;
+    }
+
+    /* ── Spacing ─────────────────────────────────────────── */
+    div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
+
+    /* ── Hide Streamlit chrome ───────────────────────────── */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     </style>
