@@ -4408,26 +4408,26 @@ def style_pace_variance_table(df):
 if _LOGO_B64:
     st.markdown(
         f"""
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:2px;">
+        <div style="display:flex;align-items:center;gap:12px;
+                    margin-bottom:4px;padding-bottom:2px;">
             <img
                 src="data:image/png;base64,{_LOGO_B64}"
                 style="
-                    width: 42px;
-                    height: 42px;
+                    width: 38px;
+                    height: 38px;
                     border-radius: 8px;
                     object-fit: cover;
                     flex-shrink: 0;
-                    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
                 "
             />
-            <div>
-                <div style="font-size:1.3rem;font-weight:700;color:#111;
-                            letter-spacing:-0.01em;line-height:1.2;">
+            <div style="display:flex;flex-direction:column;justify-content:center;">
+                <span style="font-size:1.28rem;font-weight:700;color:#111;
+                             letter-spacing:-0.01em;line-height:1.25;">
                     Revenue Briefing
-                </div>
-                <div style="font-size:0.82rem;color:#888;margin-top:1px;">
-                    G5 Hotels &middot; D4cast daily forecast review
-                </div>
+                </span>
+                <span style="font-size:0.8rem;color:#999;margin-top:1px;">
+                    G5 Hotels &nbsp;&middot;&nbsp; D4cast daily forecast review
+                </span>
             </div>
         </div>
         """,
@@ -4452,25 +4452,37 @@ def hotel_key(hotel_name):
     return f"hotel_checkbox_{safe}"
 
 with st.sidebar:
-    # ── Brand logo ───────────────────────────────────────────
+    # ── Brand header ─────────────────────────────────────────
     if _LOGO_B64:
         st.markdown(
             f"""
             <div style="
-                text-align: center;
-                padding: 20px 12px 14px 12px;
-                margin-bottom: 4px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 14px 4px 12px 4px;
+                border-bottom: 1px solid #e4e4e4;
+                margin-bottom: 10px;
             ">
                 <img
                     src="data:image/png;base64,{_LOGO_B64}"
                     style="
-                        width: 88px;
-                        height: 88px;
-                        border-radius: 14px;
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 7px;
                         object-fit: cover;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+                        flex-shrink: 0;
                     "
                 />
+                <div style="line-height: 1.3;">
+                    <div style="font-size:0.78rem;font-weight:700;
+                                color:#222;letter-spacing:0.04em;">
+                        ATMIND GROUP
+                    </div>
+                    <div style="font-size:0.68rem;color:#999;">
+                        Revenue Dashboard
+                    </div>
+                </div>
             </div>
             """,
             unsafe_allow_html=True,
