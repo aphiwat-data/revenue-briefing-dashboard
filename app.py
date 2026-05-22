@@ -2873,6 +2873,172 @@ def render_forecast_trend_by_month_v3(metric_data):
     return trend
 
 
+# ============================================================
+# Revenue Momentum % Change — กราฟแสดง % เปลี่ยนแปลง
+# (revenue_t - revenue_{t-1}) / revenue_{t-1} × 100 ต่อวัน
+# ============================================================
+def render_revenue_momentum_pct_chart(metric_data):
+    st.markdown('<div class="section-title">Revenue Momentum — Daily % Change</div>', unsafe_allow_html=True)
+    st.caption(
+        "แต่ละแท่ง = (Forecast วันนี้ − Forecast เมื่อวาน) ÷ Forecast เมื่อวาน × 100  "
+        "— 🟢 บวก = forecast เพิ่ม  🔴 ลบ = forecast ลด"
+    )
+
+    d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
+    if d4.empty:
+        st.info("No forecast data.")
+        return
+
+    month_options = sorted(d4["Stay Month"].dropna().unique(), key=month_sort_key)
+
+    c1, c2 = st.columns([1, 2.5])
+    metric_choice = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR"],
+        index=0,
+        key="momentum_pct_metric",
+    )
+    sel_months = c2.multiselect(
+        "Stay Months",
+        options=month_options,
+        default=month_options[:1],
+        key="momentum_pct_months",
+    )
+
+    if not sel_months:
+        st.caption("Select at least one stay month.")
+        return
+
+    view = d4[d4["Metric"] == metric_choice].copy()
+    view = view[view["Stay Month"].isin(sel_months)].copy()
+
+    if view.empty:
+        st.info("No data for selected filters.")
+        return
+
+    # Aggregate per day per Stay Month → sort → pct_change per Stay Month
+    grp = (
+        view.groupby(["Report Date", "Stay Month"], as_index=False)["Value"]
+        .sum()
+        .sort_values(["Stay Month", "Report Date"])
+    )
+    grp["Pct Change"] = grp.groupby("Stay Month")["Value"].pct_change() * 100
+    grp = grp.dropna(subset=["Pct Change"]).copy()
+
+    if grp.empty:
+        st.info("Need at least 2 report dates to compute daily % change.")
+        return
+
+    grp["Direction"] = grp["Pct Change"].apply(
+        lambda x: "Up" if x > 0 else ("Down" if x < 0 else "Flat")
+    )
+    grp["Label"] = grp["Pct Change"].apply(lambda x: f"{x:+.1f}%")
+
+    n_months = grp["Stay Month"].nunique()
+
+    # ── Build chart ──────────────────────────────────────────
+    if n_months == 1:
+        # Single stay month → bars colored by direction
+        fig = px.bar(
+            grp,
+            x="Report Date",
+            y="Pct Change",
+            color="Direction",
+            color_discrete_map={
+                "Up":   "#15803d",
+                "Down": "#b91c1c",
+                "Flat": "#d48806",
+            },
+            text="Label",
+            title=f"Daily % Change · {metric_choice} · {sel_months[0]}",
+        )
+        fig.update_layout(showlegend=False)
+    else:
+        # Multiple stay months → facet row (one subplot per month)
+        fig = px.bar(
+            grp,
+            x="Report Date",
+            y="Pct Change",
+            color="Direction",
+            color_discrete_map={
+                "Up":   "#15803d",
+                "Down": "#b91c1c",
+                "Flat": "#d48806",
+            },
+            text="Label",
+            facet_row="Stay Month",
+            title=f"Daily % Change · {metric_choice}",
+        )
+        fig.update_layout(showlegend=False)
+        fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+    # ── Shared layout ─────────────────────────────────────────
+    fig.update_traces(
+        textposition="outside",
+        textfont=dict(size=10, color="#333"),
+        marker_line_width=0,
+    )
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        xaxis=dict(
+            title="Report Date",
+            tickformat="%d %b",
+            showgrid=False,
+        ),
+        yaxis=dict(
+            title="Daily % Change",
+            showgrid=True,
+            gridcolor="#f0f0f0",
+            zeroline=True,
+            zerolinecolor="#888",
+            zerolinewidth=1.5,
+            ticksuffix="%",
+        ),
+        margin=dict(l=20, r=20, t=55, b=20),
+        height=max(340, 280 * n_months),
+        hovermode="x unified",
+        bargap=0.35,
+    )
+
+    # Apply zero line to all facet y-axes
+    fig.update_yaxes(
+        zeroline=True,
+        zerolinecolor="#888",
+        zerolinewidth=1.5,
+        showgrid=True,
+        gridcolor="#f0f0f0",
+        ticksuffix="%",
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displaylogo": False,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+            "scrollZoom": False,
+        },
+        key="revenue_momentum_pct_chart",
+    )
+
+    # ── Summary stats ─────────────────────────────────────────
+    pos_days = int((grp["Pct Change"] > 0).sum())
+    neg_days = int((grp["Pct Change"] < 0).sum())
+    avg_pct  = grp["Pct Change"].mean()
+    max_row  = grp.loc[grp["Pct Change"].idxmax()]
+    min_row  = grp.loc[grp["Pct Change"].idxmin()]
+
+    s1, s2, s3, s4, s5 = st.columns(5)
+    s1.metric("Days Up",   pos_days)
+    s2.metric("Days Down", neg_days)
+    s3.metric("Avg Daily %", f"{avg_pct:+.2f}%")
+    s4.metric("Best Day",  f"{max_row['Pct Change']:+.1f}%",
+              max_row["Report Date"].strftime("%d %b"))
+    s5.metric("Worst Day", f"{min_row['Pct Change']:+.1f}%",
+              min_row["Report Date"].strftime("%d %b"))
+
+
 def build_forecast_movement_v31(metric_data, role_selection):
     role_map = {
         row["Role"]: row["Report Label"]
@@ -4325,6 +4491,9 @@ with tab_leaderboard:
 
 with tab1:
     trend_summary = render_forecast_trend_by_month_v3(metric_data)
+
+    st.divider()
+    render_revenue_momentum_pct_chart(metric_data)
 
     st.markdown('<div class="section-title">Hotel Momentum</div>', unsafe_allow_html=True)
 
