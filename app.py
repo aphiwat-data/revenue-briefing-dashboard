@@ -36,200 +36,81 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* ============================================================
-       G5 Revenue Dashboard — Pro UI v2.0
-       ============================================================ */
+    /* ── Layout ──────────────────────────────────────────── */
+    .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 96%; }
 
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
-    html, body, [class*="css"] {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-    }
-
-    /* Layout */
-    .block-container { padding-top: 1.25rem; padding-bottom: 2.5rem; max-width: 96%; }
-
-    /* ── Sidebar ──────────────────────────────────────────── */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
-        border-right: 1px solid #334155;
-    }
+    /* ── Sidebar ─────────────────────────────────────────── */
+    [data-testid="stSidebar"] { background: #f9fafb; border-right: 1px solid #e5e7eb; }
     [data-testid="stSidebar"] .stMarkdown h2 {
-        color: #94a3b8 !important;
-        font-size: 0.7rem !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.1em !important;
-        margin: 0.75rem 0 0.4rem 0 !important;
-        padding-bottom: 0.35rem !important;
-        border-bottom: 1px solid #334155 !important;
-    }
-    [data-testid="stSidebar"] hr { border-color: #334155 !important; margin: 0.8rem 0 !important; }
-    [data-testid="stSidebar"] label { color: #94a3b8 !important; font-size: 0.78rem !important; font-weight: 600 !important; }
-    [data-testid="stSidebar"] p, [data-testid="stSidebar"] span { color: #cbd5e1; }
-    [data-testid="stSidebar"] .stCaption { color: #64748b !important; }
-    [data-testid="stSidebar"] .stButton > button {
-        border-radius: 8px !important; font-weight: 600 !important; font-size: 0.82rem !important;
-    }
-
-    /* ── Dashboard Header ─────────────────────────────────── */
-    .dash-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #1d4ed8 100%);
-        padding: 18px 24px 16px 24px;
-        border-radius: 14px;
-        margin-bottom: 16px;
-        display: flex; align-items: center; justify-content: space-between;
-        box-shadow: 0 4px 24px rgba(29,78,216,0.25);
-    }
-    .dash-header-left { display: flex; flex-direction: column; gap: 2px; }
-    .dash-header-title { font-size: 1.5rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; margin: 0; }
-    .dash-header-sub { font-size: 0.82rem; color: #93c5fd; font-weight: 500; }
-    .dash-header-badge {
-        background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
-        color: #e0f2fe; font-size: 0.72rem; font-weight: 700;
-        padding: 5px 14px; border-radius: 999px; white-space: nowrap;
-    }
-
-    /* ── Context / Status Bar ─────────────────────────────── */
-    .context-bar {
-        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
-        padding: 8px 14px; margin: 0 0 14px 0;
-        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    }
-    .context-tag {
-        display: inline-flex; align-items: center; gap: 4px;
-        background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;
-        padding: 3px 9px; font-size: 0.78rem; font-weight: 600; color: #374151;
-    }
-    .context-tag-label { color: #9ca3af; font-weight: 500; margin-right: 2px; }
-
-    /* ── KPI / Metric Cards ───────────────────────────────── */
-    div[data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid #e8edf5;
-        border-top: 3px solid #2563eb;
-        padding: 14px 18px;
-        border-radius: 12px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        transition: box-shadow 0.18s ease, transform 0.18s ease;
-    }
-    div[data-testid="stMetric"]:hover { box-shadow: 0 6px 18px rgba(0,0,0,0.1); transform: translateY(-2px); }
-    div[data-testid="stMetricLabel"] {
         font-size: 0.68rem !important; font-weight: 700 !important;
-        text-transform: uppercase !important; letter-spacing: 0.07em !important; color: #6b7280 !important;
+        text-transform: uppercase !important; letter-spacing: 0.09em !important;
+        color: #9ca3af !important; margin: 1rem 0 0.4rem !important;
+        padding-bottom: 0.3rem !important; border-bottom: 1px solid #e5e7eb !important;
+    }
+
+    /* ── KPI Cards ───────────────────────────────────────── */
+    div[data-testid="stMetric"] {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-top: 2px solid #2563eb;
+        padding: 14px 16px;
+        border-radius: 8px;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.7rem !important; font-weight: 600 !important;
+        text-transform: uppercase !important; letter-spacing: 0.06em !important;
+        color: #6b7280 !important;
     }
     div[data-testid="stMetricValue"] {
-        font-size: clamp(1rem, 1.35vw, 1.55rem) !important;
-        font-weight: 800 !important; color: #111827 !important; letter-spacing: -0.02em !important;
+        font-size: clamp(1rem, 1.3vw, 1.45rem) !important;
+        font-weight: 700 !important; color: #111827 !important;
     }
-    div[data-testid="stMetricDelta"] { font-size: 0.75rem !important; font-weight: 600 !important; }
+    div[data-testid="stMetricDelta"] { font-size: 0.78rem !important; font-weight: 500 !important; }
 
-    /* ── Section Titles ───────────────────────────────────── */
+    /* ── Section titles ──────────────────────────────────── */
     .section-title {
-        font-size: 1.1rem; font-weight: 700; color: #0f172a;
-        margin-top: 1.25rem; margin-bottom: 0.4rem;
-        padding-bottom: 0.35rem; border-bottom: 2px solid #e2e8f0;
-        letter-spacing: -0.01em;
+        font-size: 1rem; font-weight: 600; color: #111827;
+        margin: 1.25rem 0 0.5rem; padding-bottom: 0.4rem;
+        border-bottom: 1px solid #e5e7eb;
     }
 
-    /* ── Tabs ─────────────────────────────────────────────── */
+    /* ── Tabs ────────────────────────────────────────────── */
     .stTabs [data-baseweb="tab-list"] {
-        background: #f1f5f9 !important; border-radius: 10px !important;
-        padding: 4px !important; gap: 2px !important;
-        border: 1px solid #e2e8f0 !important;
+        gap: 0 !important; border-bottom: 1px solid #e5e7eb !important;
+        background: transparent !important; padding: 0 !important;
     }
     .stTabs [data-baseweb="tab"] {
-        background: transparent !important; border-radius: 8px !important;
-        padding: 8px 14px !important; font-size: 0.8rem !important;
-        font-weight: 600 !important; color: #64748b !important; transition: all 0.15s ease !important;
-        border: none !important;
+        background: transparent !important; border-bottom: 2px solid transparent !important;
+        border-radius: 0 !important; padding: 10px 16px !important;
+        font-size: 0.83rem !important; font-weight: 500 !important;
+        color: #6b7280 !important; margin-bottom: -1px !important;
     }
     .stTabs [aria-selected="true"] {
-        background: #ffffff !important; color: #1d4ed8 !important;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1) !important;
+        color: #2563eb !important; border-bottom-color: #2563eb !important;
+        font-weight: 600 !important; background: transparent !important;
     }
     .stTabs [data-baseweb="tab-panel"] { padding-top: 16px !important; }
 
-    /* ── DataFrames / Tables ──────────────────────────────── */
+    /* ── Tables ──────────────────────────────────────────── */
     div[data-testid="stDataFrame"] {
-        border-radius: 10px; overflow: hidden;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;
     }
 
-    /* ── Buttons ──────────────────────────────────────────── */
-    .stButton > button {
-        border-radius: 8px !important; font-weight: 600 !important;
-        font-size: 0.82rem !important; transition: all 0.15s ease !important;
-    }
-    .stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
-        border: none !important; box-shadow: 0 2px 6px rgba(37,99,235,0.3) !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        box-shadow: 0 4px 14px rgba(37,99,235,0.4) !important; transform: translateY(-1px) !important;
-    }
+    /* ── Buttons ─────────────────────────────────────────── */
+    .stButton > button { border-radius: 6px !important; font-size: 0.83rem !important; font-weight: 500 !important; }
+    .stButton > button[kind="primary"] { background: #2563eb !important; border-color: #2563eb !important; }
 
-    /* ── Expanders ────────────────────────────────────────── */
-    .streamlit-expanderHeader {
-        background: #f8fafc !important; border-radius: 8px !important;
-        font-weight: 600 !important; font-size: 0.85rem !important; color: #374151 !important;
-        border: 1px solid #e2e8f0 !important;
-    }
+    /* ── Status color classes (used inline in HTML) ──────── */
+    .rev-card-good  { background: #f0fdf4; border-left: 3px solid #16a34a; color: #15803d; padding: 10px 14px; border-radius: 6px; }
+    .rev-card-bad   { background: #fef2f2; border-left: 3px solid #dc2626; color: #b91c1c; padding: 10px 14px; border-radius: 6px; }
+    .rev-card-flat  { background: #fefce8; border-left: 3px solid #ca8a04; color: #92400e; padding: 10px 14px; border-radius: 6px; }
+    .rev-card-info  { background: #eff6ff; border-left: 3px solid #2563eb; color: #1d4ed8; padding: 10px 14px; border-radius: 6px; }
 
-    /* ── Input Controls ───────────────────────────────────── */
-    .stSelectbox > div > div, .stMultiSelect > div > div, .stTextInput > div > div > input {
-        border-radius: 8px !important;
-    }
-
-    /* ── Alerts ───────────────────────────────────────────── */
-    div[data-testid="stAlert"] { border-radius: 10px !important; }
-
-    /* ── Color Legend Pills ───────────────────────────────── */
-    .rev-legend-wrap {
-        display: flex; flex-wrap: wrap; gap: 7px;
-        margin: 8px 0 14px 0; padding: 10px 14px;
-        background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
-    }
-    .rev-pill {
-        padding: 4px 12px; border-radius: 999px; font-size: 0.76rem; font-weight: 700;
-        border: 1px solid rgba(15,23,42,0.1); display: inline-flex; align-items: center; gap: 5px;
-    }
-    .rev-green  { background: #dcfce7; color: #14532d; border-color: #22c55e; }
-    .rev-red    { background: #fee2e2; color: #7f1d1d; border-color: #ef4444; }
-    .rev-yellow { background: #fef9c3; color: #713f12; border-color: #eab308; }
-    .rev-blue   { background: #dbeafe; color: #1e3a8a; border-color: #3b82f6; }
-
-    /* ── Revenue Status Cards ─────────────────────────────── */
-    .rev-card-good {
-        background: linear-gradient(90deg, #dcfce7 0%, #f0fdf4 100%);
-        border-left: 5px solid #15803d; color: #14532d;
-        border-radius: 8px; padding: 12px 16px; margin: 4px 0;
-    }
-    .rev-card-bad {
-        background: linear-gradient(90deg, #fee2e2 0%, #fff1f2 100%);
-        border-left: 5px solid #b91c1c; color: #7f1d1d;
-        border-radius: 8px; padding: 12px 16px; margin: 4px 0;
-    }
-    .rev-card-flat {
-        background: linear-gradient(90deg, #fef9c3 0%, #fffbeb 100%);
-        border-left: 5px solid #ca8a04; color: #713f12;
-        border-radius: 8px; padding: 12px 16px; margin: 4px 0;
-    }
-    .rev-card-info {
-        background: linear-gradient(90deg, #dbeafe 0%, #eff6ff 100%);
-        border-left: 5px solid #2563eb; color: #1e3a8a;
-        border-radius: 8px; padding: 12px 16px; margin: 4px 0;
-    }
-
-    /* ── Misc ─────────────────────────────────────────────── */
+    /* ── Misc ────────────────────────────────────────────── */
     div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
-    .stCaption, div[data-testid="stCaptionContainer"] { color: #9ca3af !important; font-size: 0.77rem !important; }
-    .stRadio > div { gap: 4px !important; }
-
+    .stCaption, div[data-testid="stCaptionContainer"] { color: #9ca3af !important; font-size: 0.78rem !important; }
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
-
     </style>
     """,
     unsafe_allow_html=True,
@@ -3575,53 +3456,54 @@ def render_kpi_axis_cards(budget_df, selected_axes):
 
 
 def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
-    """
-    Correct Budget-first KPI cards.
-
-    Order:
-    Budget -> Latest Forecast -> Variance vs Budget -> Variance vs Budget %
-
-    Formula:
-    Variance % = (Forecast - Budget) / Budget * 100
-    """
-    selected_axes = st.multiselect(
-        "Compare",
-        KPI_AXIS_ORDER,
-        default=["Budget", "Forecast"],
-        key="kpi_axis_selector",
-        help="Select 2 or 3 values to compare side by side.",
+    """Budget-first KPI cards with inline checkbox compare selector."""
+    # ── Compare selector: inline checkboxes with | separator ──
+    st.markdown(
+        '<p style="font-size:0.72rem;font-weight:600;text-transform:uppercase;'
+        'letter-spacing:0.07em;color:#6b7280;margin-bottom:4px;">Compare</p>',
+        unsafe_allow_html=True,
     )
+    chk_cols = st.columns([1, 0.08, 1, 0.08, 1, 2])
+    otb_on  = chk_cols[0].checkbox("On The Book", value=False, key="kpi_chk_otb")
+    chk_cols[1].markdown('<p style="text-align:center;color:#d1d5db;margin-top:6px;">|</p>', unsafe_allow_html=True)
+    bgt_on  = chk_cols[2].checkbox("Budget", value=True, key="kpi_chk_budget")
+    chk_cols[3].markdown('<p style="text-align:center;color:#d1d5db;margin-top:6px;">|</p>', unsafe_allow_html=True)
+    fct_on  = chk_cols[4].checkbox("Forecast", value=True, key="kpi_chk_forecast")
 
+    selected_axes = (
+        (["On The Book"] if otb_on else []) +
+        (["Budget"] if bgt_on else []) +
+        (["Forecast"] if fct_on else [])
+    )
     if len(selected_axes) < 2:
-        st.warning("Select at least 2 values to compare.")
+        st.caption("Select at least 2 items to compare.")
         return
 
     kpi_mode = st.radio(
-        "KPI view",
-        ["Executive Rev", "Detailed by Metric"],
+        "View",
+        ["Revenue summary", "By metric"],
         horizontal=True,
         index=0,
         key="budget_first_kpi_mode_v39",
+        label_visibility="collapsed",
     )
-
-    st.caption("Budget is the denominator whenever it is part of a comparison.")
 
     budget_df = build_budget_review(metric_data, role_selection)
     if budget_df.empty:
-        st.info("No Budget data found.")
+        st.info("No budget data available.")
         return
 
-    if kpi_mode == "Executive Rev":
+    if kpi_mode == "Revenue summary":
         rev_df = budget_df[budget_df["Metric"] == "Rev"].copy()
         render_kpi_axis_cards(rev_df if not rev_df.empty else budget_df, selected_axes)
         return
 
     metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
     for metric_name in metrics_to_show:
-        st.markdown(f"#### {metric_name}")
+        st.markdown(f"**{metric_name}**")
         metric_df = budget_df[budget_df["Metric"] == metric_name].copy()
         if metric_df.empty:
-            st.info(f"No KPI data found for {metric_name}.")
+            st.caption(f"No data for {metric_name}.")
             continue
         render_kpi_axis_cards(metric_df, selected_axes)
 
@@ -3808,30 +3690,17 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-st.markdown("""
-<div class="dash-header">
-  <div class="dash-header-left">
-    <div class="dash-header-title">📈 Revenue Briefing Dashboard</div>
-    <div class="dash-header-sub">D4cast · Budget variance first · Daily morning review</div>
-  </div>
-  <div class="dash-header-badge">G5 Hotels</div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown("## Revenue Briefing")
+st.caption("D4cast · Budget variance first · Daily morning review")
 
 # --- PRO SIDEBAR ---
 with st.sidebar:
-    st.markdown("""
-    <div style="padding:12px 0 8px 0; border-bottom:1px solid #334155; margin-bottom:12px;">
-      <div style="font-size:1rem; font-weight:800; color:#f1f5f9; letter-spacing:-0.01em;">⚡ G5 Revenue</div>
-      <div style="font-size:0.7rem; color:#64748b; margin-top:1px;">D4cast Morning Review</div>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("## ⚙️ Data Source")
+    st.markdown("## Data Source")
     mode = st.radio("Input mode", ["Folder auto-load", "Manual upload"], horizontal=True, label_visibility="collapsed")
     
     if mode == "Folder auto-load":
-        folder_path = st.text_input("📁 G5 folder path", value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review")
-        if st.button("🔄 Refresh Data", use_container_width=True, type="primary"):
+        folder_path = st.text_input("Folder path", value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review")
+        if st.button("Refresh", use_container_width=True, type="primary"):
             st.cache_data.clear()
             st.rerun()
         try:
@@ -3844,16 +3713,16 @@ with st.sidebar:
     else:
         uploaded = st.file_uploader("Upload G5 files or ZIP folder", type=["zip", "csv", "xlsx", "xls"], accept_multiple_files=True, help="Upload multiple daily files, or upload one ZIP file containing the whole report folder.")
         if not uploaded:
-            st.info("💡 Upload daily G5 files to start.")
+            st.info("Upload daily G5 files to start.")
             st.stop()
         file_catalog = build_file_catalog_from_uploads(uploaded)
     
     st.divider()
-    st.markdown("## 🎯 Filters")
+    st.markdown("## Filters")
     report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
     latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
     
-    report_file_month = st.selectbox("📅 Report file month", report_file_months, index=report_file_months.index(latest_report_month))
+    report_file_month = st.selectbox("Report file month", report_file_months, index=report_file_months.index(latest_report_month))
     
     # Process files
     role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
@@ -3865,7 +3734,7 @@ with st.sidebar:
         combined_df = pd.concat([parse_record(row) for _, row in selected_file_catalog.iterrows()], ignore_index=True)
         ref_col_map = build_ref_col_map(combined_df)
         if not ref_col_map.get("Duetto"):
-            st.error("🚨 No Forecast / Duetto / Forecast columns detected.")
+            st.error("No Forecast / Duetto columns detected in the uploaded files.")
             st.stop()
         metric_long = build_metric_long(combined_df, ref_col_map)
         
@@ -3875,7 +3744,7 @@ with st.sidebar:
     stay_month_options = all_stay_months
     default_report_month = report_file_month if report_file_month in all_stay_months else (all_stay_months[0] if all_stay_months else None)
 
-    st.markdown("#### 🗓️ Stay Month")
+    st.markdown("#### Stay Month")
 
     stay_month_mode = st.selectbox(
         "Stay Month mode",
@@ -3912,7 +3781,7 @@ with st.sidebar:
     if stay_month_mode != "All months":
         stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
     
-    st.markdown("#### 🏨 Hotels")
+    st.markdown("#### Hotels")
 
     def hotel_key(hotel_name):
         safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
@@ -3942,7 +3811,7 @@ with st.sidebar:
 
     st.caption(f"Selected hotels: {len(selected_hotels)} / {len(all_hotels)}")
     
-    selected_metric = st.selectbox("📏 Metric", get_metric_options_with_all(), index=0)
+    selected_metric = st.selectbox("Metric", get_metric_options_with_all(), index=0)
 
 if not selected_hotels:
     st.warning("⚠️ Please select at least one hotel.")
@@ -3955,7 +3824,7 @@ if selected_metric != "All Metrics":
 metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
 
 if metric_data.empty:
-    st.warning("📭 No data available for the selected filters.")
+    st.warning("No data for the selected filters.")
     st.stop()
 
 # Build Summaries
@@ -3972,37 +3841,31 @@ hotel_momentum = d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month
 # ============================================================
 # Header KPIs — Revenue Budget Focus
 # ============================================================
-st.markdown(f"""
-<div class="context-bar">
-  <span style="color:#6b7280;font-size:0.77rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Viewing</span>
-  <span class="context-tag"><span class="context-tag-label">Metric</span>{selected_metric}</span>
-  <span class="context-tag"><span class="context-tag-label">Stay Month</span>{stay_month_label(stay_month_selection)}</span>
-</div>
-""", unsafe_allow_html=True)
+st.caption(f"Metric: **{selected_metric}** · Stay Month: **{stay_month_label(stay_month_selection)}**")
 
 render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric)
 
-st.markdown("""
-<div class="rev-legend-wrap">
-  <span style="color:#6b7280;font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;margin-right:4px;">Color Guide</span>
-  <span class="rev-pill rev-green">🟢 Above / Up</span>
-  <span class="rev-pill rev-red">🔴 Below / Down</span>
-  <span class="rev-pill rev-yellow">🟡 Flat / Neutral</span>
-  <span class="rev-pill rev-blue">🔵 Forecast / Info</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    '<p style="font-size:0.78rem;color:#6b7280;margin:12px 0 4px;">'
+    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#16a34a;margin-right:4px;vertical-align:middle;"></span>Above / Up &nbsp;'
+    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#dc2626;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Below / Down &nbsp;'
+    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ca8a04;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Flat / Neutral &nbsp;'
+    '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#2563eb;margin-right:4px;margin-left:8px;vertical-align:middle;"></span>Forecast / Info'
+    '</p>',
+    unsafe_allow_html=True,
+)
 render_metric_dictionary()
 
 # ============================================================
 # Main Tabs
 # ============================================================
 tab0, tab_movement, tab_leaderboard, tab1, tab_analysis, tab5 = st.tabs([
-    "📋 Forecast Pivot",
-    "📊 Forecast Movement",
-    "🎯 Budget Board",
-    "📈 Forecast Trend",
-    "🔬 Advanced Analysis",
-    "📤 Export & Settings",
+    "Forecast Pivot",
+    "Movement",
+    "Budget Board",
+    "Trend",
+    "Advanced",
+    "Export",
 ])
 
 
