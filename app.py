@@ -299,6 +299,42 @@ st.markdown(
     /* ── Spacing ─────────────────────────────────────────── */
     div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
 
+    /* ── Sidebar property list (Duetto-style) ───────────────
+       Overrides the global chip style for sidebar checkboxes.
+       Sidebar specificity (0,2,1) beats global (0,1,1).
+       ───────────────────────────────────────────────────── */
+    [data-testid="stSidebar"] .stCheckbox {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    [data-testid="stSidebar"] .stCheckbox > label {
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        padding: 7px 10px !important;
+        border-radius: 4px !important;
+        border: none !important;
+        background: transparent !important;
+        font-size: 0.84rem !important;
+        color: #333 !important;
+        font-weight: 400 !important;
+        gap: 8px !important;
+        cursor: pointer !important;
+        transition: background 0.12s !important;
+        margin: 1px 0 !important;
+    }
+    [data-testid="stSidebar"] .stCheckbox > label:hover {
+        background: #f0f5ff !important;
+        color: #1677ff !important;
+    }
+    [data-testid="stSidebar"] .stCheckbox > label:has(input:checked) {
+        background: #e6f4ff !important;
+        color: #1677ff !important;
+        font-weight: 600 !important;
+        border: none !important;
+    }
+
     /* ── Hide Streamlit chrome ───────────────────────────── */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
@@ -4021,27 +4057,41 @@ with st.sidebar:
         if stay_month_mode != "All months":
             stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
 
-        # Hotels
-        st.markdown("#### Hotels")
-        ca, cb = st.columns(2)
-        if ca.button("All", use_container_width=True, key="hotel_select_all_btn"):
-            for h in all_hotels:
+        # Hotels — Duetto-style property list
+        st.markdown("#### Properties")
+
+        # Init individual hotel states
+        for h in all_hotels:
+            if hotel_key(h) not in st.session_state:
                 st.session_state[hotel_key(h)] = True
-            st.rerun()
-        if cb.button("None", use_container_width=True, key="hotel_clear_all_btn"):
-            for h in all_hotels:
-                st.session_state[hotel_key(h)] = False
-            st.rerun()
+
+        # Sync "All Properties" master toggle state before rendering
+        _all_sel = all(st.session_state.get(hotel_key(h), True) for h in all_hotels)
+        st.session_state["hotel_chk_all_props"] = _all_sel
+
+        # "All Properties" master toggle callback
+        def _toggle_all_props(_hotels=all_hotels):
+            val = st.session_state["hotel_chk_all_props"]
+            for _h in _hotels:
+                st.session_state[hotel_key(_h)] = val
+
+        st.checkbox(
+            "All Properties",
+            key="hotel_chk_all_props",
+            on_change=_toggle_all_props,
+        )
+        st.markdown(
+            '<hr style="margin:4px 0 2px 0;border:none;border-top:1px solid #e8e8e8;">',
+            unsafe_allow_html=True,
+        )
 
         selected_hotels = []
-        with st.expander(f"Properties ({len(all_hotels)})", expanded=True):
-            for hotel in all_hotels:
-                key = hotel_key(hotel)
-                if key not in st.session_state:
-                    st.session_state[key] = True
-                if st.checkbox(str(hotel), key=key):
-                    selected_hotels.append(hotel)
-        st.caption(f"{len(selected_hotels)} / {len(all_hotels)} selected")
+        for hotel in all_hotels:
+            _key = hotel_key(hotel)
+            if st.checkbox(str(hotel), key=_key):
+                selected_hotels.append(hotel)
+
+        st.caption(f"{len(selected_hotels)} of {len(all_hotels)} selected")
 
         # Metric
         st.markdown("#### Metric")
