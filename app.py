@@ -1264,6 +1264,117 @@ def style_final_variance_table(df):
     return df.style.apply(row_style, axis=1)
 
 
+def _render_comparison_summary_cards(df, value_col, value_label):
+    valid = df[(df["Budget"].notna()) & (df["Budget"] != 0)].copy()
+    if valid.empty:
+        return
+
+    total_value = float(valid[value_col].sum())
+    total_budget = float(valid["Budget"].sum())
+    variance = total_value - total_budget
+    variance_pct = variance / total_budget * 100 if total_budget else None
+    above = int((valid[value_col] >= valid["Budget"]).sum())
+    below = int((valid[value_col] < valid["Budget"]).sum())
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(value_label, fmt_raw2(total_value))
+    c2.metric("Budget", fmt_raw2(total_budget))
+    c3.metric(
+        "Variance vs Budget",
+        fmt_raw2(variance),
+        delta=fmt_signed_pct2(variance_pct),
+        delta_color="normal" if variance >= 0 else "inverse",
+    )
+    c4.metric("Properties", f"{above} above / {below} below", delta=f"of {len(valid)} hotels", delta_color="off")
+
+
+def _render_forecast_vs_budget(pivot_df):
+    """
+    Forecast VS Budget snapshot — KPI cards only.
+    Metric selector: Revenue Summary (default) or any individual metric.
+    """
+    st.markdown('<div class="section-title">Forecast VS Budget</div>', unsafe_allow_html=True)
+
+    if pivot_df is None or pivot_df.empty:
+        return
+    if "Duetto" not in pivot_df.columns or "Budget" not in pivot_df.columns:
+        return
+
+    available_metrics = [m for m in METRIC_ORDER if not pivot_df[pivot_df["Metric"] == m].empty]
+    _mc1, _mc2 = st.columns([1.25, 3])
+    metric_sel_fvb = _mc1.selectbox(
+        "Metric",
+        ["Revenue Summary"] + available_metrics,
+        index=0,
+        key="fvb_metric_sel",
+    )
+    _mc2.markdown(
+        '<div style="font-size:0.78rem;color:#6b7280;padding-top:30px;">'
+        'Bars show Forecast. Black line is Budget. Green = above budget, red = below budget.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    flt = (
+        pivot_df[pivot_df["Metric"] == "Rev"].copy()
+        if metric_sel_fvb == "Revenue Summary"
+        else pivot_df[pivot_df["Metric"] == metric_sel_fvb].copy()
+    )
+    if flt.empty:
+        return
+
+    by_hotel = flt.groupby("Hotel", as_index=False).agg({"Duetto": "sum", "Budget": "sum"})
+    by_hotel = by_hotel[(by_hotel["Budget"].notna()) & (by_hotel["Budget"] != 0)]
+    if by_hotel.empty:
+        return
+    _render_comparison_summary_cards(by_hotel, "Duetto", "Forecast")
+
+
+def _render_otb_comparison_chart(pivot_df):
+    """
+    Compare On The Book — KPI cards only.
+    Metric selector: Revenue Summary (default) or individual metric.
+    """
+    st.markdown('<div class="section-title">Compare — On The Book</div>', unsafe_allow_html=True)
+
+    if pivot_df is None or pivot_df.empty or "Today" not in pivot_df.columns:
+        st.info("No On-The-Book data available.")
+        return
+
+    available_metrics = [m for m in METRIC_ORDER if not pivot_df[pivot_df["Metric"] == m].empty]
+    _oc1, _oc2 = st.columns([1.25, 3])
+    metric_sel_otb = _oc1.selectbox(
+        "Metric",
+        ["Revenue Summary"] + available_metrics,
+        index=0,
+        key="otb_chart_metric_sel",
+    )
+    _oc2.markdown(
+        '<div style="font-size:0.78rem;color:#6b7280;padding-top:30px;">'
+        'Bars show On The Book. Black line is Budget. Green = above budget, red = below budget.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    flt = (
+        pivot_df[pivot_df["Metric"] == "Rev"].copy()
+        if metric_sel_otb == "Revenue Summary"
+        else pivot_df[pivot_df["Metric"] == metric_sel_otb].copy()
+    )
+    if flt.empty:
+        return
+
+    agg_cols = {c: "sum" for c in ["Today", "Budget"] if c in flt.columns}
+    if "Budget" not in agg_cols:
+        st.info("No Budget data available for On-The-Book comparison.")
+        return
+    by_hotel = flt.groupby("Hotel", as_index=False).agg(agg_cols)
+    by_hotel = by_hotel[(by_hotel["Budget"].notna()) & (by_hotel["Budget"] != 0)]
+    if by_hotel.empty:
+        return
+    _render_comparison_summary_cards(by_hotel, "Today", "On The Book")
+
+
 def render_compact_hotel_tabs(pivot_df):
     """
     Forecast pivot table — variance-enhanced view.
@@ -5090,10 +5201,16 @@ with tab0:
     # Build variance pivot (OTB + variances)
     latest_pivot = build_variance_pivot_table(metric_data, role_selection)
 
-    # ── 1. Forecast Pivot with variance columns ───────────────
+    # ── 1. Compare On The Book (KPI cards) ───────────────────
+    _render_otb_comparison_chart(latest_pivot)
+
+    # ── 2. Forecast VS Budget (KPI cards) ────────────────────
+    _render_forecast_vs_budget(latest_pivot)
+
+    # ── 3. Forecast Pivot with variance columns ───────────────
     render_compact_hotel_tabs(latest_pivot)
 
-    # ── 2. Same-Time Pace Benchmark (always visible) ─────────
+    # ── 4. Same-Time Pace Benchmark (always visible) ─────────
     st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
     st.caption("OTB vs STLY / ST2Y / ST3Y — how current on-the-book compares to same-time prior years.")
     if pace_summary.empty:
@@ -5112,7 +5229,7 @@ with tab0:
         else:
             render_compact_by_hotel(pace_display, view_mode_pace, "pace")
 
-    # ── 3. Historical Final Comparison (collapsed, coloured) ─
+    # ── 5. Historical Final Comparison (collapsed, coloured) ─
     st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
     with st.expander("Expand — Forecast vs Final LY / 2Y / 3Y", expanded=False):
         st.caption("Forecast vs Final LY / Final 2Y / Final 3Y. Historical context only — not a budget target.")
