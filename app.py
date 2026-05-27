@@ -15,6 +15,7 @@ import zipfile
 import tempfile
 import re
 import base64
+import html
 from pathlib import Path
 from datetime import datetime
 
@@ -137,6 +138,39 @@ st.markdown(
     .filter-bar b { color: #111; font-weight: 600; }
     .filter-label { color: #555; font-size: 0.86rem; font-weight: 500; margin-right: 2px; }
     .filter-sep { color: #bbb; margin: 0 4px; }
+    .property-context {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        margin: -8px 0 16px 0;
+        color: #555;
+        font-size: 0.86rem;
+    }
+    .property-context-label {
+        flex: 0 0 auto;
+        padding-top: 5px;
+        font-weight: 600;
+        color: #333;
+    }
+    .property-chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+    }
+    .property-chip {
+        max-width: 260px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border: 1px solid #d8d8d8;
+        background: #fff;
+        color: #222;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 0.82rem;
+        line-height: 1.2;
+    }
 
     /* ── KPI cards ───────────────────────────────────────── */
     div[data-testid="stMetric"] {
@@ -4454,6 +4488,16 @@ def hotel_key(hotel_name):
     safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
     return f"hotel_checkbox_{safe}"
 
+def selected_property_chips_html(selected_hotels):
+    chips = []
+    for hotel in selected_hotels:
+        name = str(hotel)
+        chips.append(
+            f'<span class="property-chip" title="{html.escape(name)}">'
+            f'{html.escape(name)}</span>'
+        )
+    return "".join(chips)
+
 with st.sidebar:
     # ── Brand header ─────────────────────────────────────────
     if _LOGO_B64:
@@ -4710,7 +4754,14 @@ st.markdown(
     f'<span class="filter-sep"> · </span>'
     f'<span class="filter-label">Stay</span> <b>{stay_month_label(stay_month_selection)}</b>'
     f'<span class="filter-sep"> · </span>'
-    f'<span class="filter-label">Properties</span> <b>{len(selected_hotels)}</b>'
+    f'<span class="filter-label">Viewing</span> <b>{len(selected_hotels)} properties</b>'
+    f'</div>',
+    unsafe_allow_html=True,
+)
+st.markdown(
+    f'<div class="property-context">'
+    f'<span class="property-context-label">Properties</span>'
+    f'<div class="property-chip-list">{selected_property_chips_html(selected_hotels)}</div>'
     f'</div>',
     unsafe_allow_html=True,
 )
