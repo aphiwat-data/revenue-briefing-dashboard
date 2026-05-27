@@ -3749,22 +3749,22 @@ def render_revenue_momentum_pct_chart(metric_data):
         st.caption("Select at least one stay month.")
         return
 
-    # ── Build daily % change for selected metric AND ADR (reference) ─
+    # ── Build daily % change aggregated across selected stay months ─
     def _daily_pct(metric):
         sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"].isin(sel_months))].copy()
         if sub.empty:
             return pd.DataFrame()
-        # Sum across hotels and stay months per report date, then pct_change
+        # Sum across hotels AND stay months → one row per report date
         agg = (
-            sub.groupby(["Report Date", "Stay Month"], as_index=False)["Value"]
+            sub.groupby("Report Date", as_index=False)["Value"]
             .sum()
-            .sort_values(["Stay Month", "Report Date"])
+            .sort_values("Report Date")
         )
-        agg["Pct Change"] = agg.groupby("Stay Month")["Value"].pct_change() * 100
+        agg["Pct Change"] = agg["Value"].pct_change() * 100
         return agg.dropna(subset=["Pct Change"]).reset_index(drop=True)
 
-    grp = _daily_pct(metric_choice)
-    adr_grp = _daily_pct("ADR") if metric_choice != "ADR" else pd.DataFrame()
+    grp     = _daily_pct(metric_choice)
+    adr_ref = _daily_pct("ADR") if metric_choice != "ADR" else pd.DataFrame()
 
     if grp.empty:
         st.info("Need at least 2 report dates to compute daily % change.")
@@ -3775,82 +3775,29 @@ def render_revenue_momentum_pct_chart(metric_data):
     )
     grp["Label"] = grp["Pct Change"].apply(lambda x: f"{x:+.1f}%")
 
-    n_months = grp["Stay Month"].nunique()
-
-    # ADR reference: aggregate across stay months for clean reference line
-    adr_ref = pd.DataFrame()
-    if not adr_grp.empty:
-        adr_ref = (
-            adr_grp.groupby("Report Date", as_index=False)["Pct Change"].mean()
-            .sort_values("Report Date")
-        )
-
-    # ── Build the chart ───────────────────────────────────────
-    if n_months == 1:
-        # Single stay month → simple bar chart with optional ADR ref line
-        fig = px.bar(
-            grp,
-            x="Report Date",
-            y="Pct Change",
-            color="Direction",
-            color_discrete_map={
-                "Up":   "#15803d",
-                "Down": "#b91c1c",
-                "Flat": "#d48806",
-            },
-            text="Label",
-            title=f"{metric_choice} · {sel_months[0]}",
-        )
-        if not adr_ref.empty:
-            fig.add_trace(go.Scatter(
-                x=adr_ref["Report Date"],
-                y=adr_ref["Pct Change"],
-                name="ADR (reference)",
-                mode="lines+markers",
-                line=dict(color="#1e293b", width=2, dash="dash"),
-                marker=dict(size=6, color="#1e293b"),
-                hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
-            ))
-        fig.update_layout(showlegend=(not adr_ref.empty))
-    else:
-        # Multiple stay months → facet row
-        fig = px.bar(
-            grp,
-            x="Report Date",
-            y="Pct Change",
-            color="Direction",
-            color_discrete_map={
-                "Up":   "#15803d",
-                "Down": "#b91c1c",
-                "Flat": "#d48806",
-            },
-            text="Label",
-            facet_row="Stay Month",
-            title=f"{metric_choice}",
-        )
-        # Replace "Stay Month=May, 2026" with "May, 2026"
-        fig.for_each_annotation(lambda a: a.update(
-            text=f"<b>{a.text.split('=')[-1]}</b>",
-            font=dict(size=12, color="#1e40af"),
+    # ── Single chart: bars (selected metric) + dashed line (ADR reference) ─
+    fig = px.bar(
+        grp,
+        x="Report Date",
+        y="Pct Change",
+        color="Direction",
+        color_discrete_map={
+            "Up":   "#15803d",
+            "Down": "#b91c1c",
+            "Flat": "#d48806",
+        },
+        text="Label",
+    )
+    if not adr_ref.empty:
+        fig.add_trace(go.Scatter(
+            x=adr_ref["Report Date"],
+            y=adr_ref["Pct Change"],
+            name="ADR (reference)",
+            mode="lines+markers",
+            line=dict(color="#1e293b", width=2, dash="dash"),
+            marker=dict(size=6, color="#1e293b"),
+            hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
         ))
-        # Add ADR dashed reference line to every facet
-        if not adr_ref.empty:
-            for i in range(n_months):
-                fig.add_trace(
-                    go.Scatter(
-                        x=adr_ref["Report Date"],
-                        y=adr_ref["Pct Change"],
-                        name="ADR (reference)",
-                        mode="lines+markers",
-                        line=dict(color="#1e293b", width=2, dash="dash"),
-                        marker=dict(size=5, color="#1e293b"),
-                        showlegend=(i == 0),
-                        legendgroup="adr_ref",
-                        hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
-                    ),
-                    row=i + 1, col=1,
-                )
-        fig.update_layout(showlegend=(not adr_ref.empty))
 
     fig.update_traces(
         textposition="outside",
@@ -3862,10 +3809,11 @@ def render_revenue_momentum_pct_chart(metric_data):
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=55, b=20),
-        height=max(360, 240 * n_months),
+        margin=dict(l=20, r=20, t=30, b=20),
+        height=380,
         hovermode="x unified",
         bargap=0.35,
+        showlegend=(not adr_ref.empty),
         legend=dict(
             orientation="h", y=-0.15, x=0.5, xanchor="center",
             font=dict(size=11, color="#374151"),
@@ -5880,6 +5828,255 @@ with tab1:
 
     # 3. Daily % change bar chart (momentum)
     render_revenue_momentum_pct_chart(metric_data)
+
+    st.divider()
+
+    # 4. Hotel-level momentum (drill-down)
+    st.markdown('<div class="section-title">Hotel Momentum — Per-Property Drill-Down</div>', unsafe_allow_html=True)
+    st.caption("Bubble size = forecast magnitude · Bubble color = daily % change. Use this to spot which hotels are driving the overall trend.")
+
+    if hotel_momentum.empty:
+        st.info("No hotel momentum data.")
+    else:
+        bubble = hotel_momentum.copy()
+        # Bubble-specific Stay Month filter
+        if "Stay Month" in bubble.columns:
+            bubble_month_options = sorted(bubble["Stay Month"].dropna().unique(), key=month_sort_key)
+            bubble_month = st.selectbox(
+                "Bubble Stay Month",
+                ["All Months"] + bubble_month_options,
+                index=0,
+                key="bubble_stay_month_filter_v31",
+            )
+            if bubble_month != "All Months":
+                bubble = bubble[bubble["Stay Month"] == bubble_month].copy()
+
+        bubble = bubble.sort_values(["Hotel", "Stay Month", "Report Date"])
+        bubble["Previous Forecast"] = bubble.groupby(["Hotel", "Stay Month"])["Value"].shift(1)
+        bubble["Daily Change"] = bubble["Value"] - bubble["Previous Forecast"]
+        bubble["Daily Change %"] = bubble["Daily Change"] / bubble["Previous Forecast"] * 100
+        bubble["Bubble Size"] = bubble["Value"].abs()
+
+        latest_snapshot = (
+            bubble.sort_values(["Hotel", "Report Date"])
+            .groupby(["Hotel", "Stay Month"], as_index=False)
+            .tail(1)
+            .copy()
+        )
+        latest_snapshot["Abs Daily PU"] = latest_snapshot["Daily Change"].abs()
+
+        ctl1, ctl2, ctl3 = st.columns([1.1, 1.1, 1.1])
+
+        max_hotels = int(max(1, latest_snapshot["Hotel"].nunique()))
+        top_options_raw = [5, 8, 10, 15, 20]
+        top_options = [f"Top {n}" for n in top_options_raw if n <= max_hotels]
+        if not top_options:
+            top_options = [f"Top {max_hotels}"]
+        top_options.append("All selected hotels")
+
+        default_display = "Top 8" if "Top 8" in top_options else top_options[0]
+
+        display_hotels = ctl1.selectbox(
+            "Display hotels",
+            top_options,
+            index=top_options.index(default_display),
+            key="bubble_display_hotels_dropdown",
+        )
+
+        focus_mode = ctl2.selectbox(
+            "Focus by",
+            [
+                "Biggest movement",
+                "Biggest drop",
+                "Biggest gain",
+                "Highest Forecast",
+            ],
+            index=0,
+            key="bubble_focus_mode_dropdown",
+        )
+
+        size_mode = ctl3.selectbox(
+            "Bubble size",
+            [
+                "Abs Daily PU",
+                "Latest D4cast",
+            ],
+            index=0,
+            key="bubble_size_mode_dropdown",
+        )
+
+        # Rank hotels based on what the user wants to focus on.
+        if focus_mode == "Biggest movement":
+            ranked_hotels = latest_snapshot.sort_values("Abs Daily PU", ascending=False)
+        elif focus_mode == "Biggest drop":
+            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=True)
+        elif focus_mode == "Biggest gain":
+            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=False)
+        else:
+            ranked_hotels = latest_snapshot.sort_values("Value", ascending=False)
+
+        if display_hotels == "All selected hotels":
+            visible_hotels = ranked_hotels["Hotel"].tolist()
+        else:
+            top_n = int(display_hotels.replace("Top ", ""))
+            visible_hotels = ranked_hotels.head(top_n)["Hotel"].tolist()
+
+        bubble_view = bubble[bubble["Hotel"].isin(visible_hotels)].copy()
+
+        if size_mode == "Abs Daily PU":
+            bubble_view["Bubble Size"] = bubble_view["Daily Change"].abs().fillna(0)
+            # Avoid invisible first-date bubbles.
+            if bubble_view["Bubble Size"].max() == 0:
+                bubble_view["Bubble Size"] = bubble_view["Value"].abs()
+        else:
+            bubble_view["Bubble Size"] = bubble_view["Value"].abs()
+
+        bubble_view["Latest D4cast"] = bubble_view["Value"]
+        bubble_view["Daily PU"] = bubble_view["Daily Change"]
+        bubble_view["Daily PU %"] = bubble_view["Daily Change %"]
+
+        fig_hotel = px.scatter(
+            bubble_view,
+            x="Report Date",
+            y="Hotel",
+            size="Bubble Size",
+            color="Daily Change %",
+            hover_data={
+                "Report Label": True,
+                "Latest D4cast": ":,.2f",
+                "Previous Forecast": ":,.2f",
+                "Daily PU": ":,.2f",
+                "Daily PU %": ":.2f",
+                "Bubble Size": False,
+            },
+            title="Hotel-level Forecast Momentum / Daily %",
+            color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
+            color_continuous_midpoint=0,
+            size_max=34,
+        )
+
+        fig_hotel.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(
+                title="Report Date",
+                showgrid=True,
+                gridcolor="#f1f5f9",
+                tickformat="%d %b",
+            ),
+            yaxis=dict(
+                title="Hotel",
+                showgrid=True,
+                gridcolor="#f8fafc",
+                categoryorder="array",
+                categoryarray=list(reversed(bubble_view["Hotel"].dropna().unique())),
+            ),
+            height=max(420, 46 * bubble_view["Hotel"].nunique()),
+            margin=dict(l=20, r=20, t=60, b=20),
+            coloraxis_colorbar=dict(title="Daily %", ticksuffix="%"),
+        )
+
+        fig_hotel.update_traces(
+            marker=dict(line=dict(width=0.7, color="white"), opacity=0.86),
+            selector=dict(mode="markers"),
+        )
+
+        st.plotly_chart(
+            fig_hotel,
+            use_container_width=True,
+            config={
+                "displayModeBar": True,
+                "displaylogo": False,
+                "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+            },
+        )
+
+        st.markdown('<div class="section-title">Hotel Momentum Summary</div>', unsafe_allow_html=True)
+
+        latest_rows = (
+            bubble.sort_values(["Hotel", "Report Date"])
+            .groupby(["Hotel", "Stay Month"], as_index=False)
+            .tail(1)
+            .copy()
+        )
+
+        latest_rows["Status"] = latest_rows["Daily Change"].apply(
+            lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
+        )
+
+        summary_cols = [
+            "Hotel",
+            "Report Date",
+            "Value",
+            "Previous Forecast",
+            "Daily Change %",
+            "Status",
+        ]
+
+        summary_view = latest_rows[summary_cols].copy()
+        summary_view = summary_view.rename(columns={
+            "Value": "Latest D4cast",
+            "Daily Change %": "Daily PU %",
+        })
+        summary_view = summary_view.sort_values("Daily PU %", ascending=True).reset_index(drop=True)
+
+        def color_momentum_row(row):
+            styles = pd.Series("", index=row.index)
+            daily_pu = row.get("Daily PU %")
+            if pd.notna(daily_pu) and daily_pu > 0:
+                for col in ["Daily PU %", "Status"]:
+                    if col in styles.index:
+                        styles[col] = "background-color: #bbf7d0; font-weight: 700"
+            elif pd.notna(daily_pu) and daily_pu < 0:
+                for col in ["Daily PU %", "Status"]:
+                    if col in styles.index:
+                        styles[col] = "background-color: #fecaca; font-weight: 700"
+            else:
+                if "Status" in styles.index:
+                    styles["Status"] = "background-color: #fef08a; font-weight: 700"
+            return styles
+
+        st.dataframe(
+            summary_view.style.format({
+                "Latest D4cast": fmt_raw2,
+                "Previous Forecast": fmt_raw2,
+                "Daily PU %": fmt_signed_pct2,
+            }).apply(color_momentum_row, axis=1),
+            use_container_width=True,
+            hide_index=True,
+            height=min(520, 44 + 36 * len(summary_view)),
+        )
+
+        with st.expander("Full hotel-level daily data"):
+            full_view = bubble[[
+                "Report Date",
+                "Report Label",
+                "Hotel",
+                "Value",
+                "Previous Forecast",
+                "Daily Change",
+                "Daily Change %",
+            ]].sort_values(["Hotel", "Report Date"]).reset_index(drop=True)
+
+            full_view = full_view.rename(columns={
+                "Value": "Forecast",
+                "Daily Change": "Daily PU",
+                "Daily Change %": "Daily PU %",
+            })
+
+            st.dataframe(
+                full_view,
+                use_container_width=True,
+                hide_index=True,
+                height=520,
+                column_config={
+                    "Report Date": st.column_config.DateColumn("Report Date", format="DD MMM YYYY"),
+                    "Forecast": st.column_config.NumberColumn("Forecast", format="%,.2f"),
+                    "Previous Forecast": st.column_config.NumberColumn("Previous Forecast", format="%,.2f"),
+                    "Daily PU": st.column_config.NumberColumn("Daily PU", format="%,.2f"),
+                    "Daily PU %": st.column_config.NumberColumn("Daily PU %", format="%.2f%%"),
+                },
+            )
 
 
 
