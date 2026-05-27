@@ -53,60 +53,61 @@ st.markdown(
     """
     <style>
     /* ================================================================
-       G5 Revenue Dashboard — Readable Design System
-       Text scale: minimum 12px (0.75rem) everywhere
-       Color scale: secondary ≥ #555, labels ≥ #666, captions ≥ #888
+       G5 Revenue Dashboard — Pro Design System
        ================================================================ */
 
-    /* ── Layout ──────────────────────────────────────────── */
+    /* ── Layout ───────────────────────────────────────────────── */
     .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2.5rem;
+        padding-top: 1.75rem;
+        padding-bottom: 3rem;
         max-width: 97%;
     }
 
-    /* ── Global font readable baseline ──────────────────── */
+    /* ── Global baseline ──────────────────────────────────────── */
     html, body, [class*="css"] {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
+                     system-ui, sans-serif;
         font-size: 15px;
         color: #111;
+        -webkit-font-smoothing: antialiased;
     }
 
-    /* ── Sidebar ─────────────────────────────────────────── */
+    /* ── Sidebar ──────────────────────────────────────────────── */
     [data-testid="stSidebar"] {
-        background: #f7f7f7;
-        border-right: 1px solid #e4e4e4;
+        background: #f8f9fb;
+        border-right: 1px solid #e8eaed;
     }
-    /* "DATA SOURCE", "FILTERS" — section dividers */
+    /* Section dividers: DATA SOURCE, FILTERS */
     [data-testid="stSidebar"] .stMarkdown h2 {
-        font-size: 0.76rem !important;
+        font-size: 0.7rem !important;
         font-weight: 700 !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.08em !important;
-        color: #888 !important;
-        margin: 1rem 0 0.5rem !important;
+        letter-spacing: 0.10em !important;
+        color: #9ca3af !important;
+        margin: 1.2rem 0 0.5rem !important;
         padding-bottom: 0.35rem !important;
-        border-bottom: 1px solid #e4e4e4 !important;
+        border-bottom: 1px solid #e8eaed !important;
     }
-    /* "Stay month", "Hotels", "Metric" */
+    /* Sub-labels: Stay month, Hotels, Metric */
     [data-testid="stSidebar"] .stMarkdown h4 {
-        font-size: 0.86rem !important;
+        font-size: 0.84rem !important;
         font-weight: 600 !important;
-        color: #333 !important;
-        margin: 0.9rem 0 0.25rem !important;
+        color: #374151 !important;
+        margin: 1rem 0 0.3rem !important;
     }
     [data-testid="stSidebar"] label {
-        font-size: 0.9rem !important;
-        color: #333 !important;
+        font-size: 0.88rem !important;
+        color: #374151 !important;
         font-weight: 400 !important;
     }
     [data-testid="stSidebar"] .stCaption,
     [data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
-        font-size: 0.82rem !important;
-        color: #888 !important;
+        font-size: 0.8rem !important;
+        color: #9ca3af !important;
     }
     [data-testid="stSidebar"] hr {
-        border-color: #e4e4e4 !important;
-        margin: 0.6rem 0 !important;
+        border-color: #e8eaed !important;
+        margin: 0.5rem 0 !important;
     }
     [data-testid="stSidebar"] .stButton > button {
         font-size: 0.88rem !important;
@@ -116,131 +117,136 @@ st.markdown(
         padding: 0 14px !important;
     }
 
-    /* ── Page h2 title ───────────────────────────────────── */
+    /* ── Page title ───────────────────────────────────────────── */
     .block-container h2 {
-        font-size: 1.45rem !important;
+        font-size: 1.35rem !important;
         font-weight: 700 !important;
-        color: #111 !important;
-        letter-spacing: -0.01em !important;
+        color: #111827 !important;
+        letter-spacing: -0.02em !important;
         margin-bottom: 2px !important;
     }
 
-    /* ── Filter context bar ──────────────────────────────── */
+    /* ── Filter context strip ─────────────────────────────────── */
     .filter-bar {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        background: #f5f5f5;
-        border: 1px solid #e4e4e4;
-        border-radius: 4px;
-        padding: 5px 12px;
-        font-size: 0.88rem;
-        color: #555;
-        margin: 8px 0 16px 0;
+        background: #fafafa;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 5px 14px;
+        font-size: 0.84rem;
+        color: #6b7280;
+        margin: 4px 0 12px 0;
     }
-    .filter-bar b { color: #111; font-weight: 600; }
-    .filter-label { color: #555; font-size: 0.86rem; font-weight: 500; margin-right: 2px; }
-    .filter-sep { color: #bbb; margin: 0 4px; }
+    .filter-bar b { color: #111827; font-weight: 600; }
+    .filter-label { color: #6b7280; font-size: 0.84rem; font-weight: 500; margin-right: 1px; }
+    .filter-sep   { color: #d1d5db; margin: 0 5px; }
+
+    /* ── Property chips ───────────────────────────────────────── */
     .property-context {
         display: flex;
         align-items: flex-start;
         gap: 8px;
-        margin: -8px 0 16px 0;
-        color: #555;
-        font-size: 0.86rem;
+        margin: -4px 0 18px 0;
+        font-size: 0.84rem;
     }
     .property-context-label {
         flex: 0 0 auto;
-        padding-top: 5px;
+        padding-top: 4px;
         font-weight: 600;
-        color: #333;
+        color: #374151;
+        font-size: 0.82rem;
     }
     .property-chip-list {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: 5px;
         min-width: 0;
     }
     .property-chip {
-        max-width: 260px;
+        max-width: 220px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        border: 1px solid #d8d8d8;
-        background: #fff;
-        color: #222;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 0.82rem;
-        line-height: 1.2;
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        color: #374151;
+        border-radius: 20px;
+        padding: 3px 10px;
+        font-size: 0.79rem;
+        line-height: 1.4;
     }
 
-    /* ── KPI cards ───────────────────────────────────────── */
+    /* ── KPI metric cards ─────────────────────────────────────── */
     div[data-testid="stMetric"] {
         background: #fff;
-        border: 1px solid #e4e4e4;
-        border-radius: 6px;
-        padding: 14px 18px 12px 18px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 16px 20px 14px 20px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     }
     div[data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
+        font-size: 0.75rem !important;
         font-weight: 600 !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.06em !important;
-        color: #666 !important;
+        letter-spacing: 0.07em !important;
+        color: #6b7280 !important;
     }
     div[data-testid="stMetricValue"] {
         font-size: clamp(1.2rem, 1.5vw, 1.65rem) !important;
         font-weight: 700 !important;
-        color: #111 !important;
-        letter-spacing: -0.01em !important;
-        line-height: 1.2 !important;
+        color: #111827 !important;
+        letter-spacing: -0.02em !important;
+        line-height: 1.25 !important;
     }
     div[data-testid="stMetricDelta"] {
-        font-size: 0.86rem !important;
+        font-size: 0.84rem !important;
         font-weight: 500 !important;
     }
 
-    /* ── Compare pills (st.pills) ────────────────────────── */
-    /* Unselected pill */
+    /* ── Compare pills ────────────────────────────────────────── */
     [data-testid="stPills"] button {
-        font-size: 0.88rem !important;
+        font-size: 0.86rem !important;
         font-weight: 500 !important;
         border-radius: 20px !important;
         padding: 4px 14px !important;
-        border: 1px solid #d9d9d9 !important;
-        background: #f5f5f5 !important;
-        color: #444 !important;
+        border: 1px solid #e5e7eb !important;
+        background: #f9fafb !important;
+        color: #374151 !important;
         transition: all 0.15s !important;
     }
     [data-testid="stPills"] button:hover {
-        background: #e8f0fe !important;
-        border-color: #1677ff !important;
-        color: #1677ff !important;
+        background: #eff6ff !important;
+        border-color: #93c5fd !important;
+        color: #1d4ed8 !important;
     }
-    /* Selected pill */
     [data-testid="stPills"] button[aria-pressed="true"],
     [data-testid="stPills"] button[data-selected="true"] {
         background: #1677ff !important;
         border-color: #1677ff !important;
         color: #fff !important;
         font-weight: 600 !important;
+        box-shadow: 0 1px 4px rgba(22,119,255,0.30) !important;
     }
 
-    /* ── Section titles ──────────────────────────────────── */
+    /* ── Section titles (left accent strip) ───────────────────── */
     .section-title {
-        font-size: 0.95rem;
-        font-weight: 600;
-        color: #111;
-        margin: 1.25rem 0 0.6rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 1px solid #e8e8e8;
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #374151;
+        margin: 1.5rem 0 0.8rem 0;
+        padding-left: 10px;
+        border-left: 3px solid #1677ff;
+        line-height: 1.4;
     }
 
-    /* ── Tabs ────────────────────────────────────────────── */
+    /* ── Tabs ─────────────────────────────────────────────────── */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0 !important;
-        border-bottom: 1px solid #e4e4e4 !important;
+        border-bottom: 1px solid #e5e7eb !important;
         background: transparent !important;
         padding: 0 !important;
     }
@@ -248,11 +254,16 @@ st.markdown(
         background: transparent !important;
         border-bottom: 2px solid transparent !important;
         border-radius: 0 !important;
-        padding: 10px 18px !important;
-        font-size: 0.92rem !important;
+        padding: 10px 20px !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
-        color: #666 !important;
+        color: #6b7280 !important;
         margin-bottom: -1px !important;
+        transition: color 0.15s !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #374151 !important;
+        background: transparent !important;
     }
     .stTabs [aria-selected="true"] {
         color: #1677ff !important;
@@ -264,18 +275,19 @@ st.markdown(
         padding-top: 20px !important;
     }
 
-    /* ── Tables ──────────────────────────────────────────── */
+    /* ── DataFrames ───────────────────────────────────────────── */
     div[data-testid="stDataFrame"] {
-        border: 1px solid #e4e4e4 !important;
-        border-radius: 6px !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px !important;
         overflow: hidden !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
     }
 
-    /* ══════════════════════════════════════════════════════
-       Button system — all states & variants
-       ══════════════════════════════════════════════════════ */
+    /* ════════════════════════════════════════════════════════════
+       Button system
+       ════════════════════════════════════════════════════════════ */
 
-    /* ── Base: shared across ALL button types ────────────── */
+    /* Base */
     .stButton > button,
     [data-testid="stDownloadButton"] > button {
         border-radius: 6px !important;
@@ -285,30 +297,25 @@ st.markdown(
         padding: 0 20px !important;
         letter-spacing: 0.01em !important;
         cursor: pointer !important;
-        transition:
-            background  0.15s ease,
-            border-color 0.15s ease,
-            box-shadow  0.15s ease,
-            transform   0.12s ease !important;
+        transition: background 0.15s ease, border-color 0.15s ease,
+                    box-shadow 0.15s ease, transform 0.12s ease !important;
     }
 
-    /* ── Secondary (default) — white / outlined ──────────── */
+    /* Secondary */
     .stButton > button[kind="secondary"] {
         background: #fff !important;
-        border: 1px solid #d9d9d9 !important;
-        color: #444 !important;
+        border: 1px solid #d1d5db !important;
+        color: #374151 !important;
     }
     .stButton > button[kind="secondary"]:hover {
-        background: #f0f7ff !important;
+        background: #eff6ff !important;
         border-color: #1677ff !important;
         color: #1677ff !important;
-        box-shadow: 0 2px 8px rgba(22,119,255,0.12) !important;
+        box-shadow: 0 2px 8px rgba(22,119,255,0.10) !important;
     }
-    .stButton > button[kind="secondary"]:active {
-        background: #e6f0ff !important;
-    }
+    .stButton > button[kind="secondary"]:active { background: #dbeafe !important; }
 
-    /* ── Primary — solid blue ────────────────────────────── */
+    /* Primary — blue */
     .stButton > button[kind="primary"] {
         background: #1677ff !important;
         border-color: #1677ff !important;
@@ -319,7 +326,7 @@ st.markdown(
     .stButton > button[kind="primary"]:hover {
         background: #3d8bff !important;
         border-color: #3d8bff !important;
-        box-shadow: 0 4px 16px rgba(22,119,255,0.40) !important;
+        box-shadow: 0 4px 16px rgba(22,119,255,0.38) !important;
         transform: translateY(-1px) !important;
     }
     .stButton > button[kind="primary"]:active {
@@ -327,7 +334,7 @@ st.markdown(
         box-shadow: 0 1px 4px rgba(22,119,255,0.20) !important;
     }
 
-    /* ── Download primary — solid green (Excel) ──────────── */
+    /* Download primary — green (Excel) */
     [data-testid="stDownloadButton"] > button[kind="primary"] {
         background: #16a34a !important;
         border-color: #16a34a !important;
@@ -338,15 +345,14 @@ st.markdown(
     [data-testid="stDownloadButton"] > button[kind="primary"]:hover {
         background: #15803d !important;
         border-color: #15803d !important;
-        box-shadow: 0 4px 16px rgba(22,163,74,0.40) !important;
+        box-shadow: 0 4px 16px rgba(22,163,74,0.38) !important;
         transform: translateY(-1px) !important;
     }
     [data-testid="stDownloadButton"] > button[kind="primary"]:active {
         transform: translateY(0) !important;
-        box-shadow: 0 1px 4px rgba(22,163,74,0.20) !important;
     }
 
-    /* ── Download secondary — outlined green (CSV) ───────── */
+    /* Download secondary — outlined green (CSV) */
     [data-testid="stDownloadButton"] > button[kind="secondary"] {
         background: #f0fdf4 !important;
         border: 1.5px solid #86efac !important;
@@ -363,80 +369,75 @@ st.markdown(
         background: #bbf7d0 !important;
     }
 
-    /* ── Radio buttons ───────────────────────────────────── */
+    /* ── Radio ────────────────────────────────────────────────── */
     .stRadio [data-testid="stWidgetLabel"] {
-        font-size: 0.82rem !important;
+        font-size: 0.8rem !important;
         font-weight: 600 !important;
-        color: #555 !important;
+        color: #6b7280 !important;
     }
     .stRadio label {
-        font-size: 0.9rem !important;
-        color: #333 !important;
+        font-size: 0.88rem !important;
+        color: #374151 !important;
     }
 
-    /* ── Compare | separator ─────────────────────────────── */
-    .compare-sep {
-        font-size: 1rem;
-        color: #ccc;
-        text-align: center;
-        margin-top: 6px;
-        user-select: none;
-        line-height: 1;
-    }
-
-    /* ── Color legend ────────────────────────────────────── */
+    /* ── Color legend ─────────────────────────────────────────── */
     .legend-row {
         display: flex;
         align-items: center;
-        gap: 16px;
-        margin: 8px 0 16px 0;
-        font-size: 0.84rem;
-        color: #555;
+        gap: 18px;
+        margin: 6px 0 18px 0;
+        font-size: 0.8rem;
+        color: #6b7280;
     }
     .legend-dot {
         display: inline-block;
-        width: 9px; height: 9px;
+        width: 8px; height: 8px;
         border-radius: 50%;
         margin-right: 5px;
         vertical-align: middle;
     }
 
-    /* ── Status cards (inline HTML blocks) ───────────────── */
-    .rev-card-good  { background: #f6ffed; border-left: 3px solid #389e0d; color: #135200; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
-    .rev-card-bad   { background: #fff1f0; border-left: 3px solid #cf1322; color: #7f0000; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
-    .rev-card-flat  { background: #fffbe6; border-left: 3px solid #d48806; color: #614700; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
-    .rev-card-info  { background: #e6f4ff; border-left: 3px solid #096dd9; color: #003a8c; padding: 10px 14px; border-radius: 4px; margin: 3px 0; font-size: 0.92rem; }
+    /* ── Status cards ─────────────────────────────────────────── */
+    .rev-card-good { background:#f0fdf4; border-left:3px solid #22c55e; color:#166534; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+    .rev-card-bad  { background:#fef2f2; border-left:3px solid #ef4444; color:#991b1b; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+    .rev-card-flat { background:#fffbeb; border-left:3px solid #f59e0b; color:#92400e; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
+    .rev-card-info { background:#eff6ff; border-left:3px solid #3b82f6; color:#1e40af; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
 
-    /* ── Expanders ───────────────────────────────────────── */
+    /* ── Expanders ────────────────────────────────────────────── */
     .streamlit-expanderHeader {
-        font-size: 0.9rem !important;
+        font-size: 0.88rem !important;
         font-weight: 500 !important;
-        color: #333 !important;
-        background: #f7f7f7 !important;
-        border: 1px solid #e4e4e4 !important;
-        border-radius: 5px !important;
+        color: #374151 !important;
+        background: #f9fafb !important;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 6px !important;
     }
 
-    /* ── Selectbox / text inputs ─────────────────────────── */
-    .stSelectbox > div > div { border-radius: 5px !important; }
+    /* ── Inputs & selectboxes ─────────────────────────────────── */
+    .stSelectbox > div > div { border-radius: 6px !important; }
     .stTextInput > div > div > input {
-        border-radius: 5px !important;
-        font-size: 0.9rem !important;
+        border-radius: 6px !important;
+        font-size: 0.88rem !important;
+        border-color: #d1d5db !important;
     }
 
-    /* ── Captions (global) ───────────────────────────────── */
+    /* ── Alerts (info / warning / error) ─────────────────────── */
+    [data-testid="stAlert"] {
+        border-radius: 6px !important;
+    }
+
+    /* ── Captions ─────────────────────────────────────────────── */
     .stCaption, div[data-testid="stCaptionContainer"] {
-        font-size: 0.82rem !important;
-        color: #888 !important;
+        font-size: 0.8rem !important;
+        color: #9ca3af !important;
     }
 
-    /* ── Spacing ─────────────────────────────────────────── */
+    /* ── Spacing ──────────────────────────────────────────────── */
     div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
 
-    /* ── Sidebar property list (Duetto-style) ───────────────
-       Overrides the global chip style for sidebar checkboxes.
-       Sidebar specificity (0,2,1) beats global (0,1,1).
-       ───────────────────────────────────────────────────── */
+    /* ── Sidebar property list ─────────────────────────────────
+       Higher specificity (0,2,1) overrides global rules (0,1,1).
+       ─────────────────────────────────────────────────────────── */
     [data-testid="stSidebar"] .stCheckbox {
         margin: 0 !important;
         padding: 0 !important;
@@ -447,31 +448,31 @@ st.markdown(
         width: 100% !important;
         box-sizing: border-box !important;
         padding: 7px 10px !important;
-        border-radius: 4px !important;
+        border-radius: 5px !important;
         border: none !important;
         background: transparent !important;
-        font-size: 0.88rem !important;
-        color: #333 !important;
+        font-size: 0.87rem !important;
+        color: #374151 !important;
         font-weight: 400 !important;
         gap: 8px !important;
         cursor: pointer !important;
-        transition: background 0.12s !important;
+        transition: background 0.10s !important;
         margin: 1px 0 !important;
     }
     [data-testid="stSidebar"] .stCheckbox > label:hover {
-        background: #f0f5ff !important;
+        background: #eff6ff !important;
         color: #1677ff !important;
     }
     [data-testid="stSidebar"] .stCheckbox > label:has(input:checked) {
-        background: #e6f4ff !important;
-        color: #1677ff !important;
+        background: #dbeafe !important;
+        color: #1d4ed8 !important;
         font-weight: 600 !important;
         border: none !important;
     }
 
-    /* ── Hide Streamlit chrome ───────────────────────────── */
+    /* ── Hide Streamlit chrome ────────────────────────────────── */
     #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
+    footer    { visibility: hidden; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -3776,29 +3777,38 @@ def render_leaderboard_by_month(
         HL_NAME  = "#bfdbfe"   # blue-200 (slightly stronger for the name)
         HL_DATA  = "#dbeafe"   # blue-100 for value columns
 
-        colors_rank = [HL_RANK if s else "#f8fafc"  for s in is_sel]
-        colors_name = [HL_NAME if s else "#f1f5f9"  for s in is_sel]
-        colors_otb  = [HL_DATA if s else "#f0f7ff"  for s in is_sel]
-        colors_bgt  = [HL_DATA if s else "#fafafa"  for s in is_sel]
-        colors_fct  = [HL_DATA if s else "#eef2ff"  for s in is_sel]
+        # Gold / silver / bronze cell tints for rank 1 / 2 / 3 (non-selected rows)
+        _RANK_BG = {1: "#fef3c7", 2: "#f1f5f9", 3: "#fde8d0"}
+        _RANK_FC = {1: "#92400e", 2: "#475569", 3: "#9a3412"}
+
+        colors_rank = [
+            HL_RANK if s else _RANK_BG.get(r, "#f8fafc")
+            for r, s in zip(grp["Rank"], is_sel)
+        ]
+        colors_name = [HL_NAME if s else "#f9fafb"  for s in is_sel]
+        colors_otb  = [HL_DATA if s else "#f8fafc"  for s in is_sel]
+        colors_bgt  = [HL_DATA if s else "#f8fafc"  for s in is_sel]
+        colors_fct  = [HL_DATA if s else "#f8fafc"  for s in is_sel]
         # Variance columns keep semantic color regardless
         colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
 
-        # ── Font colors (blue text for selected rows) ─────
-        fc_rank = ["#1d4ed8" if s else "#475569" for s in is_sel]
+        # ── Font colors ────────────────────────────────────
+        fc_rank = [
+            "#1d4ed8" if s else _RANK_FC.get(r, "#475569")
+            for r, s in zip(grp["Rank"], is_sel)
+        ]
         fc_name = ["#1d4ed8" if s else "#1e293b" for s in is_sel]
         fc_data = ["#1d4ed8" if s else "#334155" for s in is_sel]
-        fc_var  = ["#374151"] * n   # variance text stays neutral
+        fc_var  = ["#374151"] * n
 
-        # ── Hotel name: bold for selected ─────────────────
+        # ── Hotel name: bold for selected rows ─────────────
         hotel_names = [
             f"<b>{name}</b>" if s else name
             for name, s in zip(grp["Hotel Short"].tolist(), is_sel)
         ]
 
-        # ── Rank badge: gold / silver / bronze for top 3 ──
-        badges = {1: "#1", 2: "#2", 3: "#3"}
-        rank_display = [badges.get(r, str(r)) for r in grp["Rank"]]
+        # ── Clean rank numbers ─────────────────────────────
+        rank_display = [str(r) for r in grp["Rank"]]
 
         fig = go.Figure(data=[go.Table(
             columnwidth=[44, 150, 105, 105, 105, 105, 105],
@@ -4308,8 +4318,8 @@ def render_kpi_axis_cards(budget_df, selected_axes):
 
 def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric):
     """
-    KPI section — compare row (chip checkboxes) + view toggle + metric cards.
-    Layout: [Compare chips] spacer [View toggle]
+    KPI section — compare row (chip checkboxes) + view dropdown + metric cards.
+    Layout: [Compare chips] spacer [View dropdown]
     """
     # ── Top control row ───────────────────────────────────────
     ctrl_left, ctrl_right = st.columns([3, 2])
@@ -4324,12 +4334,18 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
         )
 
     with ctrl_right:
-        kpi_mode = st.radio(
+        metric_options = metric_label_order()
+        if selected_metric in metric_options:
+            default_view = selected_metric
+        else:
+            default_view = "Revenue summary"
+
+        view_options = ["Revenue summary"] + metric_options + ["All Metrics"]
+        kpi_view = st.selectbox(
             "View",
-            ["Revenue summary", "By metric"],
-            horizontal=True,
-            index=0,
-            key="budget_first_kpi_mode_v39",
+            view_options,
+            index=view_options.index(default_view),
+            key="budget_first_kpi_view_v40",
         )
 
     # Preserve canonical order: OTB → Budget → Forecast
@@ -4346,11 +4362,11 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
         return
 
     # ── Cards ─────────────────────────────────────────────────
-    if kpi_mode == "Revenue summary":
+    if kpi_view == "Revenue summary":
         rev_df = budget_df[budget_df["Metric"] == "Rev"].copy()
         render_kpi_axis_cards(rev_df if not rev_df.empty else budget_df, selected_axes)
     else:
-        metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
+        metrics_to_show = metric_label_order() if kpi_view == "All Metrics" else [kpi_view]
         for metric_name in metrics_to_show:
             st.markdown(
                 f'<p style="font-size:0.78rem;font-weight:600;color:#595959;'
@@ -4550,7 +4566,7 @@ def style_pace_variance_table(df):
 # ── (custom HTML <p> clips against Streamlit toolbar on Cloud)
 # ─────────────────────────────────────────────────────────────
 st.markdown("## Revenue Briefing")
-st.caption("G5 Hotels · D4cast daily forecast review")
+st.caption("G5 Hotels  ·  D4cast Daily Forecast Review")
 
 # ── Sidebar ───────────────────────────────────────────────────
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
@@ -4804,6 +4820,9 @@ if selected_metric != "All Metrics":
     metric_data = metric_data[metric_data["Metric"] == selected_metric].copy()
 metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
 
+kpi_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+kpi_metric_data = apply_stay_month_filter(kpi_metric_data, stay_month_selection)
+
 if metric_data.empty:
     st.warning("No data for the current filter selection.")
     st.stop()
@@ -4845,7 +4864,7 @@ st.markdown(
 )
 
 # ── KPI section ───────────────────────────────────────────────
-render_budget_first_kpi_section_v39(metric_data, role_selection, selected_metric)
+render_budget_first_kpi_section_v39(kpi_metric_data, role_selection, selected_metric)
 
 # ── Color legend ──────────────────────────────────────────────
 st.markdown(
@@ -4861,12 +4880,12 @@ render_metric_dictionary()
 
 # ── Main tabs ─────────────────────────────────────────────────
 tab0, tab_movement, tab_leaderboard, tab_lb, tab1, tab_analysis, tab5 = st.tabs([
-    "Forecast Pivot",
+    "Overview",
     "Movement",
-    "Budget Board",
+    "Budget",
     "Leaderboard",
     "Trend",
-    "Advanced",
+    "Analysis",
     "Export",
 ])
 
@@ -5073,7 +5092,7 @@ with tab1:
             },
         )
 
-        st.markdown("#### Hotel momentum summary")
+        st.markdown('<div class="section-title">Hotel Momentum Summary</div>', unsafe_allow_html=True)
 
         latest_rows = (
             bubble.sort_values(["Hotel", "Report Date"])
@@ -5163,13 +5182,8 @@ with tab1:
 
 
 with tab_analysis:
-    st.markdown('<div class="section-title">Advanced Analysis</div>', unsafe_allow_html=True)
-
-    # -------------------------
-    # Recommended Pace
-    # -------------------------
-    st.markdown("### 1) Same-Time Pace Benchmark")
-    st.caption("Compares today/latest forecast against the best same-time benchmark among STLY / ST2Y / ST3Y. Variance % is colored for presentation clarity.")
+    st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
+    st.caption("Compares today's forecast against the best same-time benchmark: STLY / ST2Y / ST3Y. Variance % is color-coded.")
 
     if pace_summary.empty:
         st.info("No pace data.")
@@ -5207,11 +5221,8 @@ with tab_analysis:
 
     st.divider()
 
-    # -------------------------
-    # D4cast vs Final
-    # -------------------------
-    st.markdown("### 2) Historical Final Comparison")
-    st.caption("Forecast compared with Historical Final values: Final LY / Final 2Y / Final 3Y. Use this as historical context, not budget decision.")
+    st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
+    st.caption("Forecast vs Final LY / Final 2Y / Final 3Y. Use as historical context, not as a budget decision.")
 
     if final_comparison.empty:
         st.info("No final comparison data.")
