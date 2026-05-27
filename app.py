@@ -956,16 +956,6 @@ def build_final_comparison(metric_data, role_selection):
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric", "Base Final"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 
-def to_excel_bytes(sheets):
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for name, df in sheets.items():
-            df.to_excel(writer, sheet_name=name[:31], index=False)
-    output.seek(0)
-    return output.getvalue()
-
-
-
 def render_hotel_table(df, view_mode, key_prefix, column_config=None):
     """
     Render dataframe either as one list table or separated hotel tabs.
@@ -6155,12 +6145,6 @@ with tab1:
 
 
 with tab5:
-    st.markdown('<div class="section-title">Export & Settings</div>', unsafe_allow_html=True)
-    st.markdown("""
-    - Use `python -m streamlit run <file>.py` for local presentation.
-    - Make sure the Google Drive / local folder path points to the daily G5 report folder.
-    - Confirm Today / Yesterday / 7D / 1st Month roles below before presenting.
-    """)
     st.markdown('<div class="section-title">Report Roles Validation</div>', unsafe_allow_html=True)
     st.dataframe(role_selection, use_container_width=True, hide_index=True)
     
@@ -6169,33 +6153,12 @@ with tab5:
     def trigger_download_toast():
         st.toast("File downloaded successfully.")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        sheets = {
-            "Role Selection": role_selection,
-            "Budget Sort Board": build_budget_review(metric_data, role_selection),
-            "D4cast Momentum": momentum_summary,
-            "Forecast Movement": build_forecast_movement_v31(metric_data, role_selection),
-            "Movement Table": movement_summary,
-            "Recommended Pace": pace_summary,
-            "D4cast vs Final": final_comparison,
-        }
-        st.download_button(
-            "Download Full Excel Report",
-            data=to_excel_bytes(sheets),
-            file_name=f"g5_d4cast_{report_file_month.replace(', ', '_')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            on_click=trigger_download_toast,
-            type="primary",
-            use_container_width=True,
-        )
-    with c2:
-        st.download_button(
-            "Download Movement CSV",
-            data=movement_summary.to_csv(index=False).encode("utf-8"),
-            file_name="g5_d4cast_movement.csv",
-            mime="text/csv",
-            on_click=trigger_download_toast,
-            type="secondary",
-            use_container_width=True,
-        )
+    st.download_button(
+        "Download Movement CSV",
+        data=movement_summary.to_csv(index=False).encode("utf-8"),
+        file_name="g5_d4cast_movement.csv",
+        mime="text/csv",
+        on_click=trigger_download_toast,
+        type="secondary",
+        use_container_width=True,
+    )
