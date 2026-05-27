@@ -1264,9 +1264,119 @@ def style_final_variance_table(df):
     return df.style.apply(row_style, axis=1)
 
 
+def _comparison_chart_frame(df, value_col, budget_col="Budget"):
+    chart_df = df.groupby("Stay Month", as_index=False).agg({value_col: "sum", budget_col: "sum"})
+    month_order = sorted(chart_df["Stay Month"].unique(), key=month_sort_key)
+    chart_df["Stay Month"] = pd.Categorical(chart_df["Stay Month"], categories=month_order, ordered=True)
+    chart_df = chart_df.sort_values("Stay Month").reset_index(drop=True)
+    chart_df["Variance"] = chart_df[value_col] - chart_df[budget_col]
+    chart_df["Variance %"] = chart_df.apply(
+        lambda r: (r["Variance"] / abs(r[budget_col]) * 100)
+        if pd.notna(r[budget_col]) and r[budget_col] != 0
+        else None,
+        axis=1,
+    )
+    chart_df["Bar Color"] = chart_df["Variance"].apply(
+        lambda v: "#16a34a" if pd.notna(v) and v >= 0 else "#dc2626"
+    )
+    chart_df["Variance Label"] = chart_df["Variance %"].apply(
+        lambda v: f"{v:+.1f}%" if pd.notna(v) else ""
+    )
+    return chart_df
+
+
+def _render_comparison_summary_cards(df, value_col, value_label):
+    valid = df[(df["Budget"].notna()) & (df["Budget"] != 0)].copy()
+    if valid.empty:
+        return
+
+    total_value = float(valid[value_col].sum())
+    total_budget = float(valid["Budget"].sum())
+    variance = total_value - total_budget
+    variance_pct = variance / total_budget * 100 if total_budget else None
+    above = int((valid[value_col] >= valid["Budget"]).sum())
+    below = int((valid[value_col] < valid["Budget"]).sum())
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(value_label, fmt_raw2(total_value))
+    c2.metric("Budget", fmt_raw2(total_budget))
+    c3.metric(
+        "Variance vs Budget",
+        fmt_raw2(variance),
+        delta=fmt_signed_pct2(variance_pct),
+        delta_color="normal" if variance >= 0 else "inverse",
+    )
+    c4.metric("Properties", f"{above} above / {below} below", delta=f"of {len(valid)} hotels", delta_color="off")
+
+
+def _render_budget_reference_chart(chart_df, value_col, value_label, chart_key):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=chart_df["Stay Month"],
+        y=chart_df[value_col],
+        name=value_label,
+        marker_color=chart_df["Bar Color"],
+        marker_line=dict(color="rgba(17,24,39,0.18)", width=1),
+        opacity=0.92,
+        text=chart_df["Variance Label"],
+        textposition="outside",
+        textfont=dict(size=12, color="#111827"),
+        customdata=chart_df[["Budget", "Variance", "Variance %"]].values,
+        hovertemplate=(
+            "<b>%{x}</b><br>"
+            f"{value_label}: %{{y:,.0f}}<br>"
+            "Budget: %{customdata[0]:,.0f}<br>"
+            "Variance: %{customdata[1]:+,.0f}<br>"
+            "Variance %: %{customdata[2]:+.1f}%"
+            "<extra></extra>"
+        ),
+    ))
+    fig.add_trace(go.Scatter(
+        x=chart_df["Stay Month"],
+        y=chart_df["Budget"],
+        name="Budget",
+        mode="lines+markers",
+        line=dict(color="#111827", width=2.4),
+        marker=dict(size=7, symbol="circle", color="#ffffff", line=dict(color="#111827", width=2)),
+        hovertemplate="<b>%{x}</b><br>Budget: %{y:,.0f}<extra></extra>",
+    ))
+    fig.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        height=340,
+        margin=dict(l=18, r=18, t=28, b=48),
+        legend=dict(
+            orientation="h",
+            y=1.08,
+            x=1,
+            xanchor="right",
+            font=dict(size=12, color="#374151"),
+        ),
+        font=dict(family="Inter, Arial, sans-serif", color="#111827"),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="#eef2f7",
+            tickformat=",.0f",
+            zeroline=False,
+            title=None,
+        ),
+        xaxis=dict(showgrid=False, tickfont=dict(size=12), title=None),
+        bargap=0.42,
+        hovermode="x unified",
+        uniformtext_minsize=10,
+        uniformtext_mode="hide",
+    )
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
+        key=chart_key,
+    )
+
+
 def _render_forecast_vs_budget(pivot_df):
     """
-    Forecast VS Budget snapshot — KPI cards + line chart.
+    Forecast VS Budget snapshot — KPI cards + professional budget reference chart.
     Metric selector: Revenue Summary (default) or any individual metric.
     """
     st.markdown('<div class="section-title">Forecast VS Budget</div>', unsafe_allow_html=True)
@@ -1277,13 +1387,18 @@ def _render_forecast_vs_budget(pivot_df):
         return
 
     available_metrics = [m for m in METRIC_ORDER if not pivot_df[pivot_df["Metric"] == m].empty]
-    _mc1, _ = st.columns([1.5, 2.5])
+    _mc1, _mc2 = st.columns([1.25, 3])
     metric_sel_fvb = _mc1.selectbox(
-        "fvb_metric",
+        "Metric",
         ["Revenue Summary"] + available_metrics,
         index=0,
-        label_visibility="collapsed",
         key="fvb_metric_sel",
+    )
+    _mc2.markdown(
+        '<div style="font-size:0.78rem;color:#6b7280;padding-top:30px;">'
+        'Bars show Forecast. Black line is Budget. Green = above budget, red = below budget.'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
     flt = (
@@ -1294,101 +1409,18 @@ def _render_forecast_vs_budget(pivot_df):
     if flt.empty:
         return
 
-    # KPI cards
     by_hotel = flt.groupby("Hotel", as_index=False).agg({"Duetto": "sum", "Budget": "sum"})
     by_hotel = by_hotel[(by_hotel["Budget"].notna()) & (by_hotel["Budget"] != 0)]
     if by_hotel.empty:
         return
-    total_fct = float(by_hotel["Duetto"].sum())
-    total_bgt = float(by_hotel["Budget"].sum())
-    overall_var_pct = (total_fct - total_bgt) / total_bgt * 100 if total_bgt else 0.0
-    by_hotel["Var%"] = (by_hotel["Duetto"] - by_hotel["Budget"]) / by_hotel["Budget"] * 100
-    above = int((by_hotel["Var%"] > 0).sum())
-    below = int((by_hotel["Var%"] < 0).sum())
-    n_hotels = int(len(by_hotel))
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Forecast", fmt_raw2(total_fct))
-    c2.metric("Budget", fmt_raw2(total_bgt))
-    c3.metric(
-        "Variance %",
-        f"{overall_var_pct:+.2f}%",
-        delta="Above target" if overall_var_pct > 0 else ("Below target" if overall_var_pct < 0 else "On target"),
-        delta_color="normal" if overall_var_pct >= 0 else "inverse",
-    )
-    c4.metric("Properties", f"{above} ↑ / {below} ↓", delta=f"of {n_hotels} hotels", delta_color="off")
-
-    # Grouped bar chart: Forecast vs Budget by stay month
-    agg_d = flt.groupby("Stay Month", as_index=False).agg({"Duetto": "sum", "Budget": "sum"})
-    month_order = sorted(agg_d["Stay Month"].unique(), key=month_sort_key)
-    agg_d["Stay Month"] = pd.Categorical(agg_d["Stay Month"], categories=month_order, ordered=True)
-    agg_d = agg_d.sort_values("Stay Month")
-
-    # Per-bar color: green if Forecast ≥ Budget, red if below
-    bar_colors_fvb = []
-    for _, row in agg_d.iterrows():
-        fct_v = float(row.get("Duetto") or 0)
-        bgt_v = float(row.get("Budget") or 0)
-        if bgt_v == 0:
-            bar_colors_fvb.append("#1677ff")
-        elif fct_v >= bgt_v:
-            bar_colors_fvb.append("#22c55e")
-        else:
-            bar_colors_fvb.append("#ef4444")
-
-    # Variance % annotation above each bar
-    var_texts_fvb = []
-    for _, row in agg_d.iterrows():
-        fct_v = float(row.get("Duetto") or 0)
-        bgt_v = float(row.get("Budget") or 0)
-        if bgt_v and bgt_v != 0:
-            pct = (fct_v - bgt_v) / abs(bgt_v) * 100
-            var_texts_fvb.append(f"{pct:+.1f}%")
-        else:
-            var_texts_fvb.append("")
-
-    fig_fvb = go.Figure()
-    fig_fvb.add_trace(go.Bar(
-        x=agg_d["Stay Month"],
-        y=agg_d["Duetto"],
-        name="Forecast",
-        marker_color=bar_colors_fvb,
-        marker_line_width=0,
-        opacity=0.88,
-        text=var_texts_fvb,
-        textposition="outside",
-        textfont=dict(size=11, color="#374151"),
-        hovertemplate="<b>%{x}</b><br>Forecast: %{y:,.0f}<extra></extra>",
-    ))
-    if "Budget" in agg_d.columns:
-        fig_fvb.add_trace(go.Scatter(
-            x=agg_d["Stay Month"],
-            y=agg_d["Budget"],
-            name="Budget",
-            mode="lines+markers",
-            line=dict(color="#f59e0b", width=2, dash="dot"),
-            marker=dict(size=8, symbol="diamond", color="#f59e0b"),
-            hovertemplate="<b>%{x}</b><br>Budget: %{y:,.0f}<extra></extra>",
-        ))
-    fig_fvb.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        height=260, margin=dict(l=10, r=10, t=30, b=10),
-        legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center",
-                    font=dict(size=12)),
-        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f",
-                   gridwidth=1, zeroline=False),
-        xaxis=dict(showgrid=False, tickfont=dict(size=12)),
-        bargap=0.35,
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_fvb, use_container_width=True, config={
-        "displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-    })
+    _render_comparison_summary_cards(by_hotel, "Duetto", "Forecast")
+    chart_df = _comparison_chart_frame(flt, "Duetto")
+    _render_budget_reference_chart(chart_df, "Duetto", "Forecast", "forecast_vs_budget_pro_chart")
 
 
 def _render_otb_comparison_chart(pivot_df):
     """
-    Compare On The Book — line chart: OTB vs Budget across stay months.
+    Compare On The Book — professional OTB vs Budget reference chart.
     Metric selector: Revenue Summary (default) or individual metric.
     """
     st.markdown('<div class="section-title">Compare — On The Book</div>', unsafe_allow_html=True)
@@ -1398,13 +1430,18 @@ def _render_otb_comparison_chart(pivot_df):
         return
 
     available_metrics = [m for m in METRIC_ORDER if not pivot_df[pivot_df["Metric"] == m].empty]
-    _oc1, _ = st.columns([1.5, 2.5])
+    _oc1, _oc2 = st.columns([1.25, 3])
     metric_sel_otb = _oc1.selectbox(
-        "otb_metric",
+        "Metric",
         ["Revenue Summary"] + available_metrics,
         index=0,
-        label_visibility="collapsed",
         key="otb_chart_metric_sel",
+    )
+    _oc2.markdown(
+        '<div style="font-size:0.78rem;color:#6b7280;padding-top:30px;">'
+        'Bars show On The Book. Black line is Budget. Green = above budget, red = below budget.'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
     flt = (
@@ -1416,73 +1453,18 @@ def _render_otb_comparison_chart(pivot_df):
         return
 
     agg_cols = {c: "sum" for c in ["Today", "Budget"] if c in flt.columns}
+    if "Budget" not in agg_cols:
+        st.info("No Budget data available for On-The-Book comparison.")
+        return
+    by_hotel = flt.groupby("Hotel", as_index=False).agg(agg_cols)
+    by_hotel = by_hotel[(by_hotel["Budget"].notna()) & (by_hotel["Budget"] != 0)]
+    if by_hotel.empty:
+        return
+    _render_comparison_summary_cards(by_hotel, "Today", "On The Book")
+
     by_month = flt.groupby("Stay Month", as_index=False).agg(agg_cols)
-    month_order = sorted(by_month["Stay Month"].unique(), key=month_sort_key)
-    by_month["Stay Month"] = pd.Categorical(by_month["Stay Month"], categories=month_order, ordered=True)
-    by_month = by_month.sort_values("Stay Month")
-
-    # Grouped bar chart: OTB vs Budget per stay month
-    # Bars colored green (OTB ≥ Budget) / red (OTB < Budget)
-    # Budget shown as a dotted reference line with diamond markers
-    bar_colors_otb = []
-    for _, row in by_month.iterrows():
-        otb_v = float(row.get("Today") or 0)
-        bgt_v = float(row.get("Budget") or 0)
-        if bgt_v == 0:
-            bar_colors_otb.append("#1677ff")
-        elif otb_v >= bgt_v:
-            bar_colors_otb.append("#22c55e")
-        else:
-            bar_colors_otb.append("#ef4444")
-
-    var_texts_otb = []
-    for _, row in by_month.iterrows():
-        otb_v = float(row.get("Today") or 0)
-        bgt_v = float(row.get("Budget") or 0)
-        if bgt_v and bgt_v != 0:
-            pct = (otb_v - bgt_v) / abs(bgt_v) * 100
-            var_texts_otb.append(f"{pct:+.1f}%")
-        else:
-            var_texts_otb.append("")
-
-    fig_otb = go.Figure()
-    if "Today" in by_month.columns:
-        fig_otb.add_trace(go.Bar(
-            x=by_month["Stay Month"],
-            y=by_month["Today"],
-            name="On The Book",
-            marker_color=bar_colors_otb,
-            marker_line_width=0,
-            opacity=0.88,
-            text=var_texts_otb,
-            textposition="outside",
-            textfont=dict(size=11, color="#374151"),
-            hovertemplate="<b>%{x}</b><br>OTB: %{y:,.0f}<extra></extra>",
-        ))
-    if "Budget" in by_month.columns:
-        fig_otb.add_trace(go.Scatter(
-            x=by_month["Stay Month"],
-            y=by_month["Budget"],
-            name="Budget",
-            mode="lines+markers",
-            line=dict(color="#f59e0b", width=2, dash="dot"),
-            marker=dict(size=8, symbol="diamond", color="#f59e0b"),
-            hovertemplate="<b>%{x}</b><br>Budget: %{y:,.0f}<extra></extra>",
-        ))
-    fig_otb.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        height=260, margin=dict(l=10, r=10, t=30, b=10),
-        legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center",
-                    font=dict(size=12)),
-        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f",
-                   gridwidth=1, zeroline=False),
-        xaxis=dict(showgrid=False, tickfont=dict(size=12)),
-        bargap=0.35,
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig_otb, use_container_width=True, config={
-        "displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-    })
+    chart_df = _comparison_chart_frame(by_month, "Today")
+    _render_budget_reference_chart(chart_df, "Today", "On The Book", "otb_vs_budget_pro_chart")
 
 
 def render_compact_hotel_tabs(pivot_df):
