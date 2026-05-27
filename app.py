@@ -1279,6 +1279,12 @@ def _comparison_chart_frame(df, value_col, budget_col="Budget"):
     chart_df["Bar Color"] = chart_df["Variance"].apply(
         lambda v: "#16a34a" if pd.notna(v) and v >= 0 else "#dc2626"
     )
+    chart_df["Label Color"] = chart_df["Variance"].apply(
+        lambda v: "#166534" if pd.notna(v) and v >= 0 else "#b91c1c"
+    )
+    chart_df["Label Position"] = chart_df["Variance"].apply(
+        lambda v: "outside" if pd.notna(v) and v >= 0 else "inside"
+    )
     chart_df["Variance Label"] = chart_df["Variance %"].apply(
         lambda v: f"{v:+.1f}%" if pd.notna(v) else ""
     )
@@ -1319,8 +1325,11 @@ def _render_budget_reference_chart(chart_df, value_col, value_label, chart_key):
         marker_line=dict(color="rgba(17,24,39,0.18)", width=1),
         opacity=0.92,
         text=chart_df["Variance Label"],
-        textposition="outside",
-        textfont=dict(size=12, color="#111827"),
+        textposition=chart_df["Label Position"],
+        insidetextanchor="middle",
+        textfont=dict(size=12, color=chart_df["Label Color"]),
+        insidetextfont=dict(size=12, color="#ffffff"),
+        outsidetextfont=dict(size=12, color=chart_df["Label Color"]),
         customdata=chart_df[["Budget", "Variance", "Variance %"]].values,
         hovertemplate=(
             "<b>%{x}</b><br>"
