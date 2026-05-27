@@ -1050,10 +1050,11 @@ def build_latest_pivot_table(metric_data, role_selection):
 
 def style_latest_pivot_table(df):
     """
-    Color compact table:
-    - Duetto Rev lower than Budget Rev = red
-    - Duetto Rev higher than Budget Rev = blue
-    - Metric order already handled upstream
+    Pro-readable compact table styling:
+    • Duetto column = always tinted blue (focal — current forecast)
+    • Budget column = always tinted amber (target)
+    • Rev row      = headline background (stronger orange)
+    • Duetto vs Budget on Rev row = green if above target, red if below
     """
     if df is None or df.empty:
         return df
@@ -1065,46 +1066,128 @@ def style_latest_pivot_table(df):
         styles = pd.Series("", index=row.index)
         metric = str(row.get("Metric", ""))
 
-        # Light banding by metric
+        # ── Base banding by metric row ────────────────────────
         if metric == "Occ":
-            styles[:] = "background-color: #f8fafc"
+            styles[:] = "background-color: #f9fafb"
         elif metric == "Rev":
-            styles[:] = "background-color: #fff7ed"
+            styles[:] = "background-color: #fff7ed; font-weight: 500"
 
-        # Focus cell: Duetto vs Budget on Rev row
+        # ── Always emphasise the focal columns ────────────────
+        if "Duetto" in row.index:
+            base = "background-color: #eff6ff; font-weight: 600; color: #1e40af"
+            if metric == "Rev":
+                base = "background-color: #dbeafe; font-weight: 700; color: #1e3a8a"
+            styles["Duetto"] = base
+
+        if "Budget" in row.index:
+            base = "background-color: #fefce8; color: #713f12"
+            if metric == "Rev":
+                base = "background-color: #fef3c7; font-weight: 600; color: #713f12"
+            styles["Budget"] = base
+
+        # ── Headline call-out: Duetto vs Budget on Rev row ────
         if metric == "Rev" and "Duetto" in row.index and "Budget" in row.index:
             d = row.get("Duetto")
             b = row.get("Budget")
             if pd.notna(d) and pd.notna(b):
                 if d < b:
-                    styles["Duetto"] = "background-color: #fecaca; font-weight: 700"
+                    styles["Duetto"] = "background-color: #fecaca; font-weight: 700; color: #991b1b"
                 elif d > b:
-                    styles["Duetto"] = "background-color: #bfdbfe; font-weight: 700"
+                    styles["Duetto"] = "background-color: #bbf7d0; font-weight: 700; color: #166534"
 
         return styles
 
     return df.style.format(fmt).apply(row_style, axis=1)
 
 
+def _render_overview_snapshot(pivot_df):
+    """Compact Rev vs Budget snapshot above the pivot — the 2-second read."""
+    if "Duetto" not in pivot_df.columns or "Budget" not in pivot_df.columns:
+        return
+
+    rev = pivot_df[pivot_df["Metric"] == "Rev"].copy()
+    if rev.empty:
+        return
+
+    by_hotel = (
+        rev.groupby("Hotel", as_index=False)
+        .agg({"Duetto": "sum", "Budget": "sum"})
+    )
+    by_hotel = by_hotel[(by_hotel["Budget"].notna()) & (by_hotel["Budget"] != 0)]
+    if by_hotel.empty:
+        return
+
+    by_hotel["Variance %"] = (by_hotel["Duetto"] - by_hotel["Budget"]) / by_hotel["Budget"] * 100
+
+    total_fct = float(by_hotel["Duetto"].sum())
+    total_bgt = float(by_hotel["Budget"].sum())
+    overall_var_pct = (total_fct - total_bgt) / total_bgt * 100 if total_bgt else 0.0
+    above = int((by_hotel["Variance %"] > 0).sum())
+    below = int((by_hotel["Variance %"] < 0).sum())
+    n_hotels = int(len(by_hotel))
+
+    st.markdown('<div class="section-title">Today\'s Snapshot — Rev vs Budget</div>', unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Forecast (Rev)", fmt_raw2(total_fct))
+    c2.metric("Budget (Rev)",   fmt_raw2(total_bgt))
+    c3.metric(
+        "Variance %",
+        f"{overall_var_pct:+.2f}%",
+        delta="Above target" if overall_var_pct > 0
+              else ("Below target" if overall_var_pct < 0 else "On target"),
+        delta_color="normal" if overall_var_pct >= 0 else "inverse",
+    )
+    c4.metric(
+        "Properties",
+        f"{above} ↑   /   {below} ↓",
+        delta=f"of {n_hotels} hotels",
+        delta_color="off",
+    )
+
+
 def render_compact_hotel_tabs(pivot_df):
     """
-    Efficient tab layout matching user's screenshot.
+    Overview pivot — the team's primary daily view.
+    Layout: snapshot KPIs → view toggle → pivot table.
     """
     if pivot_df is None or pivot_df.empty:
         st.info("No pivot data for selected filters.")
         return
 
-    view_mode = st.radio(
-        "View",
-        ["Hotel tabs", "All hotels table"],
-        horizontal=True,
-        key="compact_pivot_view",
-    )
+    # ── 1. Snapshot KPIs (2-second read) ──────────────────────
+    _render_overview_snapshot(pivot_df)
 
+    # ── 2. Section + view toggle ──────────────────────────────
+    st.markdown('<div class="section-title">Forecast Pivot — by Stay Month</div>', unsafe_allow_html=True)
+
+    c_view, c_legend = st.columns([1.4, 3])
+    with c_view:
+        view_mode = st.pills(
+            "View",
+            options=["Hotel tabs", "All hotels"],
+            default="Hotel tabs",
+            key="compact_pivot_view_pills",
+            label_visibility="collapsed",
+        )
+        if not view_mode:
+            view_mode = "Hotel tabs"
+    with c_legend:
+        st.markdown(
+            '<div style="font-size:0.78rem;color:#6b7280;line-height:1.6;'
+            'padding-top:8px;text-align:right;">'
+            '<b style="color:#1e40af;">Duetto</b> = current forecast &nbsp;·&nbsp; '
+            '<b style="color:#713f12;">Budget</b> = locked target &nbsp;·&nbsp; '
+            'STLY/ST2Y/ST3Y = same-time benchmarks &nbsp;·&nbsp; '
+            'Final LY/2Y/3Y = historical actuals'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── 3. Pivot table ────────────────────────────────────────
     if view_mode == "Hotel tabs":
         hotels = sorted(pivot_df["Hotel"].dropna().unique())
         labels = [short_hotel_name(h) for h in hotels]
-
         tabs = st.tabs(labels)
 
         for tab, hotel in zip(tabs, hotels):
