@@ -3370,18 +3370,18 @@ def render_forecast_trend_by_month_v3(metric_data):
 # ============================================================
 def render_trend_comparison(metric_data, role_selection):
     """
-    Trend Comparison: pick 2 metrics + a shared baseline.
-    Renders 2 line charts side-by-side, each with the metric's actual line
-    plus its baseline line for visual side-by-side comparison.
+    Trend Comparison — single combo chart with dual Y-axis.
+        • Metric A → bars on LEFT axis (e.g. Revenue)
+        • Metric B → line on RIGHT axis (e.g. ADR)
+        • Baseline drawn as dashed reference for each metric.
     """
     st.markdown(
         '<div class="section-title">Trend Comparison — Two Metrics vs Baseline</div>',
         unsafe_allow_html=True,
     )
     st.caption(
-        "Pick any two metrics (e.g. Rev vs ADR) and a shared baseline. "
-        "Each chart shows the actual trend alongside its baseline so you can "
-        "spot divergence at a glance."
+        "Pick two metrics on a shared chart — bars (left axis) for the volume metric, "
+        "line (right axis) for the rate metric. Each baseline appears as a dashed reference."
     )
 
     if metric_data is None or metric_data.empty:
@@ -3423,7 +3423,7 @@ def render_trend_comparison(metric_data, role_selection):
     c1, c2, c3 = st.columns([1, 1, 1.2])
     default_a = "Rev" if "Rev" in available_metrics else available_metrics[0]
     metric_a = c1.selectbox(
-        "Metric A",
+        "Bars (left axis)",
         available_metrics,
         index=available_metrics.index(default_a),
         key="trend_cmp_metric_a",
@@ -3431,7 +3431,7 @@ def render_trend_comparison(metric_data, role_selection):
     b_opts = [m for m in available_metrics if m != metric_a]
     default_b = "ADR" if "ADR" in b_opts else b_opts[0]
     metric_b = c2.selectbox(
-        "Metric B",
+        "Line (right axis)",
         b_opts,
         index=b_opts.index(default_b),
         key="trend_cmp_metric_b",
@@ -3462,97 +3462,259 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No stay months in data.")
         return
 
-    # ── Chart factory ────────────────────────────────────────
+    # ─────────────────────────────────────────────────────────
+    # DUETTO-STYLE CUMULATIVE CURVE
+    #   • Filled area (green) for Metric A — left Y axis
+    #   • Smooth line (amber) for Metric B — right Y axis
+    #   • Dashed line baselines on each axis
+    # ─────────────────────────────────────────────────────────
     _metric_full = {"Rev": "Revenue", "ADR": "ADR", "Occ": "Occupancy", "Room": "Rooms"}
+    full_a = _metric_full.get(metric_a, metric_a)
+    full_b = _metric_full.get(metric_b, metric_b)
 
-    def make_chart(months, actual, base, metric_label, baseline_label, accent_color):
-        full = _metric_full.get(metric_label, metric_label)
-        fig = go.Figure()
-        # Baseline first (so actual line draws on top)
-        fig.add_trace(go.Scatter(
-            x=months, y=base,
-            name=f"{baseline_label}",
-            line=dict(color="#94a3b8", width=2, dash="dot"),
-            mode="lines+markers",
-            marker=dict(size=6, symbol="diamond", color="#94a3b8"),
-            hovertemplate="<b>%{x}</b><br>" + baseline_label + ": %{y:,.0f}<extra></extra>",
-        ))
-        fig.add_trace(go.Scatter(
-            x=months, y=actual,
-            name=f"{metric_label} (OTB)",
-            line=dict(color=accent_color, width=3),
-            mode="lines+markers",
-            marker=dict(size=8, color=accent_color, line=dict(width=2, color="#fff")),
-            hovertemplate="<b>%{x}</b><br>" + metric_label + ": %{y:,.0f}<extra></extra>",
-        ))
-        fig.update_layout(
-            title=dict(
-                text=f"<b style='color:{accent_color};'>{full}</b>  <span style='color:#9ca3af;font-weight:400;'>vs {baseline_label}</span>",
-                x=0.01, y=0.97, font=dict(size=14),
-            ),
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            height=320,
-            margin=dict(l=10, r=10, t=44, b=44),
-            legend=dict(
-                orientation="h", y=-0.22, x=0.5, xanchor="center",
-                font=dict(size=11),
-            ),
-            yaxis=dict(
-                showgrid=True, gridcolor="#f1f5f9", zeroline=False,
-                tickformat=",.0f", tickfont=dict(size=11),
-            ),
-            xaxis=dict(showgrid=False, tickfont=dict(size=11)),
-            hovermode="x unified",
-        )
-        return fig
+    months_union = sorted(set(months_a) | set(months_b), key=month_sort_key)
 
-    # ── Render side-by-side ──────────────────────────────────
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.plotly_chart(
-            make_chart(months_a, actual_a, base_a, metric_a, baseline, "#1677ff"),
-            use_container_width=True,
-            config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
-        )
-    with col_b:
-        st.plotly_chart(
-            make_chart(months_b, actual_b, base_b, metric_b, baseline, "#a855f7"),
-            use_container_width=True,
-            config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]},
-        )
+    def _align(months_src, values, target):
+        if not months_src:
+            return [None] * len(target)
+        idx = dict(zip(months_src, values))
+        return [idx.get(m, None) for m in target]
 
-    # ── Divergence summary chips ─────────────────────────────
-    def total_var(actual, base):
-        a = sum(v for v in actual if v is not None)
-        b = sum(v for v in base if v is not None)
-        if b == 0:
-            return None
-        return (a - b) / abs(b) * 100
+    actual_a_v = _align(months_a, actual_a, months_union)
+    base_a_v   = _align(months_a, base_a,   months_union)
+    actual_b_v = _align(months_b, actual_b, months_union)
+    base_b_v   = _align(months_b, base_b,   months_union)
 
-    va = total_var(actual_a, base_a)
-    vb = total_var(actual_b, base_b)
+    INK = "#0f172a"
 
-    def _chip(metric, var_pct, accent):
+    # Duetto-inspired palette
+    GREEN_LINE    = "#0f766e"   # teal-700 (Rev line on top of area)
+    GREEN_FILL    = "rgba(134,239,172,0.55)"   # green-300 with transparency
+    GREEN_BASE    = "#0d9488"   # teal-600 dashed baseline
+    AMBER_LINE    = "#f59e0b"   # amber-500 ADR line
+    AMBER_BASE    = "#d97706"   # amber-600 ADR baseline dotted
+
+    def _smart_fmt(v):
+        if v is None or pd.isna(v):
+            return ""
+        v = float(v)
+        if abs(v) >= 1_000_000:
+            return f"{v/1_000_000:,.2f}M"
+        if abs(v) >= 10_000:
+            return f"{v/1_000:,.0f}K"
+        if abs(v) >= 1_000:
+            return f"{v/1_000:,.1f}K"
+        return f"{v:,.1f}"
+
+    # ── Aggregate totals for KPI cards ────────────────────────
+    def _total(vals):
+        return sum(v for v in vals if v is not None and pd.notna(v))
+
+    def _avg(vals):
+        clean = [v for v in vals if v is not None and pd.notna(v)]
+        return sum(clean) / len(clean) if clean else 0
+
+    is_avg_a = metric_a in ("ADR", "Occ")
+    is_avg_b = metric_b in ("ADR", "Occ")
+    total_a   = _avg(actual_a) if is_avg_a else _total(actual_a)
+    total_a_b = _avg(base_a)   if is_avg_a else _total(base_a)
+    total_b   = _avg(actual_b) if is_avg_b else _total(actual_b)
+    total_b_b = _avg(base_b)   if is_avg_b else _total(base_b)
+    var_a_pct = (total_a - total_a_b) / abs(total_a_b) * 100 if total_a_b else None
+    var_b_pct = (total_b - total_b_b) / abs(total_b_b) * 100 if total_b_b else None
+
+    # ── KPI cards ─────────────────────────────────────────────
+    def _kpi_card(full_label, kind, value, base_value, var_pct, accent):
         if var_pct is None:
-            return f'<span style="background:#f3f4f6;color:#6b7280;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;">{metric}: no baseline</span>'
-        sign_color = "#15803d" if var_pct >= 0 else "#b91c1c"
-        bg = "#ecfdf5" if var_pct >= 0 else "#fef2f2"
+            var_chip = '<span style="color:#9ca3af;font-size:11px;">no baseline</span>'
+        else:
+            arrow = "▲" if var_pct >= 0 else "▼"
+            var_color = "#15803d" if var_pct >= 0 else "#b91c1c"
+            var_bg = "#dcfce7" if var_pct >= 0 else "#fee2e2"
+            var_chip = (
+                f'<span style="background:{var_bg};color:{var_color};'
+                f'font-size:12px;font-weight:700;padding:4px 12px;border-radius:14px;'
+                f'font-variant-numeric:tabular-nums;">'
+                f'{arrow} {abs(var_pct):.1f}% vs {baseline}</span>'
+            )
         return (
-            f'<span style="background:{bg};color:{sign_color};padding:6px 14px;'
-            f'border-radius:20px;font-size:12px;font-weight:600;'
-            f'border-left:3px solid {accent};">'
-            f'{metric} vs {baseline}: <b>{var_pct:+.1f}%</b>'
-            f'</span>'
+            f'<div style="background:#fff;border:1px solid #e5e7eb;border-left:4px solid {accent};'
+            f'border-radius:10px;padding:16px 20px;'
+            f'box-shadow:0 1px 2px rgba(15,23,42,0.04);">'
+            f'<div style="font-size:11px;font-weight:700;text-transform:uppercase;'
+            f'letter-spacing:0.08em;color:#6b7280;">{full_label} · {kind}</div>'
+            f'<div style="display:flex;align-items:baseline;gap:14px;margin-top:8px;">'
+            f'<span style="font-size:28px;font-weight:800;color:{INK};'
+            f'letter-spacing:-0.02em;font-variant-numeric:tabular-nums;">'
+            f'{_smart_fmt(value)}</span>'
+            f'<span style="font-size:13px;color:#9ca3af;">'
+            f'baseline {_smart_fmt(base_value)}</span>'
+            f'</div>'
+            f'<div style="margin-top:10px;">{var_chip}</div>'
+            f'</div>'
         )
 
-    st.markdown(
-        f'<div style="display:flex;gap:10px;margin:6px 0 4px 0;">'
-        f'{_chip(metric_a, va, "#1677ff")}'
-        f'{_chip(metric_b, vb, "#a855f7")}'
-        f'</div>',
-        unsafe_allow_html=True,
+    kind_a = "Avg" if is_avg_a else "Total"
+    kind_b = "Avg" if is_avg_b else "Total"
+    k1, k2 = st.columns(2)
+    k1.markdown(_kpi_card(full_a, kind_a, total_a, total_a_b, var_a_pct, GREEN_LINE), unsafe_allow_html=True)
+    k2.markdown(_kpi_card(full_b, kind_b, total_b, total_b_b, var_b_pct, AMBER_LINE), unsafe_allow_html=True)
+    st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+
+    # ── Duetto-style combo chart ─────────────────────────────
+    from plotly.subplots import make_subplots
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    # Metric A — filled area (left Y)
+    fig.add_trace(
+        go.Scatter(
+            x=months_union,
+            y=actual_a_v,
+            name=full_a,
+            mode="lines+markers",
+            line=dict(color=GREEN_LINE, width=2.5, shape="spline", smoothing=0.6),
+            marker=dict(size=7, color=GREEN_LINE, line=dict(width=2, color="#fff")),
+            fill="tozeroy",
+            fillcolor=GREEN_FILL,
+            hovertemplate=f"<b>%{{x}}</b><br>{full_a}: %{{y:,.0f}}<extra></extra>",
+        ),
+        secondary_y=False,
     )
+
+    # Metric A baseline — dashed line (left Y)
+    if any(v is not None for v in base_a_v):
+        fig.add_trace(
+            go.Scatter(
+                x=months_union,
+                y=base_a_v,
+                name=f"{full_a} {baseline}",
+                mode="lines",
+                line=dict(color=GREEN_BASE, width=2, dash="dash"),
+                hovertemplate=f"<b>%{{x}}</b><br>{full_a} {baseline}: %{{y:,.0f}}<extra></extra>",
+            ),
+            secondary_y=False,
+        )
+
+    # Metric B — smooth line (right Y)
+    fig.add_trace(
+        go.Scatter(
+            x=months_union,
+            y=actual_b_v,
+            name=full_b,
+            mode="lines+markers",
+            line=dict(color=AMBER_LINE, width=3, shape="spline", smoothing=0.7),
+            marker=dict(size=7, color=AMBER_LINE, line=dict(width=2, color="#fff")),
+            hovertemplate=f"<b>%{{x}}</b><br>{full_b}: %{{y:,.0f}}<extra></extra>",
+        ),
+        secondary_y=True,
+    )
+
+    # Metric B baseline — dotted line (right Y)
+    if any(v is not None for v in base_b_v):
+        fig.add_trace(
+            go.Scatter(
+                x=months_union,
+                y=base_b_v,
+                name=f"{full_b} {baseline}",
+                mode="lines",
+                line=dict(color=AMBER_BASE, width=1.5, dash="dot"),
+                opacity=0.75,
+                hovertemplate=f"<b>%{{x}}</b><br>{full_b} {baseline}: %{{y:,.0f}}<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+
+    fig.update_layout(
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
+        height=440,
+        margin=dict(l=10, r=10, t=30, b=60),
+        legend=dict(
+            orientation="h", y=-0.18, x=0.5, xanchor="center",
+            font=dict(size=12, color="#374151"),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+        hovermode="x unified",
+        font=dict(family="Inter, -apple-system, sans-serif"),
+    )
+    fig.update_xaxes(
+        showgrid=False,
+        tickfont=dict(size=12, color="#1f2937"),
+        showline=True, linecolor="#e5e7eb", linewidth=1,
+    )
+    fig.update_yaxes(
+        title=dict(
+            text=f"<b>{full_a}</b>",
+            font=dict(size=12, color=GREEN_LINE),
+            standoff=8,
+        ),
+        showgrid=True, gridcolor="#f3f4f6",
+        zeroline=False,
+        tickformat=",.0f",
+        tickfont=dict(size=10, color=GREEN_LINE),
+        secondary_y=False,
+    )
+    fig.update_yaxes(
+        title=dict(
+            text=f"<b>{full_b}</b>",
+            font=dict(size=12, color=AMBER_LINE),
+            standoff=8,
+        ),
+        showgrid=False,
+        zeroline=False,
+        tickformat=",.0f",
+        tickfont=dict(size=10, color=AMBER_LINE),
+        secondary_y=True,
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            "displaylogo": False,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+        },
+    )
+
+    # ── Auto-diagnosis ────────────────────────────────────────
+    if metric_a == "Rev" and metric_b == "ADR" and var_a_pct is not None and var_b_pct is not None:
+        if var_a_pct > 0 and var_b_pct > 0:
+            narrative = (
+                f"Revenue **+{var_a_pct:.1f}%** and ADR **+{var_b_pct:.1f}%** vs {baseline} — "
+                f"growth is **rate-driven** (selling at higher prices)."
+            )
+            tone = "good"
+        elif var_a_pct > 0 and var_b_pct <= 0:
+            narrative = (
+                f"Revenue **+{var_a_pct:.1f}%** despite ADR at **{var_b_pct:+.1f}%** vs {baseline} — "
+                f"growth is **volume-driven** (more rooms sold at lower rates)."
+            )
+            tone = "info"
+        elif var_a_pct <= 0 and var_b_pct > 0:
+            narrative = (
+                f"Revenue **{var_a_pct:+.1f}%** while ADR **+{var_b_pct:.1f}%** vs {baseline} — "
+                f"rate is up but **volume is dragging** revenue down."
+            )
+            tone = "warn"
+        else:
+            narrative = (
+                f"Revenue **{var_a_pct:+.1f}%** and ADR **{var_b_pct:+.1f}%** vs {baseline} — "
+                f"**both rate and volume** under pressure."
+            )
+            tone = "bad"
+        bg_map = {"good": "#f0fdf4", "info": "#eff6ff", "warn": "#fffbeb", "bad": "#fef2f2"}
+        bd_map = {"good": "#22c55e", "info": "#3b82f6", "warn": "#f59e0b", "bad": "#ef4444"}
+        fg_map = {"good": "#166534", "info": "#1e40af", "warn": "#92400e", "bad": "#991b1b"}
+        st.markdown(
+            f'<div style="background:{bg_map[tone]};border-left:4px solid {bd_map[tone]};'
+            f'color:{fg_map[tone]};padding:12px 18px;border-radius:8px;'
+            f'font-size:13px;line-height:1.5;margin-top:6px;">'
+            f'<b style="text-transform:uppercase;font-size:10px;letter-spacing:0.08em;'
+            f'opacity:0.8;">Diagnosis</b><br>'
+            f'{narrative}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 # ============================================================
@@ -3561,13 +3723,15 @@ def render_trend_comparison(metric_data, role_selection):
 # ============================================================
 def render_revenue_momentum_pct_chart(metric_data):
     """
-    Daily % Change momentum chart — one facet per metric (Rev / ADR / Occ / Room).
-    Aggregates across all currently selected stay months (controlled by main filters).
+    Daily % Change momentum chart.
+    - Bars: selected metric's daily % change
+    - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
+    - Filter by stay months (default = all)
     """
     st.markdown('<div class="section-title">Daily % Change — Forecast Momentum</div>', unsafe_allow_html=True)
     st.caption(
         "Each bar = (Today's Forecast − Yesterday's Forecast) ÷ Yesterday's Forecast × 100. "
-        "One row per metric · Green = forecast up · Red = forecast down."
+        "Green = up · Red = down · Dashed line = ADR daily % (reference)."
     )
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -3575,69 +3739,148 @@ def render_revenue_momentum_pct_chart(metric_data):
         st.info("No forecast data.")
         return
 
-    # ── Aggregate to (Report Date × Metric), summed across all selected stay months ─
-    # Sum the value across stay months and hotels first, then compute pct change.
-    grp = (
-        d4.groupby(["Report Date", "Metric"], as_index=False)["Value"]
-        .sum()
-        .sort_values(["Metric", "Report Date"])
+    month_options = sorted(d4["Stay Month"].dropna().unique(), key=month_sort_key)
+
+    c1, c2 = st.columns([1, 2.5])
+    metric_choice = c1.selectbox(
+        "Metric",
+        ["Rev", "Occ", "Room", "ADR"],
+        index=0,
+        key="momentum_pct_metric",
     )
-    grp["Pct Change"] = grp.groupby("Metric")["Value"].pct_change() * 100
-    grp = grp.dropna(subset=["Pct Change"]).copy()
+    sel_months = c2.multiselect(
+        "Stay Months",
+        options=month_options,
+        default=month_options,   # default = ALL stay months
+        key="momentum_pct_months",
+    )
+
+    if not sel_months:
+        st.caption("Select at least one stay month.")
+        return
+
+    # ── Build daily % change for selected metric AND ADR (reference) ─
+    def _daily_pct(metric):
+        sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"].isin(sel_months))].copy()
+        if sub.empty:
+            return pd.DataFrame()
+        # Sum across hotels and stay months per report date, then pct_change
+        agg = (
+            sub.groupby(["Report Date", "Stay Month"], as_index=False)["Value"]
+            .sum()
+            .sort_values(["Stay Month", "Report Date"])
+        )
+        agg["Pct Change"] = agg.groupby("Stay Month")["Value"].pct_change() * 100
+        return agg.dropna(subset=["Pct Change"]).reset_index(drop=True)
+
+    grp = _daily_pct(metric_choice)
+    adr_grp = _daily_pct("ADR") if metric_choice != "ADR" else pd.DataFrame()
 
     if grp.empty:
         st.info("Need at least 2 report dates to compute daily % change.")
         return
-
-    # Order metrics consistently
-    metric_order = [m for m in ["Rev", "ADR", "Occ", "Room"] if m in grp["Metric"].unique()]
-    grp["Metric"] = pd.Categorical(grp["Metric"], categories=metric_order, ordered=True)
-    grp = grp.sort_values(["Metric", "Report Date"]).reset_index(drop=True)
 
     grp["Direction"] = grp["Pct Change"].apply(
         lambda x: "Up" if x > 0 else ("Down" if x < 0 else "Flat")
     )
     grp["Label"] = grp["Pct Change"].apply(lambda x: f"{x:+.1f}%")
 
-    n_metrics = grp["Metric"].nunique()
+    n_months = grp["Stay Month"].nunique()
 
-    # ── Facet by metric (one row per metric) ──────────────────
-    fig = px.bar(
-        grp,
-        x="Report Date",
-        y="Pct Change",
-        color="Direction",
-        color_discrete_map={
-            "Up":   "#15803d",
-            "Down": "#b91c1c",
-            "Flat": "#d48806",
-        },
-        text="Label",
-        facet_row="Metric",
-        category_orders={"Metric": metric_order},
-    )
-    # Replace "Metric=Rev" with "Rev" in facet labels
-    fig.for_each_annotation(lambda a: a.update(
-        text=f"<b>{a.text.split('=')[-1]}</b>",
-        font=dict(size=12, color="#1e40af"),
-    ))
-    fig.update_layout(showlegend=False)
+    # ADR reference: aggregate across stay months for clean reference line
+    adr_ref = pd.DataFrame()
+    if not adr_grp.empty:
+        adr_ref = (
+            adr_grp.groupby("Report Date", as_index=False)["Pct Change"].mean()
+            .sort_values("Report Date")
+        )
+
+    # ── Build the chart ───────────────────────────────────────
+    if n_months == 1:
+        # Single stay month → simple bar chart with optional ADR ref line
+        fig = px.bar(
+            grp,
+            x="Report Date",
+            y="Pct Change",
+            color="Direction",
+            color_discrete_map={
+                "Up":   "#15803d",
+                "Down": "#b91c1c",
+                "Flat": "#d48806",
+            },
+            text="Label",
+            title=f"{metric_choice} · {sel_months[0]}",
+        )
+        if not adr_ref.empty:
+            fig.add_trace(go.Scatter(
+                x=adr_ref["Report Date"],
+                y=adr_ref["Pct Change"],
+                name="ADR (reference)",
+                mode="lines+markers",
+                line=dict(color="#1e293b", width=2, dash="dash"),
+                marker=dict(size=6, color="#1e293b"),
+                hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
+            ))
+        fig.update_layout(showlegend=(not adr_ref.empty))
+    else:
+        # Multiple stay months → facet row
+        fig = px.bar(
+            grp,
+            x="Report Date",
+            y="Pct Change",
+            color="Direction",
+            color_discrete_map={
+                "Up":   "#15803d",
+                "Down": "#b91c1c",
+                "Flat": "#d48806",
+            },
+            text="Label",
+            facet_row="Stay Month",
+            title=f"{metric_choice}",
+        )
+        # Replace "Stay Month=May, 2026" with "May, 2026"
+        fig.for_each_annotation(lambda a: a.update(
+            text=f"<b>{a.text.split('=')[-1]}</b>",
+            font=dict(size=12, color="#1e40af"),
+        ))
+        # Add ADR dashed reference line to every facet
+        if not adr_ref.empty:
+            for i in range(n_months):
+                fig.add_trace(
+                    go.Scatter(
+                        x=adr_ref["Report Date"],
+                        y=adr_ref["Pct Change"],
+                        name="ADR (reference)",
+                        mode="lines+markers",
+                        line=dict(color="#1e293b", width=2, dash="dash"),
+                        marker=dict(size=5, color="#1e293b"),
+                        showlegend=(i == 0),
+                        legendgroup="adr_ref",
+                        hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
+                    ),
+                    row=i + 1, col=1,
+                )
+        fig.update_layout(showlegend=(not adr_ref.empty))
 
     fig.update_traces(
         textposition="outside",
         textfont=dict(size=10, color="#374151"),
         marker_line_width=0,
         cliponaxis=False,
+        selector=dict(type="bar"),
     )
     fig.update_layout(
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=20, b=20),
-        height=max(360, 200 * n_metrics),
+        margin=dict(l=20, r=20, t=55, b=20),
+        height=max(360, 240 * n_months),
         hovermode="x unified",
         bargap=0.35,
+        legend=dict(
+            orientation="h", y=-0.15, x=0.5, xanchor="center",
+            font=dict(size=11, color="#374151"),
+        ),
     )
-
     fig.update_xaxes(
         title="Report Date",
         tickformat="%d %b",
@@ -3664,22 +3907,21 @@ def render_revenue_momentum_pct_chart(metric_data):
         key="revenue_momentum_pct_chart",
     )
 
-    # ── Per-metric summary cards ──────────────────────────────
-    metric_cols = st.columns(len(metric_order)) if metric_order else []
-    for col, m in zip(metric_cols, metric_order):
-        sub = grp[grp["Metric"] == m]
-        if sub.empty:
-            col.metric(m, "—")
-            continue
-        avg_pct = sub["Pct Change"].mean()
-        latest_row = sub.sort_values("Report Date").iloc[-1]
-        latest_pct = latest_row["Pct Change"]
-        col.metric(
-            f"{m} — latest day",
-            f"{latest_pct:+.2f}%",
-            delta=f"avg {avg_pct:+.2f}%",
-            delta_color="normal" if avg_pct >= 0 else "inverse",
-        )
+    # ── Summary stats ─────────────────────────────────────────
+    pos_days = int((grp["Pct Change"] > 0).sum())
+    neg_days = int((grp["Pct Change"] < 0).sum())
+    avg_pct  = grp["Pct Change"].mean()
+    max_row  = grp.loc[grp["Pct Change"].idxmax()]
+    min_row  = grp.loc[grp["Pct Change"].idxmin()]
+
+    s1, s2, s3, s4, s5 = st.columns(5)
+    s1.metric("Days Up",   pos_days)
+    s2.metric("Days Down", neg_days)
+    s3.metric("Avg Daily %", f"{avg_pct:+.2f}%")
+    s4.metric("Best Day",  f"{max_row['Pct Change']:+.1f}%",
+              max_row["Report Date"].strftime("%d %b"))
+    s5.metric("Worst Day", f"{min_row['Pct Change']:+.1f}%",
+              min_row["Report Date"].strftime("%d %b"))
 
 
 def build_forecast_movement_v31(metric_data, role_selection):
