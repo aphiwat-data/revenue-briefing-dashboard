@@ -956,6 +956,184 @@ def build_final_comparison(metric_data, role_selection):
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric", "Base Final"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 
+# ============================================================
+# Daily Briefing Excel — one-click morning meeting deck
+# ============================================================
+def to_excel_bytes(sheets_dict):
+    """Pack a {sheet_name: DataFrame} dict into XLSX bytes."""
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        for name, df in sheets_dict.items():
+            safe_name = str(name)[:31]   # Excel sheet name max 31 chars
+            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+                pd.DataFrame({"(empty)": []}).to_excel(writer, sheet_name=safe_name, index=False)
+            else:
+                df.to_excel(writer, sheet_name=safe_name, index=False)
+    output.seek(0)
+    return output.getvalue()
+
+
+def build_portfolio_snapshot(metric_data, role_selection):
+    """
+    Portfolio totals per metric: OTB / Forecast / Budget / STLY,
+    plus Forecast vs Budget % and OTB vs STLY %.
+    """
+    role_map = {
+        row["Role"]: row["Report Label"]
+        for _, row in role_selection.iterrows()
+        if pd.notna(row["Report Label"])
+    }
+    today_label = role_map.get("Today / Latest")
+    if not today_label:
+        return pd.DataFrame()
+    latest = metric_data[metric_data["Report Label"] == today_label]
+    if latest.empty:
+        return pd.DataFrame()
+
+    rows = []
+    for metric in ["Rev", "ADR", "Occ", "Room"]:
+        sub = latest[latest["Metric"] == metric]
+        if sub.empty:
+            continue
+        use_mean = metric in ("ADR", "Occ")
+        agg = (lambda s: s.mean()) if use_mean else (lambda s: s.sum())
+        def _v(ref):
+            xs = sub[sub["Reference"] == ref]["Value"]
+            return agg(xs) if not xs.empty else None
+        otb, fct, bgt, stly = _v("Today"), _v("Duetto"), _v("Budget"), _v("STLY")
+
+        def _pct(a, b):
+            if a is None or b is None or pd.isna(a) or pd.isna(b) or b == 0:
+                return None
+            return (a - b) / abs(b) * 100
+
+        rows.append({
+            "Metric": metric,
+            "On The Book": otb,
+            "Forecast": fct,
+            "Budget": bgt,
+            "STLY": stly,
+            "Forecast vs Budget %": _pct(fct, bgt),
+            "OTB vs Budget %":      _pct(otb, bgt),
+            "OTB vs STLY %":        _pct(otb, stly),
+        })
+    return pd.DataFrame(rows)
+
+
+def build_hotel_scorecard(metric_data, role_selection):
+    """
+    Per-hotel scorecard: total Forecast / Budget / Var% for Rev,
+    plus ADR (avg) and Occ (avg) OTB. One row per hotel.
+    """
+    role_map = {
+        row["Role"]: row["Report Label"]
+        for _, row in role_selection.iterrows()
+        if pd.notna(row["Report Label"])
+    }
+    today_label = role_map.get("Today / Latest")
+    if not today_label:
+        return pd.DataFrame()
+    latest = metric_data[metric_data["Report Label"] == today_label]
+    if latest.empty:
+        return pd.DataFrame()
+
+    hotels = sorted(latest["Hotel"].dropna().unique())
+    rows = []
+    for h in hotels:
+        sub = latest[latest["Hotel"] == h]
+        def _get(metric, ref, mean=False):
+            xs = sub[(sub["Metric"] == metric) & (sub["Reference"] == ref)]["Value"]
+            if xs.empty:
+                return None
+            return xs.mean() if mean else xs.sum()
+
+        rev_otb = _get("Rev", "Today")
+        rev_fct = _get("Rev", "Duetto")
+        rev_bgt = _get("Rev", "Budget")
+        adr_otb = _get("ADR", "Today", mean=True)
+        adr_bgt = _get("ADR", "Budget", mean=True)
+        occ_otb = _get("Occ", "Today", mean=True)
+        occ_bgt = _get("Occ", "Budget", mean=True)
+
+        def _pct(a, b):
+            if a is None or b is None or pd.isna(a) or pd.isna(b) or b == 0:
+                return None
+            return (a - b) / abs(b) * 100
+
+        rows.append({
+            "Hotel": h,
+            "Rev OTB": rev_otb,
+            "Rev Forecast": rev_fct,
+            "Rev Budget": rev_bgt,
+            "Rev Fct vs Bgt %": _pct(rev_fct, rev_bgt),
+            "ADR OTB": adr_otb,
+            "ADR Budget": adr_bgt,
+            "ADR vs Bgt %": _pct(adr_otb, adr_bgt),
+            "Occ OTB %": occ_otb,
+            "Occ Budget %": occ_bgt,
+            "Occ vs Bgt pts": (occ_otb - occ_bgt) if (occ_otb is not None and occ_bgt is not None) else None,
+        })
+    return pd.DataFrame(rows)
+
+
+def build_daily_briefing_sheets(metric_data, role_selection, report_file_month):
+    """
+    Assemble the full multi-sheet daily briefing for the morning meeting.
+
+    Sheet order is curated for the meeting flow:
+      1. Portfolio Snapshot     — the headline numbers
+      2. Hotel Scorecard        — per-hotel summary
+      3. Variance Pivot         — detailed pivot with all variance %
+      4. Same-Time Pace         — OTB vs STLY / ST2Y / ST3Y
+      5. Historical Final       — Forecast vs Final LY / 2Y / 3Y
+      6. Forecast Movement      — vs 1D / 7D / First-day
+      7. Hotel Momentum         — daily forecast pickup per hotel
+      8. Role Selection         — file roles validation
+    """
+    sheets = {}
+
+    # 1. Portfolio Snapshot
+    sheets["Portfolio Snapshot"] = build_portfolio_snapshot(metric_data, role_selection)
+
+    # 2. Hotel Scorecard
+    sheets["Hotel Scorecard"] = build_hotel_scorecard(metric_data, role_selection)
+
+    # 3. Variance Pivot (the big OTB/Bgt/Duetto/STLY/Final variance table)
+    if "build_variance_pivot_table" in globals():
+        sheets["Variance Pivot"] = build_variance_pivot_table(metric_data, role_selection)
+
+    # 4. Same-Time Pace
+    if "build_pace_summary" in globals():
+        sheets["Same-Time Pace"] = build_pace_summary(metric_data, role_selection)
+
+    # 5. Historical Final
+    if "build_final_comparison" in globals():
+        sheets["Historical Final"] = build_final_comparison(metric_data, role_selection)
+
+    # 6. Forecast Movement
+    if "build_forecast_movement_v31" in globals():
+        sheets["Forecast Movement"] = build_forecast_movement_v31(metric_data, role_selection)
+    elif "build_movement_summary" in globals():
+        sheets["Forecast Movement"] = build_movement_summary(metric_data, role_selection)
+
+    # 7. Hotel Momentum (daily forecast pickup per hotel, per stay month)
+    d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
+    if not d4.empty:
+        d4 = d4.sort_values(["Hotel", "Stay Month", "Metric", "Report Date"])
+        d4["Previous Value"]  = d4.groupby(["Hotel", "Stay Month", "Metric"])["Value"].shift(1)
+        d4["Daily Pickup"]    = d4["Value"] - d4["Previous Value"]
+        d4["Daily Pickup %"]  = d4["Daily Pickup"] / d4["Previous Value"] * 100
+        sheets["Hotel Momentum"] = d4[[
+            "Hotel", "Stay Month", "Metric", "Report Date", "Report Label",
+            "Value", "Previous Value", "Daily Pickup", "Daily Pickup %",
+        ]].reset_index(drop=True)
+
+    # 8. Role Selection
+    sheets["Role Selection"] = role_selection
+
+    return sheets
+
+
 def render_hotel_table(df, view_mode, key_prefix, column_config=None):
     """
     Render dataframe either as one list table or separated hotel tabs.
@@ -4160,11 +4338,11 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
 
     st.markdown("#### Summary by Hotel")
     st.caption("Aggregated view for quick prioritization across selected months.")
-    priority_budget_view = render_priority_budget_table(summary_view, show_heading=False)
+    priority_budget_view = render_priority_budget_table(summary_view, show_heading=False, key_suffix="summary")
 
     st.markdown("#### Detail by Month")
     st.caption("Monthly breakdown for checking which stay months drive the total variance.")
-    render_priority_budget_table(month_view, show_heading=False)
+    render_priority_budget_table(month_view, show_heading=False, key_suffix="month")
 
     return summary_view
 
@@ -5257,7 +5435,7 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
 
 
 
-def render_priority_budget_table(view, show_heading=True):
+def render_priority_budget_table(view, show_heading=True, key_suffix="default"):
     """
     Presentation-friendly priority budget table.
     Replaces long priority cards with a compact table.
@@ -5274,7 +5452,7 @@ def render_priority_budget_table(view, show_heading=True):
             "Table sort",
             ["Worst variance first", "Best variance first", "Hotel order"],
             index=0,
-            key="priority_budget_table_sort",
+            key=f"priority_budget_table_sort_{key_suffix}",
         )
 
     if table_sort == "Worst variance first":
@@ -6085,20 +6263,90 @@ with tab1:
 
 
 with tab5:
-    st.markdown('<div class="section-title">Report Roles Validation</div>', unsafe_allow_html=True)
-    st.dataframe(role_selection, use_container_width=True, hide_index=True)
-    
-    st.markdown('<div class="section-title">Export Data</div>', unsafe_allow_html=True)
-    
+    # ── Primary: Daily Briefing Excel ─────────────────────────
+    st.markdown('<div class="section-title">Daily Briefing Excel — One-Click Morning Deck</div>', unsafe_allow_html=True)
+    st.caption(
+        "Single multi-sheet workbook with every key view from this dashboard — "
+        "ready to share with GMs or open at the morning meeting."
+    )
+
     def trigger_download_toast():
         st.toast("File downloaded successfully.")
 
+    # Build all sheets
+    briefing_sheets = build_daily_briefing_sheets(metric_data, role_selection, report_file_month)
+
+    # ── Sheet preview strip ───────────────────────────────────
+    preview_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px 0;">'
+    sheet_icons = {
+        "Portfolio Snapshot": "📊",
+        "Hotel Scorecard":    "🏨",
+        "Variance Pivot":     "📈",
+        "Same-Time Pace":     "⏱",
+        "Historical Final":   "📅",
+        "Forecast Movement":  "📉",
+        "Hotel Momentum":     "🚀",
+        "Role Selection":     "✅",
+    }
+    for name, df in briefing_sheets.items():
+        n_rows = 0 if (df is None or df.empty) else len(df)
+        empty = n_rows == 0
+        bg = "#f9fafb" if empty else "#eff6ff"
+        bd = "#e5e7eb" if empty else "#bfdbfe"
+        fg = "#9ca3af" if empty else "#1e40af"
+        preview_html += (
+            f'<div style="background:{bg};border:1px solid {bd};border-radius:8px;'
+            f'padding:8px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">'
+            f'<span style="font-size:14px;opacity:0.7;">{sheet_icons.get(name, "•")}</span>'
+            f'<span style="color:{fg};font-weight:600;">{html.escape(name)}</span>'
+            f'<span style="color:#94a3b8;font-size:11px;font-variant-numeric:tabular-nums;">'
+            f'{n_rows:,} row{"" if n_rows == 1 else "s"}</span>'
+            f'</div>'
+        )
+    preview_html += '</div>'
+    st.markdown(preview_html, unsafe_allow_html=True)
+
+    # ── Primary download button ───────────────────────────────
+    file_stamp = report_file_month.replace(", ", "_").replace(" ", "_")
     st.download_button(
-        "Download Movement CSV",
-        data=movement_summary.to_csv(index=False).encode("utf-8"),
-        file_name="g5_d4cast_movement.csv",
-        mime="text/csv",
+        "📥  Download Daily Briefing Excel",
+        data=to_excel_bytes(briefing_sheets),
+        file_name=f"g5_daily_briefing_{file_stamp}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         on_click=trigger_download_toast,
-        type="secondary",
+        type="primary",
         use_container_width=True,
     )
+
+    # ── Secondary: quick CSVs ─────────────────────────────────
+    st.markdown('<div class="section-title">Quick CSV Exports</div>', unsafe_allow_html=True)
+    st.caption("Individual CSVs for spreadsheet pivots or sharing a single view.")
+
+    csv_c1, csv_c2 = st.columns(2)
+    with csv_c1:
+        st.download_button(
+            "Forecast Movement (CSV)",
+            data=movement_summary.to_csv(index=False).encode("utf-8"),
+            file_name=f"g5_movement_{file_stamp}.csv",
+            mime="text/csv",
+            on_click=trigger_download_toast,
+            type="secondary",
+            use_container_width=True,
+        )
+    with csv_c2:
+        var_pivot = briefing_sheets.get("Variance Pivot")
+        if isinstance(var_pivot, pd.DataFrame) and not var_pivot.empty:
+            st.download_button(
+                "Variance Pivot (CSV)",
+                data=var_pivot.to_csv(index=False).encode("utf-8"),
+                file_name=f"g5_variance_pivot_{file_stamp}.csv",
+                mime="text/csv",
+                on_click=trigger_download_toast,
+                type="secondary",
+                use_container_width=True,
+            )
+
+    # ── Role validation (kept at bottom for transparency) ─────
+    with st.expander("Report Roles Validation", expanded=False):
+        st.caption("Confirms which files were assigned to Today / Yesterday / 7D / 1st Month roles.")
+        st.dataframe(role_selection, use_container_width=True, hide_index=True)
