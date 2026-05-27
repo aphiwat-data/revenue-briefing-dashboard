@@ -44,7 +44,7 @@ _LOGO_B64 = _load_logo_b64()
 
 st.set_page_config(
     page_title="Daily Revenue Briefing Dashboard",
-    page_icon="📈",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -110,7 +110,10 @@ st.markdown(
     }
     [data-testid="stSidebar"] .stButton > button {
         font-size: 0.88rem !important;
-        border-radius: 5px !important;
+        height: 34px !important;
+        border-radius: 6px !important;
+        width: 100% !important;
+        padding: 0 14px !important;
     }
 
     /* ── Page h2 title ───────────────────────────────────── */
@@ -268,20 +271,96 @@ st.markdown(
         overflow: hidden !important;
     }
 
-    /* ── Buttons ─────────────────────────────────────────── */
-    .stButton > button {
-        border-radius: 5px !important;
+    /* ══════════════════════════════════════════════════════
+       Button system — all states & variants
+       ══════════════════════════════════════════════════════ */
+
+    /* ── Base: shared across ALL button types ────────────── */
+    .stButton > button,
+    [data-testid="stDownloadButton"] > button {
+        border-radius: 6px !important;
         font-size: 0.9rem !important;
         font-weight: 500 !important;
+        height: 38px !important;
+        padding: 0 20px !important;
+        letter-spacing: 0.01em !important;
+        cursor: pointer !important;
+        transition:
+            background  0.15s ease,
+            border-color 0.15s ease,
+            box-shadow  0.15s ease,
+            transform   0.12s ease !important;
     }
+
+    /* ── Secondary (default) — white / outlined ──────────── */
+    .stButton > button[kind="secondary"] {
+        background: #fff !important;
+        border: 1px solid #d9d9d9 !important;
+        color: #444 !important;
+    }
+    .stButton > button[kind="secondary"]:hover {
+        background: #f0f7ff !important;
+        border-color: #1677ff !important;
+        color: #1677ff !important;
+        box-shadow: 0 2px 8px rgba(22,119,255,0.12) !important;
+    }
+    .stButton > button[kind="secondary"]:active {
+        background: #e6f0ff !important;
+    }
+
+    /* ── Primary — solid blue ────────────────────────────── */
     .stButton > button[kind="primary"] {
         background: #1677ff !important;
         border-color: #1677ff !important;
         color: #fff !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(22,119,255,0.28) !important;
     }
     .stButton > button[kind="primary"]:hover {
-        background: #4096ff !important;
-        border-color: #4096ff !important;
+        background: #3d8bff !important;
+        border-color: #3d8bff !important;
+        box-shadow: 0 4px 16px rgba(22,119,255,0.40) !important;
+        transform: translateY(-1px) !important;
+    }
+    .stButton > button[kind="primary"]:active {
+        transform: translateY(0) !important;
+        box-shadow: 0 1px 4px rgba(22,119,255,0.20) !important;
+    }
+
+    /* ── Download primary — solid green (Excel) ──────────── */
+    [data-testid="stDownloadButton"] > button[kind="primary"] {
+        background: #16a34a !important;
+        border-color: #16a34a !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(22,163,74,0.28) !important;
+    }
+    [data-testid="stDownloadButton"] > button[kind="primary"]:hover {
+        background: #15803d !important;
+        border-color: #15803d !important;
+        box-shadow: 0 4px 16px rgba(22,163,74,0.40) !important;
+        transform: translateY(-1px) !important;
+    }
+    [data-testid="stDownloadButton"] > button[kind="primary"]:active {
+        transform: translateY(0) !important;
+        box-shadow: 0 1px 4px rgba(22,163,74,0.20) !important;
+    }
+
+    /* ── Download secondary — outlined green (CSV) ───────── */
+    [data-testid="stDownloadButton"] > button[kind="secondary"] {
+        background: #f0fdf4 !important;
+        border: 1.5px solid #86efac !important;
+        color: #15803d !important;
+        font-weight: 500 !important;
+    }
+    [data-testid="stDownloadButton"] > button[kind="secondary"]:hover {
+        background: #dcfce7 !important;
+        border-color: #16a34a !important;
+        color: #14532d !important;
+        box-shadow: 0 2px 8px rgba(22,163,74,0.18) !important;
+    }
+    [data-testid="stDownloadButton"] > button[kind="secondary"]:active {
+        background: #bbf7d0 !important;
     }
 
     /* ── Radio buttons ───────────────────────────────────── */
@@ -673,9 +752,9 @@ def select_role_files(file_catalog, report_file_month):
 
     def add(role, row):
         if row is None:
-            rows.append({"Role": role, "Report Label": None, "Report Date": None, "File Name": None, "Status": "❌ Missing"})
+            rows.append({"Role": role, "Report Label": None, "Report Date": None, "File Name": None, "Status": "Missing"})
         else:
-            rows.append({"Role": role, "Report Label": row["Report Label"], "Report Date": row["Report Date"], "File Name": row["File Name"], "Status": "✅ OK"})
+            rows.append({"Role": role, "Report Label": row["Report Label"], "Report Date": row["Report Date"], "File Name": row["File Name"], "Status": "OK"})
 
     add("Today / Latest", today)
     add("Yesterday / Previous", yesterday)
@@ -806,10 +885,10 @@ def build_metric_long(combined_df, ref_col_map):
     return pd.DataFrame(rows).sort_values(["Report Date", "Hotel", "Stay Month", "Reference", "Metric"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 def risk_level(diff_pct):
-    if pd.isna(diff_pct): return "⚪ Unknown"
-    if diff_pct <= -5: return "🔴 High"
-    if diff_pct <= -2: return "🟠 Medium"
-    return "🟢 Low"
+    if pd.isna(diff_pct): return "Unknown"
+    if diff_pct <= -5: return "High"
+    if diff_pct <= -2: return "Medium"
+    return "Low"
 
 def build_movement_summary(metric_data, role_selection):
     role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
@@ -824,15 +903,15 @@ def build_movement_summary(metric_data, role_selection):
         lv = group["Value"].sum()
         for compare, base_label in base_map.items():
             if base_label is None:
-                bv, diff, diff_pct, status = None, None, None, "⚪ No Base"
+                bv, diff, diff_pct, status = None, None, None, "No Base"
             else:
                 bv = metric_data[(metric_data["Hotel"] == h) & (metric_data["Stay Month"] == sm) & (metric_data["Metric"] == m) & (metric_data["Report Label"] == base_label) & (metric_data["Reference"] == "Duetto")]["Value"].sum()
                 if pd.isna(bv) or bv == 0:
-                    diff, diff_pct, status = None, None, "⚪ No Base"
+                    diff, diff_pct, status = None, None, "No Base"
                 else:
                     diff = lv - bv
                     diff_pct = diff / bv * 100
-                    status = "🟢 Up" if diff > 0 else "🔴 Down" if diff < 0 else "🟡 Flat"
+                    status = "Up" if diff > 0 else "Down" if diff < 0 else "Flat"
             rows.append({"Hotel": h, "Stay Month": sm, "Metric": m, "Compare": compare, "Latest D4cast": lv, "Base Forecast": bv, "Forecast Diff": diff, "Forecast Diff %": diff_pct, "Status": status, "Risk": risk_level(diff_pct)})
     
     out = pd.DataFrame(rows)
@@ -853,11 +932,11 @@ def build_pace_summary(metric_data, role_selection):
         pace_ref, pace_value = max(cands, key=lambda x: x[1]) if cands else (None, None)
         
         if not pace_value or pd.isna(today):
-            diff, diff_pct, status = None, None, "⚪ No Pace"
+            diff, diff_pct, status = None, None, "No Pace"
         else:
             diff = today - pace_value
             diff_pct = diff / pace_value * 100
-            status = "🟢 Ahead" if diff > 0 else "🔴 Behind" if diff < 0 else "🟡 On Pace"
+            status = "Ahead" if diff > 0 else "Behind" if diff < 0 else "On Pace"
         rows.append({"Hotel": h, "Stay Month": sm, "Metric": m, "Today": today, "STLY": stly, "ST2Y": st2y, "ST3Y": st3y, "Recommended Pace": pace_ref, "Recommended Pace Value": pace_value, "Pace Diff": diff, "Pace Diff %": diff_pct, "Status": status, "Risk": risk_level(diff_pct)})
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric"]).reset_index(drop=True) if rows else pd.DataFrame()
 
@@ -872,7 +951,7 @@ def build_final_comparison(metric_data, role_selection):
             base = group[group["Reference"] == final_ref]["Value"].sum()
             if pd.isna(base) or base == 0: continue
             diff = d4 - base
-            rows.append({"Hotel": keys[0], "Stay Month": keys[1], "Metric": keys[2], "Forecast": d4, "Base Final": final_ref, "Final Value": base, "Diff": diff, "Diff %": diff / base * 100, "Status": "🟢 Higher" if diff > 0 else "🔴 Lower" if diff < 0 else "🟡 Equal"})
+            rows.append({"Hotel": keys[0], "Stay Month": keys[1], "Metric": keys[2], "Forecast": d4, "Base Final": final_ref, "Final Value": base, "Diff": diff, "Diff %": diff / base * 100, "Status": "Higher" if diff > 0 else "Lower" if diff < 0 else "Equal"})
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric", "Base Final"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 
@@ -1123,12 +1202,12 @@ def build_hotel_leaderboard(metric_long, role_selection, hotels, stay_month_sele
 
     def status_from_daily(x):
         if pd.isna(x):
-            return "⚪ No Base"
+            return "No Base"
         if x > 0:
-            return "🟢 Up"
+            return "Up"
         if x < 0:
-            return "🔴 Down"
-        return "🟡 Flat"
+            return "Down"
+        return "Flat"
 
     out["Status"] = out["Daily PU"].apply(status_from_daily)
     out["Abs Daily PU"] = out["Daily PU"].abs()
@@ -2103,7 +2182,7 @@ def build_weekly_movement(metric_data):
         hotel,stay,metric,week=keys; g=g.sort_values("Report Date")
         sv,ev=g.iloc[0]["Value"],g.iloc[-1]["Value"]
         diff=ev-sv; pct=diff/sv*100 if pd.notna(sv) and sv!=0 else None
-        rows.append({"Hotel":hotel,"Stay Month":stay,"Metric":metric,"Report Week":week,"Start Date":g.iloc[0]["Report Date"],"End Date":g.iloc[-1]["Report Date"],"Week Start Forecast":sv,"Week End Forecast":ev,"Weekly PU":diff,"Weekly PU %":pct,"Status":"🟢 Up" if diff>0 else "🔴 Down" if diff<0 else "🟡 Flat"})
+        rows.append({"Hotel":hotel,"Stay Month":stay,"Metric":metric,"Report Week":week,"Start Date":g.iloc[0]["Report Date"],"End Date":g.iloc[-1]["Report Date"],"Week Start Forecast":sv,"Week End Forecast":ev,"Weekly PU":diff,"Weekly PU %":pct,"Status":"Up" if diff>0 else "Down" if diff<0 else "Flat"})
     out=pd.DataFrame(rows)
     if out.empty: return out
     out["Metric"]=pd.Categorical(out["Metric"], categories=METRIC_ORDER, ordered=True)
@@ -2151,7 +2230,7 @@ def render_weekly_movement(metric_data):
 
 
 def render_metric_dictionary():
-    with st.expander("📌 Metric definitions", expanded=False):
+    with st.expander("Metric definitions", expanded=False):
         st.markdown("""
         **Latest Forecast** = latest Duetto forecast from the newest report file.  
         **Budget** = locked budget target. This is the main Revenue Team focus.  
@@ -2217,7 +2296,7 @@ def build_weekly_movement_v2(metric_data):
             "End Forecast": end_value,
             "Weekly Movement": weekly_move,
             "Weekly Movement %": weekly_move_pct,
-            "Status": "🟢 Up" if weekly_move > 0 else "🔴 Down" if weekly_move < 0 else "🟡 Flat",
+            "Status": "Up" if weekly_move > 0 else "Down" if weekly_move < 0 else "Flat",
         })
 
     out = pd.DataFrame(rows)
@@ -3121,7 +3200,7 @@ def build_forecast_movement_v31(metric_data, role_selection):
                 base_value = None
                 movement = None
                 movement_pct = None
-                status = "⚪ No Base"
+                status = "No Base"
             else:
                 base_value = metric_data[
                     (metric_data["Hotel"] == hotel)
@@ -3134,11 +3213,11 @@ def build_forecast_movement_v31(metric_data, role_selection):
                 if pd.isna(base_value) or base_value == 0:
                     movement = None
                     movement_pct = None
-                    status = "⚪ No Base"
+                    status = "No Base"
                 else:
                     movement = latest_value - base_value
                     movement_pct = movement / base_value * 100
-                    status = "🟢 Up" if movement > 0 else "🔴 Down" if movement < 0 else "🟡 Flat"
+                    status = "Up" if movement > 0 else "Down" if movement < 0 else "Flat"
 
             rows.append({
                 "Hotel": hotel,
@@ -3718,7 +3797,7 @@ def render_leaderboard_by_month(
         ]
 
         # ── Rank badge: gold / silver / bronze for top 3 ──
-        badges = {1: "🥇", 2: "🥈", 3: "🥉"}
+        badges = {1: "#1", 2: "#2", 3: "#3"}
         rank_display = [badges.get(r, str(r)) for r in grp["Rank"]]
 
         fig = go.Figure(data=[go.Table(
@@ -4093,12 +4172,12 @@ def calc_budget_variance(forecast, budget):
 
 def budget_status_from_variance(variance):
     if variance is None or pd.isna(variance):
-        return "⚪ No Budget"
+        return "No Budget"
     if variance > 0:
-        return "🟢 Above Budget"
+        return "Above Budget"
     if variance < 0:
-        return "🔴 Below Budget"
-    return "🟡 On Budget"
+        return "Below Budget"
+    return "On Budget"
 
 
 def budget_delta_text(variance_pct):
@@ -4549,7 +4628,7 @@ with st.sidebar:
             "Path",
             value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
         )
-        if st.button("Refresh", use_container_width=True, type="primary"):
+        if st.button("↻  Refresh Data", use_container_width=True, type="primary"):
             st.cache_data.clear()
             st.rerun()
         try:
@@ -5004,7 +5083,7 @@ with tab1:
         )
 
         latest_rows["Status"] = latest_rows["Daily Change"].apply(
-            lambda x: "🟢 Up" if pd.notna(x) and x > 0 else "🔴 Down" if pd.notna(x) and x < 0 else "🟡 Flat"
+            lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
         )
 
         summary_cols = [
@@ -5158,17 +5237,17 @@ with tab_analysis:
 with tab5:
     st.markdown('<div class="section-title">Export & Settings</div>', unsafe_allow_html=True)
     st.markdown("""
-    - ✅ Use `python -m streamlit run <file>.py` for local presentation.
-    - ✅ Make sure the Google Drive / local folder path points to the daily G5 report folder.
-    - ✅ Confirm Today / Yesterday / 7D / 1st Month roles below before presenting.
+    - Use `python -m streamlit run <file>.py` for local presentation.
+    - Make sure the Google Drive / local folder path points to the daily G5 report folder.
+    - Confirm Today / Yesterday / 7D / 1st Month roles below before presenting.
     """)
     st.markdown('<div class="section-title">Report Roles Validation</div>', unsafe_allow_html=True)
     st.dataframe(role_selection, use_container_width=True, hide_index=True)
     
-    st.markdown('<div class="section-title">📥 Export Data</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Export Data</div>', unsafe_allow_html=True)
     
     def trigger_download_toast():
-        st.toast("✅ File downloaded successfully!", icon="🎉")
+        st.toast("File downloaded successfully.")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -5182,19 +5261,21 @@ with tab5:
             "D4cast vs Final": final_comparison,
         }
         st.download_button(
-            "📊 Download Full Excel Report",
+            "Download Full Excel Report",
             data=to_excel_bytes(sheets),
             file_name=f"g5_d4cast_{report_file_month.replace(', ', '_')}_{selected_metric}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             on_click=trigger_download_toast,
-            use_container_width=True
+            type="primary",
+            use_container_width=True,
         )
     with c2:
         st.download_button(
-            "📝 Download Movement CSV",
+            "Download Movement CSV",
             data=movement_summary.to_csv(index=False).encode("utf-8"),
             file_name="g5_d4cast_movement.csv",
             mime="text/csv",
             on_click=trigger_download_toast,
-            use_container_width=True
+            type="secondary",
+            use_container_width=True,
         )
