@@ -198,24 +198,29 @@ st.markdown(
         font-weight: 500 !important;
     }
 
-    /* ── Compare checkbox chips ──────────────────────────── */
-    .stCheckbox > label {
-        background: #f5f5f5 !important;
-        border: 1px solid #d9d9d9 !important;
-        border-radius: 4px !important;
-        padding: 4px 12px 4px 8px !important;
-        font-size: 0.9rem !important;
+    /* ── Compare pills (st.pills) ────────────────────────── */
+    /* Unselected pill */
+    [data-testid="stPills"] button {
+        font-size: 0.88rem !important;
         font-weight: 500 !important;
-        color: #333 !important;
+        border-radius: 20px !important;
+        padding: 4px 14px !important;
+        border: 1px solid #d9d9d9 !important;
+        background: #f5f5f5 !important;
+        color: #444 !important;
         transition: all 0.15s !important;
-        cursor: pointer !important;
-        display: inline-flex !important;
-        align-items: center !important;
     }
-    .stCheckbox > label:has(input:checked) {
-        background: #e6f4ff !important;
+    [data-testid="stPills"] button:hover {
+        background: #e8f0fe !important;
         border-color: #1677ff !important;
         color: #1677ff !important;
+    }
+    /* Selected pill */
+    [data-testid="stPills"] button[aria-pressed="true"],
+    [data-testid="stPills"] button[data-selected="true"] {
+        background: #1677ff !important;
+        border-color: #1677ff !important;
+        color: #fff !important;
         font-weight: 600 !important;
     }
 
@@ -4231,17 +4236,13 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
     ctrl_left, ctrl_right = st.columns([3, 2])
 
     with ctrl_left:
-        st.markdown(
-            '<p style="font-size:0.68rem;font-weight:700;text-transform:uppercase;'
-            'letter-spacing:0.09em;color:#8c8c8c;margin:0 0 4px 0;">Compare</p>',
-            unsafe_allow_html=True,
+        compare_sel = st.pills(
+            "Compare",
+            options=["On The Book", "Budget", "Forecast"],
+            selection_mode="multi",
+            default=["On The Book", "Budget"],
+            key="kpi_compare_pills",
         )
-        c_otb, _s1, c_bgt, _s2, c_fct = st.columns([1.4, 0.12, 1.1, 0.12, 1.2])
-        otb_on = c_otb.checkbox("On The Book", value=True, key="kpi_chk_otb")
-        _s1.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
-        bgt_on = c_bgt.checkbox("Budget", value=True, key="kpi_chk_budget")
-        _s2.markdown('<p class="compare-sep">│</p>', unsafe_allow_html=True)
-        fct_on = c_fct.checkbox("Forecast", value=False, key="kpi_chk_forecast")
 
     with ctrl_right:
         kpi_mode = st.radio(
@@ -4252,14 +4253,12 @@ def render_budget_first_kpi_section_v39(metric_data, role_selection, selected_me
             key="budget_first_kpi_mode_v39",
         )
 
-    selected_axes = (
-        (["On The Book"] if otb_on else []) +
-        (["Budget"]     if bgt_on else []) +
-        (["Forecast"]   if fct_on else [])
-    )
+    # Preserve canonical order: OTB → Budget → Forecast
+    _order = ["On The Book", "Budget", "Forecast"]
+    selected_axes = [x for x in _order if x in (compare_sel or [])]
 
     if len(selected_axes) < 2:
-        st.caption("Check at least 2 items to compare.")
+        st.caption("Select at least 2 items to compare.")
         return
 
     budget_df = build_budget_review(metric_data, role_selection)
