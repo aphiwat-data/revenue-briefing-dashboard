@@ -1318,29 +1318,67 @@ def _render_forecast_vs_budget(pivot_df):
     )
     c4.metric("Properties", f"{above} ↑ / {below} ↓", delta=f"of {n_hotels} hotels", delta_color="off")
 
-    # Line chart: Forecast vs Budget by stay month
+    # Grouped bar chart: Forecast vs Budget by stay month
     agg_d = flt.groupby("Stay Month", as_index=False).agg({"Duetto": "sum", "Budget": "sum"})
     month_order = sorted(agg_d["Stay Month"].unique(), key=month_sort_key)
     agg_d["Stay Month"] = pd.Categorical(agg_d["Stay Month"], categories=month_order, ordered=True)
     agg_d = agg_d.sort_values("Stay Month")
 
+    # Per-bar color: green if Forecast ≥ Budget, red if below
+    bar_colors_fvb = []
+    for _, row in agg_d.iterrows():
+        fct_v = float(row.get("Duetto") or 0)
+        bgt_v = float(row.get("Budget") or 0)
+        if bgt_v == 0:
+            bar_colors_fvb.append("#1677ff")
+        elif fct_v >= bgt_v:
+            bar_colors_fvb.append("#22c55e")
+        else:
+            bar_colors_fvb.append("#ef4444")
+
+    # Variance % annotation above each bar
+    var_texts_fvb = []
+    for _, row in agg_d.iterrows():
+        fct_v = float(row.get("Duetto") or 0)
+        bgt_v = float(row.get("Budget") or 0)
+        if bgt_v and bgt_v != 0:
+            pct = (fct_v - bgt_v) / abs(bgt_v) * 100
+            var_texts_fvb.append(f"{pct:+.1f}%")
+        else:
+            var_texts_fvb.append("")
+
     fig_fvb = go.Figure()
-    fig_fvb.add_trace(go.Scatter(
-        x=agg_d["Stay Month"], y=agg_d["Duetto"], name="Forecast",
-        line=dict(color="#1677ff", width=2.5), mode="lines+markers",
-        marker=dict(size=7, symbol="circle"),
+    fig_fvb.add_trace(go.Bar(
+        x=agg_d["Stay Month"],
+        y=agg_d["Duetto"],
+        name="Forecast",
+        marker_color=bar_colors_fvb,
+        marker_line_width=0,
+        opacity=0.88,
+        text=var_texts_fvb,
+        textposition="outside",
+        textfont=dict(size=11, color="#374151"),
+        hovertemplate="<b>%{x}</b><br>Forecast: %{y:,.0f}<extra></extra>",
     ))
-    fig_fvb.add_trace(go.Scatter(
-        x=agg_d["Stay Month"], y=agg_d["Budget"], name="Budget",
-        line=dict(color="#f59e0b", width=2, dash="dash"), mode="lines+markers",
-        marker=dict(size=5),
-    ))
+    if "Budget" in agg_d.columns:
+        fig_fvb.add_trace(go.Scatter(
+            x=agg_d["Stay Month"],
+            y=agg_d["Budget"],
+            name="Budget",
+            mode="lines+markers",
+            line=dict(color="#f59e0b", width=2, dash="dot"),
+            marker=dict(size=8, symbol="diamond", color="#f59e0b"),
+            hovertemplate="<b>%{x}</b><br>Budget: %{y:,.0f}<extra></extra>",
+        ))
     fig_fvb.update_layout(
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        height=200, margin=dict(l=10, r=10, t=10, b=30),
-        legend=dict(orientation="h", y=-0.35, x=0.5, xanchor="center"),
-        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f"),
-        xaxis=dict(showgrid=False),
+        height=260, margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center",
+                    font=dict(size=12)),
+        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f",
+                   gridwidth=1, zeroline=False),
+        xaxis=dict(showgrid=False, tickfont=dict(size=12)),
+        bargap=0.35,
         hovermode="x unified",
     )
     st.plotly_chart(fig_fvb, use_container_width=True, config={
@@ -1383,25 +1421,63 @@ def _render_otb_comparison_chart(pivot_df):
     by_month["Stay Month"] = pd.Categorical(by_month["Stay Month"], categories=month_order, ordered=True)
     by_month = by_month.sort_values("Stay Month")
 
+    # Grouped bar chart: OTB vs Budget per stay month
+    # Bars colored green (OTB ≥ Budget) / red (OTB < Budget)
+    # Budget shown as a dotted reference line with diamond markers
+    bar_colors_otb = []
+    for _, row in by_month.iterrows():
+        otb_v = float(row.get("Today") or 0)
+        bgt_v = float(row.get("Budget") or 0)
+        if bgt_v == 0:
+            bar_colors_otb.append("#1677ff")
+        elif otb_v >= bgt_v:
+            bar_colors_otb.append("#22c55e")
+        else:
+            bar_colors_otb.append("#ef4444")
+
+    var_texts_otb = []
+    for _, row in by_month.iterrows():
+        otb_v = float(row.get("Today") or 0)
+        bgt_v = float(row.get("Budget") or 0)
+        if bgt_v and bgt_v != 0:
+            pct = (otb_v - bgt_v) / abs(bgt_v) * 100
+            var_texts_otb.append(f"{pct:+.1f}%")
+        else:
+            var_texts_otb.append("")
+
     fig_otb = go.Figure()
     if "Today" in by_month.columns:
-        fig_otb.add_trace(go.Scatter(
-            x=by_month["Stay Month"], y=by_month["Today"], name="On The Book",
-            line=dict(color="#1677ff", width=2.5), mode="lines+markers",
-            marker=dict(size=7),
+        fig_otb.add_trace(go.Bar(
+            x=by_month["Stay Month"],
+            y=by_month["Today"],
+            name="On The Book",
+            marker_color=bar_colors_otb,
+            marker_line_width=0,
+            opacity=0.88,
+            text=var_texts_otb,
+            textposition="outside",
+            textfont=dict(size=11, color="#374151"),
+            hovertemplate="<b>%{x}</b><br>OTB: %{y:,.0f}<extra></extra>",
         ))
     if "Budget" in by_month.columns:
         fig_otb.add_trace(go.Scatter(
-            x=by_month["Stay Month"], y=by_month["Budget"], name="Budget",
-            line=dict(color="#f59e0b", width=2, dash="dash"), mode="lines+markers",
-            marker=dict(size=5),
+            x=by_month["Stay Month"],
+            y=by_month["Budget"],
+            name="Budget",
+            mode="lines+markers",
+            line=dict(color="#f59e0b", width=2, dash="dot"),
+            marker=dict(size=8, symbol="diamond", color="#f59e0b"),
+            hovertemplate="<b>%{x}</b><br>Budget: %{y:,.0f}<extra></extra>",
         ))
     fig_otb.update_layout(
         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-        height=200, margin=dict(l=10, r=10, t=10, b=30),
-        legend=dict(orientation="h", y=-0.35, x=0.5, xanchor="center"),
-        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f"),
-        xaxis=dict(showgrid=False),
+        height=260, margin=dict(l=10, r=10, t=30, b=10),
+        legend=dict(orientation="h", y=-0.18, x=0.5, xanchor="center",
+                    font=dict(size=12)),
+        yaxis=dict(showgrid=True, gridcolor="#f1f5f9", tickformat=",.0f",
+                   gridwidth=1, zeroline=False),
+        xaxis=dict(showgrid=False, tickfont=dict(size=12)),
+        bargap=0.35,
         hovermode="x unified",
     )
     st.plotly_chart(fig_otb, use_container_width=True, config={
