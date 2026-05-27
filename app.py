@@ -230,6 +230,41 @@ st.markdown(
         box-shadow: 0 1px 4px rgba(22,119,255,0.30) !important;
     }
 
+    /* ── Main page nav (top of dashboard) ─────────────────────
+       Larger, tab-bar styled — overrides generic pill look.
+       Scoped via the .main-page-nav wrapper.
+       ─────────────────────────────────────────────────────── */
+    .main-page-nav + div [data-testid="stPills"] {
+        margin: 0 !important;
+    }
+    .main-page-nav + div [data-testid="stPills"] > div {
+        gap: 4px !important;
+        flex-wrap: wrap;
+    }
+    .main-page-nav + div [data-testid="stPills"] button {
+        font-size: 0.95rem !important;
+        font-weight: 500 !important;
+        padding: 9px 22px !important;
+        border-radius: 8px !important;
+        border: 1px solid transparent !important;
+        background: transparent !important;
+        color: #6b7280 !important;
+        letter-spacing: 0.01em !important;
+    }
+    .main-page-nav + div [data-testid="stPills"] button:hover {
+        background: #f1f5f9 !important;
+        color: #1f2937 !important;
+        border-color: transparent !important;
+    }
+    .main-page-nav + div [data-testid="stPills"] button[aria-pressed="true"],
+    .main-page-nav + div [data-testid="stPills"] button[data-selected="true"] {
+        background: #1677ff !important;
+        border-color: #1677ff !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+        box-shadow: 0 2px 8px rgba(22,119,255,0.25) !important;
+    }
+
     /* ── Section titles (left accent strip) ───────────────────── */
     .section-title {
         font-size: 0.8rem;
@@ -3896,10 +3931,10 @@ def render_revenue_momentum_pct_chart(metric_data):
     - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
     - Filter by stay months (default = all)
     """
-    st.markdown('<div class="section-title">Daily % Change — Forecast Momentum</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Daily Forecast Movement (%)</div>', unsafe_allow_html=True)
     st.caption(
-        "Each bar = (Today's Forecast − Yesterday's Forecast) ÷ Yesterday's Forecast × 100. "
-        "Green = up · Red = down · Dashed line = ADR daily % (reference)."
+        "Bars show day-over-day forecast change: (Today forecast - Yesterday forecast) / Yesterday forecast x 100. "
+        "Green = increase, red = decrease. Dashed line = ADR day-over-day change."
     )
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -5793,6 +5828,26 @@ if file_catalog is None:
             st.rerun()
     st.stop()
 
+# ── Top page navigation (above filters — always visible) ─────
+_NAV_PAGES = ["Overview", "Budget Review", "Leaderboard", "Trend", "Export"]
+st.markdown('<div class="main-page-nav">', unsafe_allow_html=True)
+selected_page = st.pills(
+    "main_page_nav",
+    options=_NAV_PAGES,
+    selection_mode="single",
+    default="Overview",
+    label_visibility="collapsed",
+    key="main_page_nav",
+)
+st.markdown('</div>', unsafe_allow_html=True)
+if not selected_page:
+    selected_page = "Overview"
+
+st.markdown(
+    '<hr style="margin:6px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
+    unsafe_allow_html=True,
+)
+
 # ── Inline filters (Properties + Stay Month) ─────────────────
 _fc1, _fc2, _fc3 = st.columns([3, 1.6, 1.6])
 
@@ -5887,17 +5942,8 @@ hotel_momentum = (
     if not d4.empty else pd.DataFrame()
 )
 
-# ── Main tabs ─────────────────────────────────────────────────
-tab0, tab_leaderboard, tab_lb, tab1, tab5 = st.tabs([
-    "Overview",
-    "Budget Review",
-    "Leaderboard",
-    "Trend",
-    "Export",
-])
-
-
-with tab0:
+# ── Page content (driven by top-nav pills) ───────────────────
+if selected_page == "Overview":
     # Build variance pivot (OTB + variances)
     latest_pivot = build_variance_pivot_table(metric_data, role_selection)
 
@@ -5958,7 +6004,7 @@ with tab0:
         forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
 
 
-with tab_leaderboard:
+elif selected_page == "Budget Review":
     leaderboard_summary = render_budget_sort_board_v32(
         metric_long=metric_long,
         role_selection=role_selection,
@@ -5967,7 +6013,7 @@ with tab_leaderboard:
     )
 
 
-with tab_lb:
+elif selected_page == "Leaderboard":
     st.markdown(
         '<div class="section-title">Leaderboard — Key Metrics by Stay Month</div>',
         unsafe_allow_html=True,
@@ -5985,7 +6031,7 @@ with tab_lb:
     )
 
 
-with tab1:
+elif selected_page == "Trend":
     # ──────────────────────────────────────────────────────────
     # TREND TAB — narrative flow:
     #   1) Strategic — two metrics vs baseline (high-level read)
@@ -6262,7 +6308,7 @@ with tab1:
 
 
 
-with tab5:
+elif selected_page == "Export":
     # ── Primary: Daily Briefing Excel ─────────────────────────
     st.markdown('<div class="section-title">Daily Briefing Excel — One-Click Morning Deck</div>', unsafe_allow_html=True)
     st.caption(
