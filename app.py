@@ -4713,6 +4713,9 @@ with st.sidebar:
         )
 
     st.markdown("## Data source")
+    if st.session_state.pop("force_upload_mode", False):
+        st.session_state["data_source_mode"] = "Upload"
+
     mode = st.radio(
         "source_mode",
         ["Folder", "Upload"],
@@ -4824,7 +4827,7 @@ if file_catalog is None:
             key="main_empty_state_upload",
         )
         if main_uploaded:
-            st.session_state["data_source_mode"] = "Upload"
+            st.session_state["force_upload_mode"] = True
             st.session_state["uploaded_file_catalog"] = build_file_catalog_from_uploads(main_uploaded)
             st.rerun()
     st.stop()
