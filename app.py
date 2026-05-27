@@ -4747,22 +4747,17 @@ with st.sidebar:
         )
         if uploaded:
             file_catalog = build_file_catalog_from_uploads(uploaded)
+            st.session_state["uploaded_file_catalog"] = file_catalog
+        elif st.session_state.get("uploaded_file_catalog") is not None:
+            file_catalog = st.session_state["uploaded_file_catalog"]
         else:
             st.caption("Drop files above to begin.")
             # file_catalog stays None — main area guard will stop rendering
 
-    # ── Filters (shown only when data is ready) ────────────
+    # ── Data processing (filters live on main page) ────────────
     if file_catalog is not None:
-        st.divider()
-        st.markdown("## Filters")
-
-        report_file_months = sorted(file_catalog["Report Date"].dt.strftime("%b, %Y").unique())
         latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
-        report_file_month = st.selectbox(
-            "Report month",
-            report_file_months,
-            index=report_file_months.index(latest_report_month),
-        )
+        report_file_month = latest_report_month  # Always auto-use latest report
 
         role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
         selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
@@ -4783,87 +4778,15 @@ with st.sidebar:
     if file_catalog is not None:
         all_hotels = sorted(metric_long["Hotel"].dropna().unique())
         all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
-        default_report_month = (
-            report_file_month if report_file_month in all_stay_months
-            else (all_stay_months[0] if all_stay_months else None)
-        )
-
-        # Stay month
-        st.markdown("#### Stay month")
-        stay_month_mode = st.selectbox(
-            "stay_month_mode",
-            ["Report month only", "All months", "Custom"],
-            index=0,
-            label_visibility="collapsed",
-        )
-
-        if stay_month_mode == "Report month only":
-            selected_stay_months_raw = [default_report_month] if default_report_month else []
-            st.caption(default_report_month or "—")
-        elif stay_month_mode == "All months":
-            selected_stay_months_raw = all_stay_months
-            stay_month_selection = "All"
-            st.caption(f"All ({len(all_stay_months)} months)")
-        else:
-            custom_default = [default_report_month] if default_report_month else all_stay_months[:1]
-            selected_stay_months_raw = st.multiselect(
-                "Pick months",
-                options=all_stay_months,
-                default=custom_default,
-                label_visibility="collapsed",
-            )
-            if not selected_stay_months_raw:
-                st.warning("Select at least one month.")
-                selected_stay_months_raw = custom_default
-            st.caption(stay_month_label(selected_stay_months_raw))
-
-        if stay_month_mode != "All months":
-            stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
-
-        # Hotels — Duetto-style property list
-        st.markdown("#### Properties")
-
-        # Init individual hotel states — default: only Altera selected
-        for h in all_hotels:
-            if hotel_key(h) not in st.session_state:
-                st.session_state[hotel_key(h)] = "altera" in str(h).lower()
-
-        # Sync "All Properties" master toggle state before rendering
-        _all_sel = all(st.session_state.get(hotel_key(h), True) for h in all_hotels)
-        st.session_state["hotel_chk_all_props"] = _all_sel
-
-        # "All Properties" master toggle callback
-        def _toggle_all_props(_hotels=all_hotels):
-            val = st.session_state["hotel_chk_all_props"]
-            for _h in _hotels:
-                st.session_state[hotel_key(_h)] = val
-
-        st.checkbox(
-            "All Properties",
-            key="hotel_chk_all_props",
-            on_change=_toggle_all_props,
-        )
-        st.markdown(
-            '<hr style="margin:4px 0 2px 0;border:none;border-top:1px solid #e8e8e8;">',
-            unsafe_allow_html=True,
-        )
-
-        selected_hotels = []
-        for hotel in all_hotels:
-            _key = hotel_key(hotel)
-            if st.checkbox(str(hotel), key=_key):
-                selected_hotels.append(hotel)
-
-        st.caption(f"{len(selected_hotels)} of {len(all_hotels)} selected")
-
-        # Metric
-        st.markdown("#### Metric")
-        selected_metric = st.selectbox(
-            "metric_sel",
-            get_metric_options_with_all(),
-            index=0,
-            label_visibility="collapsed",
-        )
+        # Default hotels = Altera properties (or all if none found)
+        _default_hotels = [h for h in all_hotels if "altera" in str(h).lower()] or list(all_hotels)
+        # Default stay window = report month → report month + 2 (3 months total)
+        _rpt_idx = all_stay_months.index(report_file_month) if report_file_month in all_stay_months else 0
+        _default_start = all_stay_months[_rpt_idx]
+        _default_end = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
+        # Metric: always All — each tab handles its own filtering
+        selected_metric = "All Metrics"
+        st.caption(f"Report: {report_file_month}  ·  {len(file_catalog)} files")
 
 # ── Main area: guard — no data loaded ────────────────────────
 if file_catalog is None:
@@ -4890,17 +4813,90 @@ if file_catalog is None:
         """,
         unsafe_allow_html=True,
     )
+    empty_left, empty_center, empty_right = st.columns([1, 1.2, 1])
+    with empty_center:
+        main_uploaded = st.file_uploader(
+            "Upload File",
+            type=["zip", "csv", "xlsx", "xls"],
+            accept_multiple_files=True,
+            label_visibility="collapsed",
+            help="Upload daily G5 CSV/Excel files, or one ZIP.",
+            key="main_empty_state_upload",
+        )
+        if main_uploaded:
+            st.session_state["data_source_mode"] = "Upload"
+            st.session_state["uploaded_file_catalog"] = build_file_catalog_from_uploads(main_uploaded)
+            st.rerun()
     st.stop()
+
+# ── Inline filters (Properties + Stay Month) ─────────────────
+_fc1, _fc2, _fc3 = st.columns([3, 1.6, 1.6])
+
+with _fc1:
+    st.markdown(
+        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Properties</p>',
+        unsafe_allow_html=True,
+    )
+    selected_hotels = st.multiselect(
+        "Properties",
+        options=all_hotels,
+        default=[h for h in _default_hotels if h in all_hotels] or list(all_hotels),
+        label_visibility="collapsed",
+        placeholder="Select properties…",
+        key="main_hotel_multiselect",
+    )
+
+with _fc2:
+    st.markdown(
+        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month — From</p>',
+        unsafe_allow_html=True,
+    )
+    _start_idx = all_stay_months.index(_default_start) if _default_start in all_stay_months else 0
+    stay_start = st.selectbox(
+        "Stay Month From",
+        all_stay_months,
+        index=_start_idx,
+        label_visibility="collapsed",
+        key="main_stay_start",
+    )
+
+with _fc3:
+    st.markdown(
+        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month — To</p>',
+        unsafe_allow_html=True,
+    )
+    _end_idx = all_stay_months.index(_default_end) if _default_end in all_stay_months else len(all_stay_months) - 1
+    stay_end = st.selectbox(
+        "Stay Month To",
+        all_stay_months,
+        index=_end_idx,
+        label_visibility="collapsed",
+        key="main_stay_end",
+    )
+
+st.markdown(
+    '<hr style="margin:8px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
+    unsafe_allow_html=True,
+)
+
+# Build stay_month_selection from start/end dropdowns
+_si = all_stay_months.index(stay_start) if stay_start in all_stay_months else 0
+_ei = all_stay_months.index(stay_end) if stay_end in all_stay_months else len(all_stay_months) - 1
+if _ei < _si:
+    _ei = _si
+selected_stay_months_raw = all_stay_months[_si : _ei + 1]
+stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
 
 # ── Guard: no hotels selected ────────────────────────────────
 if not selected_hotels:
-    st.warning("Select at least one property in the sidebar.")
+    st.warning("Select at least one property above.")
     st.stop()
 
 # ── Filter data ───────────────────────────────────────────────
 metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
-if selected_metric != "All Metrics":
-    metric_data = metric_data[metric_data["Metric"] == selected_metric].copy()
 metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
 
 kpi_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
@@ -4927,48 +4923,15 @@ hotel_momentum = (
     if not d4.empty else pd.DataFrame()
 )
 
-# ── Filter context bar ────────────────────────────────────────
-st.markdown(
-    f'<div class="filter-bar">'
-    f'<span class="filter-label">Metric</span> <b>{selected_metric}</b>'
-    f'<span class="filter-sep"> · </span>'
-    f'<span class="filter-label">Stay</span> <b>{stay_month_label(stay_month_selection)}</b>'
-    f'<span class="filter-sep"> · </span>'
-    f'<span class="filter-label">Viewing</span> <b>{len(selected_hotels)} properties</b>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
-st.markdown(
-    f'<div class="property-context">'
-    f'<span class="property-context-label">Properties</span>'
-    f'<div class="property-chip-list">{selected_property_chips_html(selected_hotels)}</div>'
-    f'</div>',
-    unsafe_allow_html=True,
-)
-
 # ── KPI section ───────────────────────────────────────────────
 render_budget_first_kpi_section_v39(kpi_metric_data, role_selection, selected_metric)
 
-# ── Color legend ──────────────────────────────────────────────
-st.markdown(
-    '<div class="legend-row">'
-    '<span><span class="legend-dot" style="background:#52c41a;"></span>Above / Up</span>'
-    '<span><span class="legend-dot" style="background:#ff4d4f;"></span>Below / Down</span>'
-    '<span><span class="legend-dot" style="background:#faad14;"></span>Flat / Neutral</span>'
-    '<span><span class="legend-dot" style="background:#1677ff;"></span>Forecast / Info</span>'
-    '</div>',
-    unsafe_allow_html=True,
-)
-render_metric_dictionary()
-
 # ── Main tabs ─────────────────────────────────────────────────
-tab0, tab_movement, tab_leaderboard, tab_lb, tab1, tab_analysis, tab5 = st.tabs([
+tab0, tab_leaderboard, tab_lb, tab1, tab5 = st.tabs([
     "Overview",
-    "Movement",
     "Budget",
     "Leaderboard",
     "Trend",
-    "Analysis",
     "Export",
 ])
 
@@ -4977,11 +4940,43 @@ with tab0:
     latest_pivot = build_latest_pivot_table(metric_data, role_selection)
     render_compact_hotel_tabs(latest_pivot)
 
+    # ── Forecast Movement (merged from Movement tab) ──────────
+    st.markdown('<div class="section-title">Forecast Movement</div>', unsafe_allow_html=True)
+    with st.expander("Expand — Forecast Movement table", expanded=False):
+        forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
 
+    # ── Same-Time Pace Benchmark (merged from Analysis tab) ───
+    st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
+    with st.expander("Expand — Same-Time Pace vs STLY / ST2Y / ST3Y", expanded=False):
+        st.caption("Compares today's forecast against the best same-time benchmark: STLY / ST2Y / ST3Y. Variance % is color-coded.")
+        if pace_summary.empty:
+            st.info("No pace data.")
+        else:
+            _pace_c1, _pace_c2 = st.columns([1, 1])
+            view_mode_pace = _pace_c1.selectbox(
+                "Pace view", ["Hotel tabs", "List view"], index=0, key="analysis_pace_view",
+            )
+            pace_layout = _pace_c2.radio(
+                "Layout", ["Cards", "Compact table"], index=0, horizontal=True, key="pace_compact_layout",
+            )
+            pace_display = make_recommended_pace_compact(pace_summary)
+            if pace_layout == "Cards":
+                render_pace_cards(pace_summary)
+            else:
+                render_compact_by_hotel(pace_display, view_mode_pace, "pace")
 
-
-with tab_movement:
-    forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
+    # ── Historical Final Comparison (merged from Analysis tab) ─
+    st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
+    with st.expander("Expand — Forecast vs Final LY / 2Y / 3Y", expanded=False):
+        st.caption("Forecast vs Final LY / Final 2Y / Final 3Y. Use as historical context, not as a budget decision.")
+        if final_comparison.empty:
+            st.info("No final comparison data.")
+        else:
+            view_mode_final = st.selectbox(
+                "Final view", ["Hotel tabs", "List view"], index=0, key="analysis_final_view",
+            )
+            final_display = make_final_compact(final_comparison)
+            render_compact_by_hotel(final_display, view_mode_final, "final")
 
 
 with tab_leaderboard:
@@ -5133,7 +5128,7 @@ with tab1:
                 "Daily PU %": ":.2f",
                 "Bubble Size": False,
             },
-            title=f"Hotel-level Forecast Momentum / Daily % ({selected_metric})",
+            title="Hotel-level Forecast Momentum / Daily %",
             color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
             color_continuous_midpoint=0,
             size_max=34,
@@ -5264,67 +5259,6 @@ with tab1:
 
 
 
-with tab_analysis:
-    st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
-    st.caption("Compares today's forecast against the best same-time benchmark: STLY / ST2Y / ST3Y. Variance % is color-coded.")
-
-    if pace_summary.empty:
-        st.info("No pace data.")
-    else:
-        view_mode_pace = st.selectbox(
-            "Recommended Pace view",
-            ["Hotel tabs", "List view"],
-            index=0,
-            key="analysis_pace_view",
-        )
-        pace_cols = {
-            "Hotel": st.column_config.TextColumn("Hotel", width="medium"),
-            "Today": st.column_config.NumberColumn("Today", format="%,.2f"),
-            "STLY": st.column_config.NumberColumn("STLY", format="%,.2f"),
-            "ST2Y": st.column_config.NumberColumn("ST2Y", format="%,.2f"),
-            "ST3Y": st.column_config.NumberColumn("ST3Y", format="%,.2f"),
-            "Recommended Pace Value": st.column_config.NumberColumn("Rec. Pace Value", format="%,.2f"),
-            "Pace Diff": st.column_config.NumberColumn("Variance", format="%,.2f"),
-            "Pace Diff %": st.column_config.NumberColumn("Variance %", format="%.2f%%"),
-        }
-        pace_display = make_recommended_pace_compact(pace_summary)
-
-        pace_layout = st.radio(
-                "Layout",
-                ["Compact table", "Cards"],
-                index=1,
-                horizontal=True,
-                key="pace_compact_layout",
-            )
-
-        if pace_layout == "Cards":
-            render_pace_cards(pace_summary)
-        else:
-            render_compact_by_hotel(pace_display, view_mode_pace, "pace")
-
-    st.divider()
-
-    st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
-    st.caption("Forecast vs Final LY / Final 2Y / Final 3Y. Use as historical context, not as a budget decision.")
-
-    if final_comparison.empty:
-        st.info("No final comparison data.")
-    else:
-        view_mode_final = st.selectbox(
-            "D4cast vs Final view",
-            ["Hotel tabs", "List view"],
-            index=0,
-            key="analysis_final_view",
-        )
-        final_cols = {
-            "Hotel": st.column_config.TextColumn("Hotel", width="medium"),
-            "Forecast": st.column_config.NumberColumn("Forecast", format="%,.2f"),
-            "Final Value": st.column_config.NumberColumn("Final Value", format="%,.2f"),
-            "Diff": st.column_config.NumberColumn("Variance", format="%,.2f"),
-            "Diff %": st.column_config.NumberColumn("Variance %", format="%.2f%%"),
-        }
-        final_display = make_final_compact(final_comparison)
-        render_compact_by_hotel(final_display, view_mode_final, "final")
 
 
 
@@ -5357,7 +5291,7 @@ with tab5:
         st.download_button(
             "Download Full Excel Report",
             data=to_excel_bytes(sheets),
-            file_name=f"g5_d4cast_{report_file_month.replace(', ', '_')}_{selected_metric}.xlsx",
+            file_name=f"g5_d4cast_{report_file_month.replace(', ', '_')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             on_click=trigger_download_toast,
             type="primary",
