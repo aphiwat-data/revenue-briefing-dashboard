@@ -5829,19 +5829,19 @@ if file_catalog is None:
     st.stop()
 
 # ── Top page navigation (above filters — always visible) ─────
-_NAV_PAGES = ["Overview", "Budget Review", "Leaderboard", "Trend", "Export"]
+_NAV_PAGES = ["Leaderboard", "Overview", "Budget Review", "Trend", "Export"]
 st.markdown('<div class="main-page-nav">', unsafe_allow_html=True)
 selected_page = st.pills(
     "main_page_nav",
     options=_NAV_PAGES,
     selection_mode="single",
-    default="Overview",
+    default="Leaderboard",
     label_visibility="collapsed",
     key="main_page_nav",
 )
 st.markdown('</div>', unsafe_allow_html=True)
 if not selected_page:
-    selected_page = "Overview"
+    selected_page = "Leaderboard"
 
 st.markdown(
     '<hr style="margin:6px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
