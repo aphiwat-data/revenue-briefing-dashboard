@@ -5212,10 +5212,9 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-# ── Page title — use native st.markdown h2, never custom <p>
-# ── (custom HTML <p> clips against Streamlit toolbar on Cloud)
-# ─────────────────────────────────────────────────────────────
-st.markdown("## Revenue Briefing")
+# ── Page title slot (filled after sidebar so we know the report date) ─
+# Reserve top-of-page space here, fill it once `report_file_month` is set.
+_title_slot = st.empty()
 
 # ── Sidebar ───────────────────────────────────────────────────
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
@@ -5356,6 +5355,70 @@ with st.sidebar:
         # Metric: always All — each tab handles its own filtering
         selected_metric = "All Metrics"
         st.caption(f"Report: {report_file_month}  ·  {len(file_catalog)} files")
+
+# ── Fill the title slot now that sidebar has set report_file_month ──
+with _title_slot.container():
+    _ttl_left, _ttl_right = st.columns([3, 2])
+    with _ttl_left:
+        st.markdown("## Revenue Briefing")
+    with _ttl_right:
+        if file_catalog is not None:
+            _latest_dt = file_catalog["Report Date"].max()
+            _n_files = len(file_catalog)
+            _latest_label = (
+                _latest_dt.strftime("%a, %d %b %Y")
+                if pd.notna(_latest_dt) else "—"
+            )
+            _is_today_data = (
+                pd.notna(_latest_dt)
+                and _latest_dt.normalize() == pd.Timestamp.today().normalize()
+            )
+            _freshness_bg = "#dcfce7" if _is_today_data else "#eff6ff"
+            _freshness_fg = "#15803d" if _is_today_data else "#1e40af"
+            _freshness_dot = "#16a34a" if _is_today_data else "#3b82f6"
+            _freshness_text = "Today's data" if _is_today_data else "Latest available"
+            st.markdown(
+                f'''
+                <div style="display:flex;justify-content:flex-end;
+                            align-items:flex-start;padding-top:6px;">
+                  <div style="background:#ffffff;border:1px solid #e5e7eb;
+                              border-radius:10px;padding:10px 16px;
+                              box-shadow:0 1px 3px rgba(15,23,42,0.05);
+                              min-width:240px;">
+                    <div style="display:flex;align-items:center;gap:6px;
+                                margin-bottom:4px;">
+                      <span style="width:7px;height:7px;border-radius:50%;
+                                   background:{_freshness_dot};
+                                   box-shadow:0 0 0 3px {_freshness_dot}22;"></span>
+                      <span style="font-size:10px;font-weight:700;
+                                   text-transform:uppercase;letter-spacing:0.08em;
+                                   color:{_freshness_fg};background:{_freshness_bg};
+                                   padding:2px 8px;border-radius:10px;">
+                        {_freshness_text}
+                      </span>
+                    </div>
+                    <div style="font-size:14px;font-weight:700;color:#0f172a;
+                                letter-spacing:-0.01em;line-height:1.3;
+                                font-variant-numeric:tabular-nums;">
+                      {_latest_label}
+                    </div>
+                    <div style="font-size:11px;color:#6b7280;margin-top:3px;
+                                font-weight:500;">
+                      Report month <b style="color:#374151;">{report_file_month}</b>
+                      &nbsp;·&nbsp; {_n_files} file{"" if _n_files == 1 else "s"}
+                    </div>
+                  </div>
+                </div>
+                ''',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div style="display:flex;justify-content:flex-end;'
+                'padding-top:14px;color:#9ca3af;font-size:12px;">'
+                'No data loaded</div>',
+                unsafe_allow_html=True,
+            )
 
 # ── Main area: guard — no data loaded ────────────────────────
 if file_catalog is None:
