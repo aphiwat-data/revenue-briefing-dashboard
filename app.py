@@ -4458,7 +4458,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         ("%Var ADR vs BUD",    lambda sm: get_var_pct("ADR", sm),             True,  "pct_signed", True),
         ("Var Rev (K) vs BUD", lambda sm: get_var_raw_k("Rev", sm),           True,  "num_signed", True),
     ]
-    rank_options = ["Var Rev (K) vs BUD", "Occ Today", "ADR Today"]
+    rank_options = ["Var Rev (K) vs BUD", "Occ Today"]
     st.markdown('<div class="rank-button-group">', unsafe_allow_html=True)
     rank_by = st.pills(
         "Rank by",
