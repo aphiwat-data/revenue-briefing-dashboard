@@ -230,6 +230,44 @@ st.markdown(
         box-shadow: 0 1px 4px rgba(22,119,255,0.30) !important;
     }
 
+    /* ── Leaderboard rank segmented control ───────────────────── */
+    .rank-button-group + div [data-testid="stPills"] {
+        display: inline-flex !important;
+        width: auto !important;
+        margin: 4px 0 14px 0 !important;
+        padding: 3px !important;
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+    }
+    .rank-button-group + div [data-testid="stPills"] > div {
+        gap: 3px !important;
+        flex-wrap: wrap;
+    }
+    .rank-button-group + div [data-testid="stPills"] button {
+        min-height: 32px !important;
+        padding: 6px 12px !important;
+        border-radius: 6px !important;
+        border: 1px solid transparent !important;
+        background: transparent !important;
+        color: #475569 !important;
+        font-size: 0.82rem !important;
+        font-weight: 700 !important;
+        box-shadow: none !important;
+    }
+    .rank-button-group + div [data-testid="stPills"] button:hover {
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+        border-color: transparent !important;
+    }
+    .rank-button-group + div [data-testid="stPills"] button[aria-pressed="true"],
+    .rank-button-group + div [data-testid="stPills"] button[data-selected="true"] {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.12) !important;
+    }
+
     /* ── Main page nav (top of dashboard) ─────────────────────
        Larger, tab-bar styled — overrides generic pill look.
        Scoped via the .main-page-nav wrapper.
@@ -4420,6 +4458,19 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         ("%Var ADR vs BUD",    lambda sm: get_var_pct("ADR", sm),             True,  "pct_signed", True),
         ("Var Rev (K) vs BUD", lambda sm: get_var_raw_k("Rev", sm),           True,  "num_signed", True),
     ]
+    rank_options = ["Var Rev (K) vs BUD", "Occ Today", "ADR Today"]
+    st.markdown('<div class="rank-button-group">', unsafe_allow_html=True)
+    rank_by = st.pills(
+        "Rank by",
+        options=rank_options,
+        selection_mode="single",
+        default="Var Rev (K) vs BUD",
+        key="mega_leaderboard_rank_by",
+        label_visibility="collapsed",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+    if not rank_by:
+        rank_by = "Var Rev (K) vs BUD"
 
     def fmt_val(v, kind):
         if pd.isna(v):
@@ -4448,7 +4499,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         out = pd.DataFrame(rows)
         if out.empty:
             return out
-        sort_col = "Var Rev (K) vs BUD" if "Var Rev (K) vs BUD" in out.columns else "Hotel"
+        sort_col = rank_by if rank_by in out.columns else "Var Rev (K) vs BUD"
         out = out.sort_values(sort_col, ascending=False, na_position="last").reset_index(drop=True)
         out.insert(1, "Rank", range(1, len(out) + 1))
         return out
@@ -4585,7 +4636,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
 
     st.caption(
         "One table per stay month. Selected properties highlighted in blue. "
-        "Top 3 ranks (gold / silver / bronze cells) sorted by revenue variance · "
+        f"Top 3 ranks (gold / silver / bronze cells) sorted by {rank_by} · "
         "Green / red columns show budget variance."
     )
     for tag, sm in month_tags:
