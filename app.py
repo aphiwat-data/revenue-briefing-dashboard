@@ -1081,14 +1081,14 @@ def build_portfolio_snapshot(metric_data, role_selection):
             return (a - b) / abs(b) * 100
 
         rows.append({
-            "Metric": metric,
-            "On The Book": otb,
-            "Forecast": fct,
-            "Budget": bgt,
-            "STLY": stly,
-            "Forecast vs Budget %": _pct(fct, bgt),
-            "OTB vs Budget %":      _pct(otb, bgt),
-            "OTB vs STLY %":        _pct(otb, stly),
+            "Metric":             metric,
+            "Today":              otb,
+            "Duetto":             fct,
+            "Budget":             bgt,
+            "STLY":               stly,
+            "Duetto VS BUD %":    _pct(fct, bgt),
+            "Today VS BUD %":     _pct(otb, bgt),
+            "Today VS STLY %":    _pct(otb, stly),
         })
     return pd.DataFrame(rows)
 
@@ -1134,17 +1134,17 @@ def build_hotel_scorecard(metric_data, role_selection):
             return (a - b) / abs(b) * 100
 
         rows.append({
-            "Hotel": h,
-            "Rev OTB": rev_otb,
-            "Rev Forecast": rev_fct,
-            "Rev Budget": rev_bgt,
-            "Rev Fct vs Bgt %": _pct(rev_fct, rev_bgt),
-            "ADR OTB": adr_otb,
-            "ADR Budget": adr_bgt,
-            "ADR vs Bgt %": _pct(adr_otb, adr_bgt),
-            "Occ OTB %": occ_otb,
-            "Occ Budget %": occ_bgt,
-            "Occ vs Bgt pts": (occ_otb - occ_bgt) if (occ_otb is not None and occ_bgt is not None) else None,
+            "Hotel":                  h,
+            "Rev Today":              rev_otb,
+            "Rev Duetto":             rev_fct,
+            "Rev Budget":             rev_bgt,
+            "Rev Duetto VS BUD %":    _pct(rev_fct, rev_bgt),
+            "ADR Today":              adr_otb,
+            "ADR Budget":             adr_bgt,
+            "ADR Today VS BUD %":     _pct(adr_otb, adr_bgt),
+            "Occ Today %":            occ_otb,
+            "Occ Budget %":           occ_bgt,
+            "Occ Today VS BUD pts":   (occ_otb - occ_bgt) if (occ_otb is not None and occ_bgt is not None) else None,
         })
     return pd.DataFrame(rows)
 
@@ -1185,9 +1185,9 @@ def build_daily_briefing_sheets(metric_data, role_selection, report_file_month):
 
     # 6. Forecast Movement
     if "build_forecast_movement_v31" in globals():
-        sheets["Forecast Movement"] = build_forecast_movement_v31(metric_data, role_selection)
+        sheets["Duetto Movement"] = build_forecast_movement_v31(metric_data, role_selection)
     elif "build_movement_summary" in globals():
-        sheets["Forecast Movement"] = build_movement_summary(metric_data, role_selection)
+        sheets["Duetto Movement"] = build_movement_summary(metric_data, role_selection)
 
     # 7. Hotel Momentum (daily forecast pickup per hotel, per stay month)
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -1294,17 +1294,17 @@ def build_variance_pivot_table(metric_data, role_selection):
     Extended pivot: raw values PLUS colour-coded variance % columns.
 
     Added columns (only when both sides are available):
-        OTB▲Bgt   — OTB vs Budget %
-        Fct▲Bgt   — Duetto Forecast vs Budget %   ← headline variance
-        OTB▲Fct   — OTB vs Duetto Forecast %      (pace toward forecast)
-        OTB▲STLY  — OTB vs best available same-time (STLY / ST2Y / ST3Y) %
-        Fct▲FLY   — Duetto vs Final LY %
-        Fct▲F2Y   — Duetto vs Final 2Y %
-        Fct▲F3Y   — Duetto vs Final 3Y %
+        Today VS BUD       — Today (OTB) vs Budget %
+        Duetto VS BUD      — Duetto vs Budget %                 ← headline variance
+        Today VS Duetto    — Today vs Duetto (pace toward forecast)
+        Today VS STLY      — Today vs best same-time (STLY / ST2Y / ST3Y) %
+        Duetto VS Final LY — Duetto vs Final LY %
+        Duetto VS Final 2Y — Duetto vs Final 2Y %
+        Duetto VS Final 3Y — Duetto vs Final 3Y %
 
     Column order:
-      OTB | Budget | OTB▲Bgt | Duetto | Fct▲Bgt | OTB▲Fct |
-      STLY | OTB▲STLY | Final LY | Fct▲FLY | Final 2Y | Fct▲F2Y | Final 3Y | Fct▲F3Y
+      Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
+      STLY | Today VS STLY | Final LY | Duetto VS Final LY | Final 2Y | ... | Final 3Y | ...
     """
     pivot = build_latest_pivot_table(metric_data, role_selection)
     if pivot.empty:
@@ -1320,40 +1320,47 @@ def build_variance_pivot_table(metric_data, role_selection):
             return pd.NA
 
     if "Today" in pivot.columns and "Budget" in pivot.columns:
-        pivot["OTB▲Bgt"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Budget"]), axis=1)
+        pivot["Today VS BUD"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Budget"]), axis=1)
 
-    # Headline: Forecast vs Budget %
+    # Headline: Duetto vs Budget %
     if "Duetto" in pivot.columns and "Budget" in pivot.columns:
-        pivot["Fct▲Bgt"] = pivot.apply(lambda r: safe_pct(r["Duetto"], r["Budget"]), axis=1)
+        pivot["Duetto VS BUD"] = pivot.apply(lambda r: safe_pct(r["Duetto"], r["Budget"]), axis=1)
 
     if "Today" in pivot.columns and "Duetto" in pivot.columns:
-        pivot["OTB▲Fct"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
+        pivot["Today VS Duetto"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
 
     if "Today" in pivot.columns:
         stly_available = [c for c in ["STLY", "ST2Y", "ST3Y"] if c in pivot.columns]
         if stly_available:
             pivot["_best_st"] = pivot[stly_available].max(axis=1)
-            pivot["OTB▲STLY"] = pivot.apply(lambda r: safe_pct(r["Today"], r["_best_st"]), axis=1)
+            pivot["Today VS STLY"] = pivot.apply(lambda r: safe_pct(r["Today"], r["_best_st"]), axis=1)
             pivot.drop(columns=["_best_st"], inplace=True)
 
     if "Duetto" in pivot.columns:
-        for ref_col, var_col in [("Final LY", "Fct▲FLY"), ("Final 2Y", "Fct▲F2Y"), ("Final 3Y", "Fct▲F3Y")]:
+        for ref_col, var_col in [
+            ("Final LY", "Duetto VS Final LY"),
+            ("Final 2Y", "Duetto VS Final 2Y"),
+            ("Final 3Y", "Duetto VS Final 3Y"),
+        ]:
             if ref_col in pivot.columns:
                 pivot[var_col] = pivot.apply(lambda r: safe_pct(r["Duetto"], r[ref_col]), axis=1)
 
     # Build column order
     base = [c for c in ["Hotel", "Stay Month", "Metric"] if c in pivot.columns]
     ordered = []
-    # OTB | Budget | OTB▲Bgt | Duetto | Fct▲Bgt | OTB▲Fct
-    for col in ["Today", "Budget", "OTB▲Bgt", "Duetto", "Fct▲Bgt", "OTB▲Fct"]:
+    for col in ["Today", "Budget", "Today VS BUD", "Duetto", "Duetto VS BUD", "Today VS Duetto"]:
         if col in pivot.columns:
             ordered.append(col)
     stly_available = [c for c in ["STLY", "ST2Y", "ST3Y"] if c in pivot.columns]
     if stly_available:
-        ordered.append(stly_available[0])   # Show STLY as representative
-    if "OTB▲STLY" in pivot.columns:
-        ordered.append("OTB▲STLY")
-    for ref_col, var_col in [("Final LY", "Fct▲FLY"), ("Final 2Y", "Fct▲F2Y"), ("Final 3Y", "Fct▲F3Y")]:
+        ordered.append(stly_available[0])
+    if "Today VS STLY" in pivot.columns:
+        ordered.append("Today VS STLY")
+    for ref_col, var_col in [
+        ("Final LY", "Duetto VS Final LY"),
+        ("Final 2Y", "Duetto VS Final 2Y"),
+        ("Final 3Y", "Duetto VS Final 3Y"),
+    ]:
         if ref_col in pivot.columns:
             ordered.append(ref_col)
         if var_col in pivot.columns:
@@ -1418,16 +1425,16 @@ def style_latest_pivot_table(df):
 def style_variance_pivot(df):
     """
     Style the variance pivot table.
-    • Today (OTB) → blue tint (focal)
-    • Duetto      → green tint (forecast)
-    • Budget      → amber tint (target)
-    • ▲ variance columns → green if positive, red if negative, yellow if zero
+    • Today  → blue tint (focal — on-the-book)
+    • Duetto → green tint (forecast)
+    • Budget → amber tint (target)
+    • VS variance columns → green if positive, red if negative, yellow if zero
     • Rev row → slightly warmer background for row emphasis
     """
     if df is None or df.empty:
         return df
 
-    var_cols = [c for c in df.columns if "▲" in str(c)]
+    var_cols = [c for c in df.columns if " VS " in str(c)]
     raw_cols = [c for c in ["Today", "STLY", "ST2Y", "ST3Y", "Duetto", "Budget",
                              "Final LY", "Final 2Y", "Final 3Y"] if c in df.columns]
 
@@ -1568,7 +1575,7 @@ def _render_forecast_vs_budget(pivot_df):
     Forecast VS Budget snapshot — KPI cards only.
     Metric selector: Revenue Summary (default) or any individual metric.
     """
-    st.markdown('<div class="section-title">Forecast VS Budget</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Duetto VS Budget</div>', unsafe_allow_html=True)
 
     if pivot_df is None or pivot_df.empty:
         return
@@ -1610,7 +1617,7 @@ def _render_otb_comparison_chart(pivot_df):
     Compare On The Book — KPI cards only.
     Metric selector: Revenue Summary (default) or individual metric.
     """
-    st.markdown('<div class="section-title">Compare — On The Book</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Compare — Today VS Budget</div>', unsafe_allow_html=True)
 
     if pivot_df is None or pivot_df.empty or "Today" not in pivot_df.columns:
         st.info("No On-The-Book data available.")
@@ -1652,14 +1659,15 @@ def _render_otb_comparison_chart(pivot_df):
 
 def render_compact_hotel_tabs(pivot_df):
     """
-    Forecast pivot table — variance-enhanced view.
-    Columns: OTB | Budget | OTB▲Bgt | Duetto | OTB▲Fct | STLY | OTB▲STLY | Finals + variances.
+    Duetto pivot table — variance-enhanced view.
+    Columns: Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
+             STLY | Today VS STLY | Final LY | Duetto VS Final LY | ... + more.
     """
     if pivot_df is None or pivot_df.empty:
         st.info("No pivot data for selected filters.")
         return
 
-    st.markdown('<div class="section-title">Forecast Pivot — by Stay Month</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Duetto Pivot — by Stay Month</div>', unsafe_allow_html=True)
 
     c_view, c_legend = st.columns([1.6, 3])
     with c_view:
@@ -1673,27 +1681,27 @@ def render_compact_hotel_tabs(pivot_df):
         if not view_mode:
             view_mode = "Hotel tabs"
     with c_legend:
-        has_var = any("▲" in str(c) for c in pivot_df.columns)
+        has_var = any(" VS " in str(c) for c in pivot_df.columns)
         if has_var:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">OTB</b> = On The Book &nbsp;·&nbsp; '
-                '<b style="color:#15803d;">Duetto</b> = Forecast &nbsp;·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = Target &nbsp;·&nbsp; '
-                '<b style="color:#166534;">▲%</b> = variance (green +, red −)'
+                '<b style="color:#1e40af;">Today</b> = on-the-book &nbsp;·&nbsp; '
+                '<b style="color:#15803d;">Duetto</b> = forecast &nbsp;·&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;·&nbsp; '
+                '<b style="color:#166534;">VS %</b> = variance (green +, red −)'
                 '</div>'
             )
         else:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">Duetto</b> = Forecast &nbsp;·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = Target &nbsp;·&nbsp; '
+                '<b style="color:#1e40af;">Duetto</b> = forecast &nbsp;·&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;·&nbsp; '
                 'STLY/ST2Y/ST3Y = same-time &nbsp;·&nbsp; Final LY/2Y/3Y = actuals'
                 '</div>'
             )
         st.markdown(legend_html, unsafe_allow_html=True)
 
-    _style_fn = style_variance_pivot if any("▲" in str(c) for c in pivot_df.columns) else style_latest_pivot_table
+    _style_fn = style_variance_pivot if any(" VS " in str(c) for c in pivot_df.columns) else style_latest_pivot_table
 
     if view_mode == "Hotel tabs":
         hotels = sorted(pivot_df["Hotel"].dropna().unique())
@@ -3109,7 +3117,7 @@ def render_executive_budget_cards(metric_data, role_selection):
 
 
 def render_forecast_trend_by_month_v3(metric_data):
-    st.markdown('<div class="section-title">Forecast Trend by Stay Month</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Duetto Trend by Stay Month</div>', unsafe_allow_html=True)
     st.caption("Use this to see forecast trend by selected stay month. Point labels can be shown only on latest points to avoid clutter.")
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -3630,9 +3638,9 @@ def render_revenue_momentum_pct_chart(metric_data):
     - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
     - Filter by stay months (default = first 3 months, can show all selected)
     """
-    st.markdown('<div class="section-title">Daily Forecast Movement (%)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Daily Duetto Movement (%)</div>', unsafe_allow_html=True)
     st.caption(
-        "Bars show day-over-day forecast change: (Today forecast - Yesterday forecast) / Yesterday forecast x 100. "
+        "Bars show day-over-day Duetto change: (Today Duetto - Yesterday Duetto) / Yesterday Duetto x 100. "
         "Default view starts with 3 stay months and can show every selected month, split month by month. Green = increase, red = decrease. "
         "Dashed line = ADR day-over-day change."
     )
@@ -4449,49 +4457,55 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         ]
         return sub.groupby("Hotel")["Value"].sum() if not sub.empty else pd.Series(dtype=float)
 
-    def get_var_pct(metric, sm):
-        otb = get_value(metric, sm, today_label, "Today")
+    def get_var_pct(metric, sm, primary_ref="Today"):
+        """Variance % vs Budget for `primary_ref` (Today or Duetto)."""
+        primary = get_value(metric, sm, today_label, primary_ref)
         bgt = get_value(metric, sm, today_label, "Budget")
-        if otb.empty or bgt.empty:
+        if primary.empty or bgt.empty:
             return pd.Series(dtype=float)
-        common = otb.index.intersection(bgt.index)
+        common = primary.index.intersection(bgt.index)
         if not len(common):
             return pd.Series(dtype=float)
         denom = bgt.loc[common].abs().replace(0, pd.NA)
-        return ((otb.loc[common] - bgt.loc[common]) / denom * 100).dropna()
+        return ((primary.loc[common] - bgt.loc[common]) / denom * 100).dropna()
 
-    def get_var_raw_k(metric, sm):
-        otb = get_value(metric, sm, today_label, "Today")
+    def get_var_raw_k(metric, sm, primary_ref="Today"):
+        """Variance vs Budget in thousands for `primary_ref` (Today or Duetto)."""
+        primary = get_value(metric, sm, today_label, primary_ref)
         bgt = get_value(metric, sm, today_label, "Budget")
-        if otb.empty or bgt.empty:
+        if primary.empty or bgt.empty:
             return pd.Series(dtype=float)
-        common = otb.index.intersection(bgt.index)
+        common = primary.index.intersection(bgt.index)
         if not len(common):
             return pd.Series(dtype=float)
-        return (otb.loc[common] - bgt.loc[common]) / 1000
+        return (primary.loc[common] - bgt.loc[common]) / 1000
 
     # (header, fetch_fn, is_signed, formatter, sort_descending)
     column_specs = [
-        ("ADR 1st",            lambda sm: get_value("ADR", sm, first_label),  False, "num",        True),
-        ("ADR Today",          lambda sm: get_value("ADR", sm, today_label),  False, "num",        True),
-        ("Occ 1st",            lambda sm: get_value("Occ", sm, first_label),  False, "pct",        True),
-        ("Occ Today",          lambda sm: get_value("Occ", sm, today_label),  False, "pct",        True),
-        ("%Var ADR vs BUD",    lambda sm: get_var_pct("ADR", sm),             True,  "pct_signed", True),
-        ("Var Rev (K) vs BUD", lambda sm: get_var_raw_k("Rev", sm),           True,  "num_signed", True),
+        ("ADR 1st",                lambda sm: get_value("ADR", sm, first_label),                False, "num",        True),
+        ("ADR Today",              lambda sm: get_value("ADR", sm, today_label, "Today"),       False, "num",        True),
+        ("ADR Duetto",             lambda sm: get_value("ADR", sm, today_label, "Duetto"),      False, "num",        True),
+        ("Occ 1st",                lambda sm: get_value("Occ", sm, first_label),                False, "pct",        True),
+        ("Occ Today",              lambda sm: get_value("Occ", sm, today_label, "Today"),       False, "pct",        True),
+        ("Occ Duetto",             lambda sm: get_value("Occ", sm, today_label, "Duetto"),      False, "pct",        True),
+        ("ADR Today VS BUD %",     lambda sm: get_var_pct("ADR", sm, "Today"),                  True,  "pct_signed", True),
+        ("ADR Duetto VS BUD %",    lambda sm: get_var_pct("ADR", sm, "Duetto"),                 True,  "pct_signed", True),
+        ("Rev Today VS BUD (K)",   lambda sm: get_var_raw_k("Rev", sm, "Today"),                True,  "num_signed", True),
+        ("Rev Duetto VS BUD (K)",  lambda sm: get_var_raw_k("Rev", sm, "Duetto"),               True,  "num_signed", True),
     ]
-    rank_options = ["Var Rev (K) vs BUD", "Occ Today"]
+    rank_options = ["Rev Today VS BUD (K)", "Rev Duetto VS BUD (K)", "Occ Today"]
     st.markdown('<div class="rank-button-group">', unsafe_allow_html=True)
     rank_by = st.pills(
         "Rank by",
         options=rank_options,
         selection_mode="single",
-        default="Var Rev (K) vs BUD",
+        default="Rev Today VS BUD (K)",
         key="mega_leaderboard_rank_by",
         label_visibility="collapsed",
     )
     st.markdown('</div>', unsafe_allow_html=True)
     if not rank_by:
-        rank_by = "Var Rev (K) vs BUD"
+        rank_by = "Rev Today VS BUD (K)"
 
     def fmt_val(v, kind):
         if pd.isna(v):
@@ -4520,7 +4534,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         out = pd.DataFrame(rows)
         if out.empty:
             return out
-        sort_col = rank_by if rank_by in out.columns else "Var Rev (K) vs BUD"
+        sort_col = rank_by if rank_by in out.columns else "Rev Today VS BUD (K)"
         out = out.sort_values(sort_col, ascending=False, na_position="last").reset_index(drop=True)
         out.insert(1, "Rank", range(1, len(out) + 1))
         return out
@@ -4573,7 +4587,10 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
                         )
 
                 # ── Variance cell coloring ──────────────────────
-                for col in ["%Var ADR vs BUD", "Var Rev (K) vs BUD"]:
+                for col in [
+                    "ADR Today VS BUD %",  "ADR Duetto VS BUD %",
+                    "Rev Today VS BUD (K)", "Rev Duetto VS BUD (K)",
+                ]:
                     if col not in show.columns:
                         continue
                     val = data.loc[idx, col]
@@ -4603,12 +4620,16 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
 
         fmt = {
             "Rank": _fmt_rank,
-            "ADR 1st":             lambda v: "" if pd.isna(v) else f"{v:,.0f}",
-            "ADR Today":           lambda v: "" if pd.isna(v) else f"{v:,.0f}",
-            "Occ 1st":             lambda v: "" if pd.isna(v) else f"{v:.1f}%",
-            "Occ Today":           lambda v: "" if pd.isna(v) else f"{v:.1f}%",
-            "%Var ADR vs BUD":     lambda v: "" if pd.isna(v) else f"{v:+.1f}%",
-            "Var Rev (K) vs BUD":  lambda v: "" if pd.isna(v) else f"{v:+,.0f}",
+            "ADR 1st":                lambda v: "" if pd.isna(v) else f"{v:,.0f}",
+            "ADR Today":              lambda v: "" if pd.isna(v) else f"{v:,.0f}",
+            "ADR Duetto":             lambda v: "" if pd.isna(v) else f"{v:,.0f}",
+            "Occ 1st":                lambda v: "" if pd.isna(v) else f"{v:.1f}%",
+            "Occ Today":              lambda v: "" if pd.isna(v) else f"{v:.1f}%",
+            "Occ Duetto":             lambda v: "" if pd.isna(v) else f"{v:.1f}%",
+            "ADR Today VS BUD %":     lambda v: "" if pd.isna(v) else f"{v:+.1f}%",
+            "ADR Duetto VS BUD %":    lambda v: "" if pd.isna(v) else f"{v:+.1f}%",
+            "Rev Today VS BUD (K)":   lambda v: "" if pd.isna(v) else f"{v:+,.0f}",
+            "Rev Duetto VS BUD (K)":  lambda v: "" if pd.isna(v) else f"{v:+,.0f}",
         }
 
         styler = show.style.format(fmt, na_rep="").apply(apply_style, axis=None)
@@ -4684,8 +4705,8 @@ def render_forecast_movement_table_only(metric_data, role_selection):
     - Default metric = All Metrics so Revenue Team can present all key metrics together.
     - Movement periods = 1 Day / 7 Days / First Day of Month.
     """
-    st.markdown('<div class="section-title">Forecast Movement</div>', unsafe_allow_html=True)
-    st.caption("Latest forecast vs 1 Day / 7 Days / First Day of Month. Green = picked up, Red = dropped.")
+    st.markdown('<div class="section-title">Duetto Movement</div>', unsafe_allow_html=True)
+    st.caption("Latest Duetto vs 1 Day / 7 Days / First Day of Month. Green = picked up, Red = dropped.")
 
     # Use whichever movement builder exists.
     if "build_forecast_movement_v31" in globals():
@@ -4875,7 +4896,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         height=min(700, 48 + 34 * len(show)),
     )
 
-    with st.expander("How to read Forecast Movement"):
+    with st.expander("How to read Duetto Movement"):
         st.markdown("""
         **Movement = Latest Forecast - Base Forecast**
 
@@ -5205,11 +5226,65 @@ def render_priority_budget_table(view, show_heading=True, key_suffix="default"):
 
         return styles
 
+    # Display-only column rename — internal `raw`/`show` keep old names
+    # for the styler closure; we rename ONLY the dataframe shown to user.
+    _display_rename = {
+        "Forecast":           "Duetto",
+        "Today OTB":          "Today",
+        "OTB vs Budget %":    "Today VS BUD %",
+        "OTB vs Forecast %":  "Today VS Duetto %",
+        "Budget Variance":    "Duetto VS BUD",
+        "Budget Variance %":  "Duetto VS BUD %",
+    }
+    show_display = show.rename(columns=_display_rename)
+
+    # Re-define styler against new column names so it still finds the cells
+    _new_to_old = {v: k for k, v in _display_rename.items()}
+    def style_priority_budget_display(_):
+        styles = pd.DataFrame("", index=show_display.index, columns=show_display.columns)
+        if "Duetto VS BUD" not in raw.columns and "Budget Variance" not in raw.columns:
+            return styles
+        raw_var = raw["Budget Variance"] if "Budget Variance" in raw.columns else None
+        if raw_var is not None:
+            for idx, val in raw_var.items():
+                if pd.isna(val):
+                    bg, text, border = "#dbeafe", "#1e3a8a", "#2563eb"
+                elif val > 0:
+                    bg, text, border = "#bbf7d0", "#14532d", "#15803d"
+                elif val < 0:
+                    bg, text, border = "#fecaca", "#7f1d1d", "#b91c1c"
+                else:
+                    bg, text, border = "#fef08a", "#713f12", "#ca8a04"
+                for col in ["Duetto VS BUD", "Duetto VS BUD %", "Status"]:
+                    if col in styles.columns:
+                        styles.loc[idx, col] = (
+                            f"background-color:{bg}; color:{text}; "
+                            f"font-weight:900; border-left:4px solid {border};"
+                        )
+        for display_col, raw_col in [
+            ("Today VS BUD %", "OTB vs Budget %"),
+            ("Today VS Duetto %", "OTB vs Forecast %"),
+        ]:
+            if raw_col not in raw.columns or display_col not in styles.columns:
+                continue
+            for idx, val in raw[raw_col].items():
+                if pd.notna(val) and val > 0:
+                    bg, text, border = "#bbf7d0", "#14532d", "#15803d"
+                elif pd.notna(val) and val < 0:
+                    bg, text, border = "#fecaca", "#7f1d1d", "#b91c1c"
+                else:
+                    bg, text, border = "#fef08a", "#713f12", "#ca8a04"
+                styles.loc[idx, display_col] = (
+                    f"background-color:{bg}; color:{text}; "
+                    f"font-weight:900; border-left:4px solid {border};"
+                )
+        return styles
+
     st.dataframe(
-        show.style.apply(style_priority_budget, axis=None),
+        show_display.style.apply(style_priority_budget_display, axis=None),
         use_container_width=True,
         hide_index=True,
-        height=min(540, 48 + 38 * len(show)),
+        height=min(540, 48 + 38 * len(show_display)),
     )
 
     return table_df
@@ -5663,7 +5738,7 @@ if selected_page == "Overview":
 
     # ── 4. Same-Time Pace Benchmark (always visible) ─────────
     st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
-    st.caption("OTB vs STLY / ST2Y / ST3Y — how current on-the-book compares to same-time prior years.")
+    st.caption("Today VS STLY / ST2Y / ST3Y — how today's on-the-book compares to same-time prior years.")
     pace_view = pace_summary.copy()
     if not pace_view.empty and "Stay Month" in pace_view.columns:
         current_month_key = month_sort_key(report_file_month)
@@ -5693,8 +5768,8 @@ if selected_page == "Overview":
 
     # ── 5. Historical Final Comparison (collapsed, coloured) ─
     st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
-    with st.expander("Expand — Forecast vs Final LY / 2Y / 3Y", expanded=False):
-        st.caption("Forecast vs Final LY / Final 2Y / Final 3Y. Historical context only — not a budget target.")
+    with st.expander("Expand — Duetto vs Final LY / 2Y / 3Y", expanded=False):
+        st.caption("Duetto vs Final LY / Final 2Y / Final 3Y. Historical context only — not a budget target.")
         if final_comparison.empty:
             st.info("No final comparison data.")
         else:
@@ -5705,7 +5780,7 @@ if selected_page == "Overview":
             render_compact_by_hotel(final_display, view_mode_final, "final")
 
     # ── 6. Forecast Movement (collapsed by default) ───────────
-    with st.expander("Forecast Movement", expanded=False):
+    with st.expander("Duetto Movement", expanded=False):
         forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
 
 
@@ -6035,7 +6110,7 @@ elif selected_page == "Export":
         "Variance Pivot":     "📈",
         "Same-Time Pace":     "⏱",
         "Historical Final":   "📅",
-        "Forecast Movement":  "📉",
+        "Duetto Movement":    "📉",
         "Hotel Momentum":     "🚀",
         "Role Selection":     "✅",
     }
@@ -6076,9 +6151,9 @@ elif selected_page == "Export":
     csv_c1, csv_c2 = st.columns(2)
     with csv_c1:
         st.download_button(
-            "Forecast Movement (CSV)",
+            "Duetto Movement (CSV)",
             data=movement_summary.to_csv(index=False).encode("utf-8"),
-            file_name=f"g5_movement_{file_stamp}.csv",
+            file_name=f"g5_duetto_movement_{file_stamp}.csv",
             mime="text/csv",
             on_click=trigger_download_toast,
             type="secondary",
