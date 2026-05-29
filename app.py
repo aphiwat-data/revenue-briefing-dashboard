@@ -3621,12 +3621,13 @@ def render_revenue_momentum_pct_chart(metric_data):
     Daily % Change momentum chart.
     - Bars: selected metric's daily % change
     - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
-    - Filter by stay months (default = all)
+    - Filter by stay months (default = first 3 months)
     """
     st.markdown('<div class="section-title">Daily Forecast Movement (%)</div>', unsafe_allow_html=True)
     st.caption(
         "Bars show day-over-day forecast change: (Today forecast - Yesterday forecast) / Yesterday forecast x 100. "
-        "Green = increase, red = decrease. Dashed line = ADR day-over-day change."
+        "Default view is 3 stay months, split month by month. Green = increase, red = decrease. "
+        "Dashed line = ADR day-over-day change."
     )
 
     d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
@@ -3636,6 +3637,8 @@ def render_revenue_momentum_pct_chart(metric_data):
 
     month_options = sorted(d4["Stay Month"].dropna().unique(), key=month_sort_key)
 
+    default_months = month_options[:3]
+
     c1, c2 = st.columns([1, 2.5])
     metric_choice = c1.selectbox(
         "Metric",
@@ -3644,9 +3647,9 @@ def render_revenue_momentum_pct_chart(metric_data):
         key="momentum_pct_metric",
     )
     sel_months = c2.multiselect(
-        "Stay Months",
+        "Stay Months (show up to 3)",
         options=month_options,
-        default=month_options,   # default = ALL stay months
+        default=default_months,
         key="momentum_pct_months",
     )
 
@@ -3654,12 +3657,16 @@ def render_revenue_momentum_pct_chart(metric_data):
         st.caption("Select at least one stay month.")
         return
 
-    # ── Build daily % change aggregated across selected stay months ─
-    def _daily_pct(metric):
-        sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"].isin(sel_months))].copy()
+    if len(sel_months) > 3:
+        st.info("Showing the first 3 selected stay months. Remove one month to view another.")
+    view_months = sel_months[:3]
+
+    # ── Build daily % change for one stay month ─────────────────
+    def _daily_pct(metric, stay_month):
+        sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"] == stay_month)].copy()
         if sub.empty:
             return pd.DataFrame()
-        # Sum across hotels AND stay months → one row per report date
+        # Sum across selected hotels within the stay month -> one row per report date.
         agg = (
             sub.groupby("Report Date", as_index=False)["Value"]
             .sum()
@@ -3668,103 +3675,112 @@ def render_revenue_momentum_pct_chart(metric_data):
         agg["Pct Change"] = agg["Value"].pct_change() * 100
         return agg.dropna(subset=["Pct Change"]).reset_index(drop=True)
 
-    grp     = _daily_pct(metric_choice)
-    adr_ref = _daily_pct("ADR") if metric_choice != "ADR" else pd.DataFrame()
+    def _render_momentum_month(stay_month, container_key):
+        grp = _daily_pct(metric_choice, stay_month)
+        adr_ref = _daily_pct("ADR", stay_month) if metric_choice != "ADR" else pd.DataFrame()
 
-    if grp.empty:
-        st.info("Need at least 2 report dates to compute daily % change.")
-        return
+        if grp.empty:
+            st.info(f"Need at least 2 report dates to compute daily % change for {stay_month}.")
+            return
 
-    grp["Direction"] = grp["Pct Change"].apply(
-        lambda x: "Up" if x > 0 else ("Down" if x < 0 else "Flat")
-    )
-    grp["Label"] = grp["Pct Change"].apply(lambda x: f"{x:+.1f}%")
+        grp["Direction"] = grp["Pct Change"].apply(
+            lambda x: "Up" if x > 0 else ("Down" if x < 0 else "Flat")
+        )
+        grp["Label"] = grp["Pct Change"].apply(lambda x: f"{x:+.1f}%")
 
-    # ── Single chart: bars (selected metric) + dashed line (ADR reference) ─
-    fig = px.bar(
-        grp,
-        x="Report Date",
-        y="Pct Change",
-        color="Direction",
-        color_discrete_map={
-            "Up":   "#15803d",
-            "Down": "#b91c1c",
-            "Flat": "#d48806",
-        },
-        text="Label",
-    )
-    if not adr_ref.empty:
-        fig.add_trace(go.Scatter(
-            x=adr_ref["Report Date"],
-            y=adr_ref["Pct Change"],
-            name="ADR (reference)",
-            mode="lines+markers",
-            line=dict(color="#1e293b", width=2, dash="dash"),
-            marker=dict(size=6, color="#1e293b"),
-            hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
-        ))
+        fig = px.bar(
+            grp,
+            x="Report Date",
+            y="Pct Change",
+            color="Direction",
+            color_discrete_map={
+                "Up":   "#15803d",
+                "Down": "#b91c1c",
+                "Flat": "#d48806",
+            },
+            text="Label",
+            title=f"{stay_month} - {metric_choice} daily movement",
+        )
+        if not adr_ref.empty:
+            fig.add_trace(go.Scatter(
+                x=adr_ref["Report Date"],
+                y=adr_ref["Pct Change"],
+                name="ADR (reference)",
+                mode="lines+markers",
+                line=dict(color="#1e293b", width=2, dash="dash"),
+                marker=dict(size=6, color="#1e293b"),
+                hovertemplate="<b>%{x|%d %b}</b><br>ADR daily %: %{y:+.2f}%<extra></extra>",
+            ))
 
-    fig.update_traces(
-        textposition="outside",
-        textfont=dict(size=10, color="#374151"),
-        marker_line_width=0,
-        cliponaxis=False,
-        selector=dict(type="bar"),
-    )
-    fig.update_layout(
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=30, b=20),
-        height=380,
-        hovermode="x unified",
-        bargap=0.35,
-        showlegend=(not adr_ref.empty),
-        legend=dict(
-            orientation="h", y=-0.15, x=0.5, xanchor="center",
-            font=dict(size=11, color="#374151"),
-        ),
-    )
-    fig.update_xaxes(
-        title="Report Date",
-        tickformat="%d %b",
-        showgrid=False,
-    )
-    fig.update_yaxes(
-        zeroline=True,
-        zerolinecolor="#94a3b8",
-        zerolinewidth=1.5,
-        showgrid=True,
-        gridcolor="#f1f5f9",
-        ticksuffix="%",
-        title="",
-    )
+        fig.update_traces(
+            textposition="outside",
+            textfont=dict(size=10, color="#374151"),
+            marker_line_width=0,
+            cliponaxis=False,
+            selector=dict(type="bar"),
+        )
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=20, r=20, t=45, b=20),
+            height=360,
+            hovermode="x unified",
+            bargap=0.35,
+            showlegend=(not adr_ref.empty),
+            legend=dict(
+                orientation="h", y=-0.15, x=0.5, xanchor="center",
+                font=dict(size=11, color="#374151"),
+            ),
+        )
+        fig.update_xaxes(
+            title="Report Date",
+            tickformat="%d %b",
+            showgrid=False,
+        )
+        fig.update_yaxes(
+            zeroline=True,
+            zerolinecolor="#94a3b8",
+            zerolinewidth=1.5,
+            showgrid=True,
+            gridcolor="#f1f5f9",
+            ticksuffix="%",
+            title="",
+        )
 
-    st.plotly_chart(
-        fig,
-        use_container_width=True,
-        config={
-            "displaylogo": False,
-            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
-            "scrollZoom": False,
-        },
-        key="revenue_momentum_pct_chart",
-    )
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+            config={
+                "displaylogo": False,
+                "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+                "scrollZoom": False,
+            },
+            key=f"revenue_momentum_pct_chart_{container_key}",
+        )
 
-    # ── Summary stats ─────────────────────────────────────────
-    pos_days = int((grp["Pct Change"] > 0).sum())
-    neg_days = int((grp["Pct Change"] < 0).sum())
-    avg_pct  = grp["Pct Change"].mean()
-    max_row  = grp.loc[grp["Pct Change"].idxmax()]
-    min_row  = grp.loc[grp["Pct Change"].idxmin()]
+        # ── Summary stats ─────────────────────────────────────
+        pos_days = int((grp["Pct Change"] > 0).sum())
+        neg_days = int((grp["Pct Change"] < 0).sum())
+        avg_pct  = grp["Pct Change"].mean()
+        max_row  = grp.loc[grp["Pct Change"].idxmax()]
+        min_row  = grp.loc[grp["Pct Change"].idxmin()]
 
-    s1, s2, s3, s4, s5 = st.columns(5)
-    s1.metric("Days Up",   pos_days)
-    s2.metric("Days Down", neg_days)
-    s3.metric("Avg Daily %", f"{avg_pct:+.2f}%")
-    s4.metric("Best Day",  f"{max_row['Pct Change']:+.1f}%",
-              max_row["Report Date"].strftime("%d %b"))
-    s5.metric("Worst Day", f"{min_row['Pct Change']:+.1f}%",
-              min_row["Report Date"].strftime("%d %b"))
+        s1, s2, s3, s4, s5 = st.columns(5)
+        s1.metric("Days Up",   pos_days)
+        s2.metric("Days Down", neg_days)
+        s3.metric("Avg Daily %", f"{avg_pct:+.2f}%")
+        s4.metric("Best Day",  f"{max_row['Pct Change']:+.1f}%",
+                  max_row["Report Date"].strftime("%d %b"))
+        s5.metric("Worst Day", f"{min_row['Pct Change']:+.1f}%",
+                  min_row["Report Date"].strftime("%d %b"))
+
+    if len(view_months) == 1:
+        _render_momentum_month(view_months[0], re.sub(r"[^A-Za-z0-9]", "_", str(view_months[0])))
+    else:
+        tabs = st.tabs(view_months)
+        for tab, stay_month in zip(tabs, view_months):
+            with tab:
+                _render_momentum_month(stay_month, re.sub(r"[^A-Za-z0-9]", "_", str(stay_month)))
 
 
 def build_forecast_movement_v31(metric_data, role_selection):
