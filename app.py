@@ -1295,14 +1295,16 @@ def build_variance_pivot_table(metric_data, role_selection):
 
     Added columns (only when both sides are available):
         OTB▲Bgt   — OTB vs Budget %
-        OTB▲Fct   — OTB vs Duetto Forecast %
+        Fct▲Bgt   — Duetto Forecast vs Budget %   ← headline variance
+        OTB▲Fct   — OTB vs Duetto Forecast %      (pace toward forecast)
         OTB▲STLY  — OTB vs best available same-time (STLY / ST2Y / ST3Y) %
         Fct▲FLY   — Duetto vs Final LY %
         Fct▲F2Y   — Duetto vs Final 2Y %
         Fct▲F3Y   — Duetto vs Final 3Y %
 
-    Column order: OTB | Budget | OTB▲Bgt | Duetto | OTB▲Fct | STLY | OTB▲STLY |
-                  Final LY | Fct▲FLY | Final 2Y | Fct▲F2Y | Final 3Y | Fct▲F3Y
+    Column order:
+      OTB | Budget | OTB▲Bgt | Duetto | Fct▲Bgt | OTB▲Fct |
+      STLY | OTB▲STLY | Final LY | Fct▲FLY | Final 2Y | Fct▲F2Y | Final 3Y | Fct▲F3Y
     """
     pivot = build_latest_pivot_table(metric_data, role_selection)
     if pivot.empty:
@@ -1320,6 +1322,10 @@ def build_variance_pivot_table(metric_data, role_selection):
     if "Today" in pivot.columns and "Budget" in pivot.columns:
         pivot["OTB▲Bgt"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Budget"]), axis=1)
 
+    # Headline: Forecast vs Budget %
+    if "Duetto" in pivot.columns and "Budget" in pivot.columns:
+        pivot["Fct▲Bgt"] = pivot.apply(lambda r: safe_pct(r["Duetto"], r["Budget"]), axis=1)
+
     if "Today" in pivot.columns and "Duetto" in pivot.columns:
         pivot["OTB▲Fct"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
 
@@ -1335,10 +1341,11 @@ def build_variance_pivot_table(metric_data, role_selection):
             if ref_col in pivot.columns:
                 pivot[var_col] = pivot.apply(lambda r: safe_pct(r["Duetto"], r[ref_col]), axis=1)
 
-    # Build column order: base cols → OTB | Budget | OTB▲Bgt | Duetto | OTB▲Fct | STLY | OTB▲STLY | Finals
+    # Build column order
     base = [c for c in ["Hotel", "Stay Month", "Metric"] if c in pivot.columns]
     ordered = []
-    for col in ["Today", "Budget", "OTB▲Bgt", "Duetto", "OTB▲Fct"]:
+    # OTB | Budget | OTB▲Bgt | Duetto | Fct▲Bgt | OTB▲Fct
+    for col in ["Today", "Budget", "OTB▲Bgt", "Duetto", "Fct▲Bgt", "OTB▲Fct"]:
         if col in pivot.columns:
             ordered.append(col)
     stly_available = [c for c in ["STLY", "ST2Y", "ST3Y"] if c in pivot.columns]
