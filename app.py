@@ -3628,12 +3628,12 @@ def render_revenue_momentum_pct_chart(metric_data):
     Daily % Change momentum chart.
     - Bars: selected metric's daily % change
     - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
-    - Filter by stay months (default = first 3 months)
+    - Filter by stay months (default = first 3 months, can show all selected)
     """
     st.markdown('<div class="section-title">Daily Forecast Movement (%)</div>', unsafe_allow_html=True)
     st.caption(
         "Bars show day-over-day forecast change: (Today forecast - Yesterday forecast) / Yesterday forecast x 100. "
-        "Default view is 3 stay months, split month by month. Green = increase, red = decrease. "
+        "Default view starts with 3 stay months and can show every selected month, split month by month. Green = increase, red = decrease. "
         "Dashed line = ADR day-over-day change."
     )
 
@@ -3654,7 +3654,7 @@ def render_revenue_momentum_pct_chart(metric_data):
         key="momentum_pct_metric",
     )
     sel_months = c2.multiselect(
-        "Stay Months (show up to 3)",
+        "Stay Months",
         options=month_options,
         default=default_months,
         key="momentum_pct_months",
@@ -3664,9 +3664,7 @@ def render_revenue_momentum_pct_chart(metric_data):
         st.caption("Select at least one stay month.")
         return
 
-    if len(sel_months) > 3:
-        st.info("Showing the first 3 selected stay months. Remove one month to view another.")
-    view_months = sel_months[:3]
+    view_months = sel_months
 
     # ── Build daily % change for one stay month ─────────────────
     def _daily_pct(metric, stay_month):
