@@ -5524,12 +5524,21 @@ with st.sidebar:
         except Exception:
             _prev_files = pd.DataFrame(columns=file_catalog.columns)
 
-        # Merge prev + current month catalogs for data loading (de-dup by File Path)
-        extended_catalog = pd.concat([_prev_files, month_file_catalog], ignore_index=True)
-        if "File Path" in extended_catalog.columns:
-            extended_catalog = extended_catalog.drop_duplicates(subset=["File Path"])
-        elif "File Name" in extended_catalog.columns:
-            extended_catalog = extended_catalog.drop_duplicates(subset=["File Name"])
+        # Merge prev + current month catalogs. The two date ranges are disjoint
+        # by construction so concat without dedup is safe — and this avoids the
+        # None-File-Path collision that would dedupe uploaded files.
+        if _prev_files.empty:
+            extended_catalog = month_file_catalog.copy()
+        else:
+            extended_catalog = pd.concat(
+                [_prev_files, month_file_catalog], ignore_index=True
+            )
+            # Safe dedup using (File Name + Report Date) — works for both
+            # folder mode and upload mode (where File Path may be None).
+            if {"File Name", "Report Date"}.issubset(extended_catalog.columns):
+                extended_catalog = extended_catalog.drop_duplicates(
+                    subset=["File Name", "Report Date"]
+                )
         selected_file_catalog = extended_catalog.sort_values("Report Date").reset_index(drop=True)
         selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
 
