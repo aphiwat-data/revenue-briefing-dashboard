@@ -3290,8 +3290,8 @@ def render_trend_comparison(metric_data, role_selection):
         unsafe_allow_html=True,
     )
     st.caption(
-        "Pick two metrics on a shared chart — bars (left axis) for the volume metric, "
-        "line (right axis) for the rate metric. Each baseline appears as a dashed reference."
+        "Bars + line compare either **Forecast VS Budget** or **OTB VS Budget**. "
+        "Each baseline appears as a dashed reference."
     )
 
     if metric_data is None or metric_data.empty:
@@ -3330,33 +3330,65 @@ def render_trend_comparison(metric_data, role_selection):
         return
 
     # ── Controls ─────────────────────────────────────────────
-    c1, c2, c3 = st.columns([1, 1, 1.2])
+    # Comparison mode pill — what to compare against Budget:
+    #   "Forecast VS Budget" (default when available — Duetto vs locked Budget)
+    #   "OTB VS Budget"      (Today/on-the-book vs locked Budget)
+    cmp_modes = []
+    latest_refs = latest["Reference"].unique()
+    if "Duetto" in latest_refs and "Budget" in latest_refs:
+        cmp_modes.append("Forecast VS Budget")
+    if "Today" in latest_refs and "Budget" in latest_refs:
+        cmp_modes.append("OTB VS Budget")
+    if not cmp_modes:
+        st.info("No Forecast/OTB and Budget reference available.")
+        return
+
+    c_mode, c_a, c_b = st.columns([1.2, 1, 1])
+    with c_mode:
+        st.markdown(
+            '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">'
+            'Compare</p>',
+            unsafe_allow_html=True,
+        )
+        cmp_choice = st.pills(
+            "Compare",
+            options=cmp_modes,
+            selection_mode="single",
+            default=cmp_modes[0],
+            key="trend_cmp_mode",
+            label_visibility="collapsed",
+        )
+        if not cmp_choice:
+            cmp_choice = cmp_modes[0]
+    # Map mode → reference names in data
+    actual_ref = "Duetto" if cmp_choice == "Forecast VS Budget" else "Today"
+    actual_label = "Forecast" if actual_ref == "Duetto" else "OTB"
+    baseline = "Budget"
+
     default_a = "Rev" if "Rev" in available_metrics else available_metrics[0]
-    metric_a = c1.selectbox(
-        "Bars (left axis)",
-        available_metrics,
-        index=available_metrics.index(default_a),
-        key="trend_cmp_metric_a",
-    )
+    with c_a:
+        metric_a = st.selectbox(
+            "Bars (left axis)",
+            available_metrics,
+            index=available_metrics.index(default_a),
+            key="trend_cmp_metric_a",
+        )
     b_opts = [m for m in available_metrics if m != metric_a]
     default_b = "ADR" if "ADR" in b_opts else b_opts[0]
-    metric_b = c2.selectbox(
-        "Line (right axis)",
-        b_opts,
-        index=b_opts.index(default_b),
-        key="trend_cmp_metric_b",
-    )
-    baseline = c3.selectbox(
-        "Baseline (shared)",
-        baseline_options,
-        index=0,
-        key="trend_cmp_baseline",
-    )
+    with c_b:
+        metric_b = st.selectbox(
+            "Line (right axis)",
+            b_opts,
+            index=b_opts.index(default_b),
+            key="trend_cmp_metric_b",
+        )
 
     # ── Data builder ─────────────────────────────────────────
+    # Actual = Forecast (Duetto) or OTB (Today); baseline = Budget
     def get_trend(metric):
         sub = latest[latest["Metric"] == metric]
-        actual = sub[sub["Reference"] == "Today"].groupby("Stay Month")["Value"].sum()
+        actual = sub[sub["Reference"] == actual_ref].groupby("Stay Month")["Value"].sum()
         base = sub[sub["Reference"] == baseline].groupby("Stay Month")["Value"].sum()
         months = sorted(set(actual.index) | set(base.index), key=month_sort_key)
         return (
@@ -3379,8 +3411,8 @@ def render_trend_comparison(metric_data, role_selection):
     #   • Dashed line baselines on each axis
     # ─────────────────────────────────────────────────────────
     _metric_full = {"Rev": "Revenue", "ADR": "ADR", "Occ": "Occupancy", "Room": "Rooms"}
-    full_a = _metric_full.get(metric_a, metric_a)
-    full_b = _metric_full.get(metric_b, metric_b)
+    full_a = f"{actual_label} {_metric_full.get(metric_a, metric_a)}"
+    full_b = f"{actual_label} {_metric_full.get(metric_b, metric_b)}"
 
     months_union = sorted(set(months_a) | set(months_b), key=month_sort_key)
 
@@ -5474,8 +5506,31 @@ with st.sidebar:
         latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
         report_file_month = latest_report_month  # Always auto-use latest report
 
+        # Role identification stays anchored to the CURRENT report month
         role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
-        selected_file_catalog = month_file_catalog.sort_values("Report Date").reset_index(drop=True)
+
+        # ── Look-back: also load the previous month's report files so
+        # the Stay Month dropdown can include past months. Role mapping
+        # (Today / Yesterday / 7D / 1st Month) still comes from the
+        # current month only.
+        try:
+            _cur_dt = pd.to_datetime(report_file_month, format="%b, %Y")
+            _prev_start = (_cur_dt - pd.DateOffset(months=1))
+            _prev_end   = _prev_start + pd.offsets.MonthEnd(0)
+            _prev_files = file_catalog[
+                (file_catalog["Report Date"] >= _prev_start)
+                & (file_catalog["Report Date"] <= _prev_end)
+            ].copy()
+        except Exception:
+            _prev_files = pd.DataFrame(columns=file_catalog.columns)
+
+        # Merge prev + current month catalogs for data loading (de-dup by File Path)
+        extended_catalog = pd.concat([_prev_files, month_file_catalog], ignore_index=True)
+        if "File Path" in extended_catalog.columns:
+            extended_catalog = extended_catalog.drop_duplicates(subset=["File Path"])
+        elif "File Name" in extended_catalog.columns:
+            extended_catalog = extended_catalog.drop_duplicates(subset=["File Name"])
+        selected_file_catalog = extended_catalog.sort_values("Report Date").reset_index(drop=True)
         selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
 
         with st.spinner("Processing…"):
@@ -5495,10 +5550,12 @@ with st.sidebar:
         all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
         # Default hotels = Altera properties (or all if none found)
         _default_hotels = [h for h in all_hotels if "altera" in str(h).lower()] or list(all_hotels)
-        # Default stay window = report month → report month + 2 (3 months total)
+        # Default stay window = (report month − 1) → report month + 2
+        # so when a new report month is uploaded the team can still look back
+        # at the previous month's pace.
         _rpt_idx = all_stay_months.index(report_file_month) if report_file_month in all_stay_months else 0
-        _default_start = all_stay_months[_rpt_idx]
-        _default_end = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
+        _default_start = all_stay_months[max(_rpt_idx - 1, 0)]
+        _default_end   = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
         # Metric: always All — each tab handles its own filtering
         selected_metric = "All Metrics"
         st.caption(f"Report: {report_file_month}  ·  {len(file_catalog)} files")
