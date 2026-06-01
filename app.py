@@ -995,8 +995,21 @@ def build_movement_summary(metric_data, role_selection):
     return out
 
 def build_pace_summary(metric_data, role_selection):
-    role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
-    latest = metric_data[metric_data["Report Label"] == role_map.get("Today / Latest")].copy()
+    # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
+    # available Report Date — supports look-back at past stay months.
+    if metric_data is None or metric_data.empty:
+        return pd.DataFrame()
+    if "Report Date" in metric_data.columns:
+        latest = (
+            metric_data.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+            .copy()
+        )
+    else:
+        latest = metric_data.copy()
     rows = []
     for keys, group in latest.groupby(["Hotel", "Stay Month", "Metric"]):
         h, sm, m = keys
@@ -1015,8 +1028,21 @@ def build_pace_summary(metric_data, role_selection):
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 def build_final_comparison(metric_data, role_selection):
-    role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
-    latest = metric_data[metric_data["Report Label"] == role_map.get("Today / Latest")].copy()
+    # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
+    # available Report Date — supports look-back at past stay months.
+    if metric_data is None or metric_data.empty:
+        return pd.DataFrame()
+    if "Report Date" in metric_data.columns:
+        latest = (
+            metric_data.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+            .copy()
+        )
+    else:
+        latest = metric_data.copy()
     rows = []
     for keys, group in latest.groupby(["Hotel", "Stay Month", "Metric"]):
         d4 = group[group["Reference"] == "Duetto"]["Value"].sum()
@@ -1252,20 +1278,27 @@ def build_latest_pivot_table(metric_data, role_selection):
     Build compact pivot table like the reference screenshot:
     Month | Metric | Today | STLY | ST2Y | ST3Y | Duetto | Budget | Final LY | Final 2Y | Final 3Y
 
-    Uses only Today / Latest report file.
+    Per-(Hotel, Stay Month, Metric, Reference) we keep the LATEST available
+    Report Date row. This ensures that a past stay month (e.g. May while
+    we're on June's report) still shows data taken from its OWN latest
+    report file — fixing the "No data in latest report" issue when looking
+    back at past months.
     Keeps metric order: Occ, Room, ADR, Rev.
     """
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
 
-    role_map = {
-        row["Role"]: row["Report Label"]
-        for _, row in role_selection.iterrows()
-        if pd.notna(row["Report Label"])
-    }
-    latest_label = role_map.get("Today / Latest")
-
-    latest = metric_data[metric_data["Report Label"] == latest_label].copy()
+    if "Report Date" in metric_data.columns:
+        latest = (
+            metric_data.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+            .copy()
+        )
+    else:
+        latest = metric_data.copy()
     if latest.empty:
         return pd.DataFrame()
 
@@ -2874,9 +2907,19 @@ def build_budget_review(metric_data, role_selection):
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
 
-    role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
-    latest_label = role_map.get("Today / Latest")
-    latest = metric_data[metric_data["Report Label"] == latest_label].copy()
+    # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
+    # available Report Date — supports look-back at past stay months.
+    if "Report Date" in metric_data.columns:
+        latest = (
+            metric_data.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+            .copy()
+        )
+    else:
+        latest = metric_data.copy()
 
     if latest.empty:
         return pd.DataFrame()
@@ -3298,19 +3341,25 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No data.")
         return
 
-    role_map = {
-        row["Role"]: row["Report Label"]
-        for _, row in role_selection.iterrows()
-        if pd.notna(row["Report Label"])
-    }
-    today_label = role_map.get("Today / Latest")
-    if not today_label:
-        st.info("Today's report not available.")
+    # Use the LATEST report per (Hotel, Stay Month, Metric, Reference) instead of
+    # a single "today_label". This way a selected past stay month (e.g. May while
+    # we're on June's report) pulls data from its OWN latest report file.
+    if metric_data is None or metric_data.empty:
+        st.info("No data.")
         return
-
-    latest = metric_data[metric_data["Report Label"] == today_label].copy()
+    if "Report Date" in metric_data.columns:
+        latest = (
+            metric_data.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+            .copy()
+        )
+    else:
+        latest = metric_data.copy()
     if latest.empty:
-        st.info("No data in latest report.")
+        st.info("No data available for the current filter.")
         return
 
     # Available metrics (already short names: Rev / ADR / Occ / Room)
@@ -3507,6 +3556,15 @@ def render_trend_comparison(metric_data, role_selection):
     from plotly.subplots import make_subplots
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
+    # If only 1 stay month is in scope, the spline curve and area-fill can't
+    # render visibly with a single point — we make the markers larger so the
+    # single point is clearly visible. Style stays identical for 2+ months.
+    n_pts = len(months_union)
+    _marker_a = 14 if n_pts == 1 else 7
+    _marker_b = 14 if n_pts == 1 else 7
+    _marker_base = 14 if n_pts == 1 else 6
+    _base_mode = "markers" if n_pts == 1 else "lines"
+
     # Metric A — filled area (left Y)
     fig.add_trace(
         go.Scatter(
@@ -3515,7 +3573,7 @@ def render_trend_comparison(metric_data, role_selection):
             name=full_a,
             mode="lines+markers",
             line=dict(color=GREEN_LINE, width=2.5, shape="spline", smoothing=0.6),
-            marker=dict(size=7, color=GREEN_LINE, line=dict(width=2, color="#fff")),
+            marker=dict(size=_marker_a, color=GREEN_LINE, line=dict(width=2, color="#fff")),
             fill="tozeroy",
             fillcolor=GREEN_FILL,
             hovertemplate=f"<b>%{{x}}</b><br>{full_a}: %{{y:,.0f}}<extra></extra>",
@@ -3530,8 +3588,14 @@ def render_trend_comparison(metric_data, role_selection):
                 x=months_union,
                 y=base_a_v,
                 name=f"{full_a} {baseline}",
-                mode="lines",
+                mode=_base_mode,
                 line=dict(color=GREEN_BASE, width=2, dash="dash"),
+                marker=dict(
+                    symbol="line-ew",
+                    size=_marker_base * 3,
+                    color=GREEN_BASE,
+                    line=dict(width=3, color=GREEN_BASE),
+                ),
                 hovertemplate=f"<b>%{{x}}</b><br>{full_a} {baseline}: %{{y:,.0f}}<extra></extra>",
             ),
             secondary_y=False,
@@ -3545,7 +3609,7 @@ def render_trend_comparison(metric_data, role_selection):
             name=full_b,
             mode="lines+markers",
             line=dict(color=AMBER_LINE, width=3, shape="spline", smoothing=0.7),
-            marker=dict(size=7, color=AMBER_LINE, line=dict(width=2, color="#fff")),
+            marker=dict(size=_marker_b, color=AMBER_LINE, line=dict(width=2, color="#fff")),
             hovertemplate=f"<b>%{{x}}</b><br>{full_b}: %{{y:,.0f}}<extra></extra>",
         ),
         secondary_y=True,
@@ -3558,12 +3622,26 @@ def render_trend_comparison(metric_data, role_selection):
                 x=months_union,
                 y=base_b_v,
                 name=f"{full_b} {baseline}",
-                mode="lines",
+                mode=_base_mode,
                 line=dict(color=AMBER_BASE, width=1.5, dash="dot"),
-                opacity=0.75,
+                marker=dict(
+                    symbol="line-ew",
+                    size=_marker_base * 3,
+                    color=AMBER_BASE,
+                    line=dict(width=2.5, color=AMBER_BASE),
+                ),
+                opacity=0.85,
                 hovertemplate=f"<b>%{{x}}</b><br>{full_b} {baseline}: %{{y:,.0f}}<extra></extra>",
             ),
             secondary_y=True,
+        )
+
+    # Subtle hint when only 1 month — chart can't draw a "trend" with 1 point
+    if n_pts == 1:
+        st.caption(
+            "ℹ️ เลือกเพียง 1 stay month — กราฟ Trend จะวาด curve ไม่ได้ "
+            "(ต้องการอย่างน้อย 2 เดือน). ค่าโชว์เป็น marker จุดเดียว · "
+            "KPI cards ด้านบนยังถูกต้อง"
         )
 
     fig.update_layout(
@@ -4477,16 +4555,36 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         tag = "CM" if delta == 0 else (f"M+{delta}" if delta > 0 else f"M{delta}")
         month_tags.append((tag, sm))
 
+    # Pre-compute LATEST snapshot per (Hotel, Stay Month, Metric, Reference) —
+    # so look-back stay months pull from their own latest available report file.
+    if "Report Date" in base.columns:
+        base_latest = (
+            base.sort_values("Report Date")
+            .drop_duplicates(
+                subset=["Hotel", "Stay Month", "Metric", "Reference"],
+                keep="last",
+            )
+        )
+    else:
+        base_latest = base
+
     # ── Data helpers ──────────────────────────────────────────
     def get_value(metric, sm, report_label, reference="Today"):
-        if not report_label:
-            return pd.Series(dtype=float)
-        sub = base[
-            (base["Report Label"] == report_label)
-            & (base["Stay Month"] == sm)
-            & (base["Metric"] == metric)
-            & (base["Reference"] == reference)
-        ]
+        # If report_label is the today_label sentinel, use the latest-snapshot
+        # view (works for past stay months). For 1st-of-month, filter exactly.
+        if report_label == today_label or report_label is None:
+            sub = base_latest[
+                (base_latest["Stay Month"] == sm)
+                & (base_latest["Metric"] == metric)
+                & (base_latest["Reference"] == reference)
+            ]
+        else:
+            sub = base[
+                (base["Report Label"] == report_label)
+                & (base["Stay Month"] == sm)
+                & (base["Metric"] == metric)
+                & (base["Reference"] == reference)
+            ]
         return sub.groupby("Hotel")["Value"].sum() if not sub.empty else pd.Series(dtype=float)
 
     def get_var_pct(metric, sm, primary_ref="Today"):
