@@ -21,12 +21,16 @@ from src.core.helpers import (
     fmt_signed_pct2,
     month_sort_key,
 )
+from src.domain.aggregations import make_recommended_pace_compact
 from src.domain.helpers import (
     apply_stay_month_filter,
     short_hotel_name,
 )
 
-from src.ui.dataframe_stylers import style_pace_variance_table
+from src.ui.dataframe_stylers import (
+    style_final_variance_table,
+    style_pace_variance_table,
+)
 
 
 def render_compact_by_hotel(df, view_mode, key_prefix, height_cap=620):

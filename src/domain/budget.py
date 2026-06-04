@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.domain.aggregations import risk_level
 from src.domain.helpers import calc_budget_variance, budget_status_from_variance
+
 
 def build_budget_review(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     if metric_data is None or metric_data.empty:

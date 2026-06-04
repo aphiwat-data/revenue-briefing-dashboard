@@ -37,7 +37,8 @@
       "Bash(python -m pytest tests/ -q)",
       "Bash(grep -v \"^$\")",
       "Bash(python -m pytest tests/ --tb=short)",
-      "Bash(xargs wc -l)"
+      "Bash(xargs wc -l)",
+      "Bash(python _scan_imports.py)"
     ]
   }
 }

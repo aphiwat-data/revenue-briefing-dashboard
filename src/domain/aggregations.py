@@ -9,6 +9,8 @@ from __future__ import annotations
 import pandas as pd
 
 from src.core.constants import FINAL_REFS, METRIC_ORDER
+from src.domain.helpers import format_compact_value
+
 
 def risk_level(diff_pct: float | None) -> str:
     if pd.isna(diff_pct): return "Unknown"

@@ -10,6 +10,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.domain.aggregations import build_pace_summary, build_final_comparison, build_movement_summary
+from src.domain.budget import build_forecast_movement_v31
 from src.domain.pivot import build_variance_pivot_table
 
 def build_portfolio_snapshot(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
@@ -140,21 +141,18 @@ def build_daily_briefing_sheets(
     sheets["Hotel Scorecard"] = build_hotel_scorecard(metric_data, role_selection)
 
     # 3. Variance Pivot (the big OTB/Bgt/Duetto/STLY/Final variance table)
-    if "build_variance_pivot_table" in globals():
-        sheets["Variance Pivot"] = build_variance_pivot_table(metric_data, role_selection)
+    sheets["Variance Pivot"] = build_variance_pivot_table(metric_data, role_selection)
 
     # 4. Same-Time Pace
-    if "build_pace_summary" in globals():
-        sheets["Same-Time Pace"] = build_pace_summary(metric_data, role_selection)
+    sheets["Same-Time Pace"] = build_pace_summary(metric_data, role_selection)
 
     # 5. Historical Final
-    if "build_final_comparison" in globals():
-        sheets["Historical Final"] = build_final_comparison(metric_data, role_selection)
+    sheets["Historical Final"] = build_final_comparison(metric_data, role_selection)
 
-    # 6. Forecast Movement
-    if "build_forecast_movement_v31" in globals():
+    # 6. Forecast Movement (prefer the v31 builder; fall back to summary on error)
+    try:
         sheets["Duetto Movement"] = build_forecast_movement_v31(metric_data, role_selection)
-    elif "build_movement_summary" in globals():
+    except Exception:
         sheets["Duetto Movement"] = build_movement_summary(metric_data, role_selection)
 
     # 7. Hotel Momentum (daily forecast pickup per hotel, per stay month)

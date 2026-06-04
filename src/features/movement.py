@@ -42,13 +42,14 @@ def render_forecast_movement_table_only(metric_data, role_selection):
     st.markdown('<div class="section-title">Duetto Movement</div>', unsafe_allow_html=True)
     st.caption("Latest Duetto vs 1 Day / 7 Days / First Day of Month. Green = picked up, Red = dropped.")
 
-    # Use whichever movement builder exists.
-    if "build_forecast_movement_v31" in globals():
+    # Prefer the v31 builder (per-period breakdown); fall back to summary on error.
+    try:
         movement = build_forecast_movement_v31(metric_data, role_selection)
-    elif "build_duetto_movement_summary" in globals():
-        movement = build_duetto_movement_summary(metric_data, role_selection)
-    else:
-        movement = build_movement_summary(metric_data, role_selection) if "build_movement_summary" in globals() else pd.DataFrame()
+    except Exception:
+        try:
+            movement = build_movement_summary(metric_data, role_selection)
+        except Exception:
+            movement = pd.DataFrame()
 
     if movement is None or movement.empty:
         st.info("No movement data. Upload multiple report dates to compare.")
