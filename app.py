@@ -1362,12 +1362,23 @@ def build_variance_pivot_table(metric_data, role_selection):
     if "Today" in pivot.columns and "Duetto" in pivot.columns:
         pivot["Today VS Duetto"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
 
+    # ── Same-Time variances — each year compared INDEPENDENTLY ──
+    # FIX (Bug: Arbour STLY sign flip):
+    #   Old code computed "Today VS STLY" against MAX(STLY, ST2Y, ST3Y), which
+    #   could flip signs when ST2Y/ST3Y were higher than STLY. Now we compute
+    #   each variance against its OWN reference year — STLY vs STLY only,
+    #   ST2Y vs ST2Y only, ST3Y vs ST3Y only. No more "best-of-3" surprise.
     if "Today" in pivot.columns:
-        stly_available = [c for c in ["STLY", "ST2Y", "ST3Y"] if c in pivot.columns]
-        if stly_available:
-            pivot["_best_st"] = pivot[stly_available].max(axis=1)
-            pivot["Today VS STLY"] = pivot.apply(lambda r: safe_pct(r["Today"], r["_best_st"]), axis=1)
-            pivot.drop(columns=["_best_st"], inplace=True)
+        for ref_col, var_col in [
+            ("STLY", "Today VS STLY"),
+            ("ST2Y", "Today VS ST2Y"),
+            ("ST3Y", "Today VS ST3Y"),
+        ]:
+            if ref_col in pivot.columns:
+                pivot[var_col] = pivot.apply(
+                    lambda r, _c=ref_col: safe_pct(r["Today"], r[_c]),
+                    axis=1,
+                )
 
     if "Duetto" in pivot.columns:
         for ref_col, var_col in [
@@ -1376,7 +1387,10 @@ def build_variance_pivot_table(metric_data, role_selection):
             ("Final 3Y", "Duetto VS Final 3Y"),
         ]:
             if ref_col in pivot.columns:
-                pivot[var_col] = pivot.apply(lambda r: safe_pct(r["Duetto"], r[ref_col]), axis=1)
+                pivot[var_col] = pivot.apply(
+                    lambda r, _c=ref_col: safe_pct(r["Duetto"], r[_c]),
+                    axis=1,
+                )
 
     # Build column order
     base = [c for c in ["Hotel", "Stay Month", "Metric"] if c in pivot.columns]
@@ -1384,11 +1398,17 @@ def build_variance_pivot_table(metric_data, role_selection):
     for col in ["Today", "Budget", "Today VS BUD", "Duetto", "Duetto VS BUD", "Today VS Duetto"]:
         if col in pivot.columns:
             ordered.append(col)
-    stly_available = [c for c in ["STLY", "ST2Y", "ST3Y"] if c in pivot.columns]
-    if stly_available:
-        ordered.append(stly_available[0])
-    if "Today VS STLY" in pivot.columns:
-        ordered.append("Today VS STLY")
+    # Same-time benchmarks — each with its OWN variance (no more best-of-3)
+    for ref_col, var_col in [
+        ("STLY", "Today VS STLY"),
+        ("ST2Y", "Today VS ST2Y"),
+        ("ST3Y", "Today VS ST3Y"),
+    ]:
+        if ref_col in pivot.columns:
+            ordered.append(ref_col)
+        if var_col in pivot.columns:
+            ordered.append(var_col)
+    # Historical finals
     for ref_col, var_col in [
         ("Final LY", "Duetto VS Final LY"),
         ("Final 2Y", "Duetto VS Final 2Y"),
