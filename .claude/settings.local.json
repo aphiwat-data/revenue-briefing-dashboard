@@ -28,7 +28,9 @@
       "Bash(tasklist /fi \"imagename eq chrome.exe\" /fo list)",
       "PowerShell(Get-Process python -ErrorAction SilentlyContinue | ForEach-Object { $_.MainWindowTitle }; Get-ChildItem \"$env:TEMP\\\\siteminder_downloads\" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime, Length)",
       "Bash(python -X utf8 _validate.py)",
-      "Bash(git fsck *)"
+      "Bash(git fsck *)",
+      "Bash(git push *)",
+      "Bash(grep -n \"My Drive\\\\|G:\\\\\\\\\\\\\\\\\\\\\\\\|G5 - Weekly\" app.py)"
     ]
   }
 }

@@ -10,953 +10,62 @@ Install:
     python -m pip install streamlit pandas openpyxl plotly
 """
 
-import io
-import zipfile
-import tempfile
 import re
-import base64
 import html
-from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-
-# ============================================================
-# Logo loader — base64-encodes assets/logo.png at startup
-# Works on both local and Streamlit Cloud (no static file server needed)
-# ============================================================
-def _load_logo_b64() -> str | None:
-    logo_path = Path(__file__).parent / "assets" / "logo.png"
-    if logo_path.exists():
-        return base64.b64encode(logo_path.read_bytes()).decode()
-    return None
-
-_LOGO_B64 = _load_logo_b64()
-
-
-# ============================================================
-# Page setup & Custom CSS
-# ============================================================
-
-st.set_page_config(
-    page_title="Daily Revenue Briefing Dashboard",
-    page_icon=None,
-    layout="wide",
-    initial_sidebar_state="expanded",
+from src.core.assets import LOGO_B64
+from src.core.constants import *
+from src.core.helpers import (
+    fmt_pct2,
+    fmt_raw2,
+    fmt_signed_pct2,
+    month_sort_key,
+    safe_delta,
+    trunc2,
 )
-
-st.markdown(
-    """
-    <style>
-    /* ================================================================
-       G5 Revenue Dashboard — Pro Design System
-       ================================================================ */
-
-    /* ── Layout ───────────────────────────────────────────────── */
-    .block-container {
-        padding-top: 1.75rem;
-        padding-bottom: 3rem;
-        max-width: 97%;
-    }
-
-    /* ── Global baseline ──────────────────────────────────────── */
-    html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI",
-                     system-ui, sans-serif;
-        font-size: 15px;
-        color: #111;
-        -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Sidebar ──────────────────────────────────────────────── */
-    [data-testid="stSidebar"] {
-        background: #f8f9fb;
-        border-right: 1px solid #e8eaed;
-    }
-    /* Section dividers: DATA SOURCE, FILTERS */
-    [data-testid="stSidebar"] .stMarkdown h2 {
-        font-size: 0.7rem !important;
-        font-weight: 700 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.10em !important;
-        color: #9ca3af !important;
-        margin: 1.2rem 0 0.5rem !important;
-        padding-bottom: 0.35rem !important;
-        border-bottom: 1px solid #e8eaed !important;
-    }
-    /* Sub-labels: Stay month, Hotels, Metric */
-    [data-testid="stSidebar"] .stMarkdown h4 {
-        font-size: 0.84rem !important;
-        font-weight: 600 !important;
-        color: #374151 !important;
-        margin: 1rem 0 0.3rem !important;
-    }
-    [data-testid="stSidebar"] label {
-        font-size: 0.88rem !important;
-        color: #374151 !important;
-        font-weight: 400 !important;
-    }
-    [data-testid="stSidebar"] .stCaption,
-    [data-testid="stSidebar"] div[data-testid="stCaptionContainer"] {
-        font-size: 0.8rem !important;
-        color: #9ca3af !important;
-    }
-    [data-testid="stSidebar"] hr {
-        border-color: #e8eaed !important;
-        margin: 0.5rem 0 !important;
-    }
-    [data-testid="stSidebar"] .stButton > button {
-        font-size: 0.88rem !important;
-        height: 34px !important;
-        border-radius: 6px !important;
-        width: 100% !important;
-        padding: 0 14px !important;
-    }
-
-    /* ── Page title ───────────────────────────────────────────── */
-    .block-container h2 {
-        font-size: 1.35rem !important;
-        font-weight: 700 !important;
-        color: #111827 !important;
-        letter-spacing: -0.02em !important;
-        margin-bottom: 2px !important;
-    }
-
-    /* ── Filter context strip ─────────────────────────────────── */
-    .filter-bar {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #fafafa;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        padding: 5px 14px;
-        font-size: 0.84rem;
-        color: #6b7280;
-        margin: 4px 0 12px 0;
-    }
-    .filter-bar b { color: #111827; font-weight: 600; }
-    .filter-label { color: #6b7280; font-size: 0.84rem; font-weight: 500; margin-right: 1px; }
-    .filter-sep   { color: #d1d5db; margin: 0 5px; }
-
-    /* ── Property chips ───────────────────────────────────────── */
-    .property-context {
-        display: flex;
-        align-items: flex-start;
-        gap: 8px;
-        margin: -4px 0 18px 0;
-        font-size: 0.84rem;
-    }
-    .property-context-label {
-        flex: 0 0 auto;
-        padding-top: 4px;
-        font-weight: 600;
-        color: #374151;
-        font-size: 0.82rem;
-    }
-    .property-chip-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        min-width: 0;
-    }
-    .property-chip {
-        max-width: 220px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        border: 1px solid #e5e7eb;
-        background: #f9fafb;
-        color: #374151;
-        border-radius: 20px;
-        padding: 3px 10px;
-        font-size: 0.79rem;
-        line-height: 1.4;
-    }
-
-    /* ── KPI metric cards ─────────────────────────────────────── */
-    div[data-testid="stMetric"] {
-        background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 16px 20px 14px 20px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-    }
-    div[data-testid="stMetricLabel"] {
-        font-size: 0.75rem !important;
-        font-weight: 600 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.07em !important;
-        color: #6b7280 !important;
-    }
-    div[data-testid="stMetricValue"] {
-        font-size: clamp(1.2rem, 1.5vw, 1.65rem) !important;
-        font-weight: 700 !important;
-        color: #111827 !important;
-        letter-spacing: -0.02em !important;
-        line-height: 1.25 !important;
-    }
-    div[data-testid="stMetricDelta"] {
-        font-size: 0.84rem !important;
-        font-weight: 500 !important;
-    }
-
-    /* ── Compare pills ────────────────────────────────────────── */
-    [data-testid="stPills"] button {
-        font-size: 0.86rem !important;
-        font-weight: 500 !important;
-        border-radius: 20px !important;
-        padding: 4px 14px !important;
-        border: 1px solid #e5e7eb !important;
-        background: #f9fafb !important;
-        color: #374151 !important;
-        transition: all 0.15s !important;
-    }
-    [data-testid="stPills"] button:hover {
-        background: #eff6ff !important;
-        border-color: #93c5fd !important;
-        color: #1d4ed8 !important;
-    }
-    [data-testid="stPills"] button[aria-pressed="true"],
-    [data-testid="stPills"] button[data-selected="true"] {
-        background: #1677ff !important;
-        border-color: #1677ff !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 1px 4px rgba(22,119,255,0.30) !important;
-    }
-
-    /* ── Leaderboard rank segmented control ───────────────────── */
-    .rank-button-group + div [data-testid="stPills"] {
-        display: inline-flex !important;
-        width: auto !important;
-        margin: 4px 0 14px 0 !important;
-        padding: 3px !important;
-        background: #f1f5f9 !important;
-        border: 1px solid #e2e8f0 !important;
-        border-radius: 8px !important;
-    }
-    .rank-button-group + div [data-testid="stPills"] > div {
-        gap: 3px !important;
-        flex-wrap: wrap;
-    }
-    .rank-button-group + div [data-testid="stPills"] button {
-        min-height: 32px !important;
-        padding: 6px 12px !important;
-        border-radius: 6px !important;
-        border: 1px solid transparent !important;
-        background: transparent !important;
-        color: #475569 !important;
-        font-size: 0.82rem !important;
-        font-weight: 700 !important;
-        box-shadow: none !important;
-    }
-    .rank-button-group + div [data-testid="stPills"] button:hover {
-        background: #e2e8f0 !important;
-        color: #0f172a !important;
-        border-color: transparent !important;
-    }
-    .rank-button-group + div [data-testid="stPills"] button[aria-pressed="true"],
-    .rank-button-group + div [data-testid="stPills"] button[data-selected="true"] {
-        background: #ffffff !important;
-        color: #0f172a !important;
-        border-color: #cbd5e1 !important;
-        box-shadow: 0 1px 3px rgba(15,23,42,0.12) !important;
-    }
-
-    /* ── Main page nav (top of dashboard) ─────────────────────
-       Larger, tab-bar styled — overrides generic pill look.
-       Scoped via the .main-page-nav wrapper.
-       ─────────────────────────────────────────────────────── */
-    .main-page-nav + div [data-testid="stPills"] {
-        margin: 0 !important;
-    }
-    .main-page-nav + div [data-testid="stPills"] > div {
-        gap: 4px !important;
-        flex-wrap: wrap;
-    }
-    .main-page-nav + div [data-testid="stPills"] button {
-        font-size: 0.95rem !important;
-        font-weight: 500 !important;
-        padding: 9px 22px !important;
-        border-radius: 8px !important;
-        border: 1px solid transparent !important;
-        background: transparent !important;
-        color: #6b7280 !important;
-        letter-spacing: 0.01em !important;
-    }
-    .main-page-nav + div [data-testid="stPills"] button:hover {
-        background: #f1f5f9 !important;
-        color: #1f2937 !important;
-        border-color: transparent !important;
-    }
-    .main-page-nav + div [data-testid="stPills"] button[aria-pressed="true"],
-    .main-page-nav + div [data-testid="stPills"] button[data-selected="true"] {
-        background: #1677ff !important;
-        border-color: #1677ff !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 8px rgba(22,119,255,0.25) !important;
-    }
-
-    /* ── Section titles (left accent strip) ───────────────────── */
-    .section-title {
-        font-size: 0.8rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #374151;
-        margin: 1.5rem 0 0.8rem 0;
-        padding-left: 10px;
-        border-left: 3px solid #1677ff;
-        line-height: 1.4;
-    }
-
-    /* ── Tabs ─────────────────────────────────────────────────── */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0 !important;
-        border-bottom: 1px solid #e5e7eb !important;
-        background: transparent !important;
-        padding: 0 !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background: transparent !important;
-        border-bottom: 2px solid transparent !important;
-        border-radius: 0 !important;
-        padding: 10px 20px !important;
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-        color: #6b7280 !important;
-        margin-bottom: -1px !important;
-        transition: color 0.15s !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #374151 !important;
-        background: transparent !important;
-    }
-    .stTabs [aria-selected="true"] {
-        color: #1677ff !important;
-        border-bottom-color: #1677ff !important;
-        font-weight: 600 !important;
-        background: transparent !important;
-    }
-    .stTabs [data-baseweb="tab-panel"] {
-        padding-top: 20px !important;
-    }
-
-    /* ── DataFrames ───────────────────────────────────────────── */
-    div[data-testid="stDataFrame"] {
-        border: 1px solid #e5e7eb !important;
-        border-radius: 8px !important;
-        overflow: hidden !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
-    }
-
-    /* ════════════════════════════════════════════════════════════
-       Button system
-       ════════════════════════════════════════════════════════════ */
-
-    /* Base */
-    .stButton > button,
-    [data-testid="stDownloadButton"] > button {
-        border-radius: 6px !important;
-        font-size: 0.9rem !important;
-        font-weight: 500 !important;
-        height: 38px !important;
-        padding: 0 20px !important;
-        letter-spacing: 0.01em !important;
-        cursor: pointer !important;
-        transition: background 0.15s ease, border-color 0.15s ease,
-                    box-shadow 0.15s ease, transform 0.12s ease !important;
-    }
-
-    /* Secondary */
-    .stButton > button[kind="secondary"] {
-        background: #fff !important;
-        border: 1px solid #d1d5db !important;
-        color: #374151 !important;
-    }
-    .stButton > button[kind="secondary"]:hover {
-        background: #eff6ff !important;
-        border-color: #1677ff !important;
-        color: #1677ff !important;
-        box-shadow: 0 2px 8px rgba(22,119,255,0.10) !important;
-    }
-    .stButton > button[kind="secondary"]:active { background: #dbeafe !important; }
-
-    /* Primary — blue */
-    .stButton > button[kind="primary"] {
-        background: #1677ff !important;
-        border-color: #1677ff !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 8px rgba(22,119,255,0.28) !important;
-    }
-    .stButton > button[kind="primary"]:hover {
-        background: #3d8bff !important;
-        border-color: #3d8bff !important;
-        box-shadow: 0 4px 16px rgba(22,119,255,0.38) !important;
-        transform: translateY(-1px) !important;
-    }
-    .stButton > button[kind="primary"]:active {
-        transform: translateY(0) !important;
-        box-shadow: 0 1px 4px rgba(22,119,255,0.20) !important;
-    }
-
-    /* Download primary — green (Excel) */
-    [data-testid="stDownloadButton"] > button[kind="primary"] {
-        background: #16a34a !important;
-        border-color: #16a34a !important;
-        color: #fff !important;
-        font-weight: 600 !important;
-        box-shadow: 0 2px 8px rgba(22,163,74,0.28) !important;
-    }
-    [data-testid="stDownloadButton"] > button[kind="primary"]:hover {
-        background: #15803d !important;
-        border-color: #15803d !important;
-        box-shadow: 0 4px 16px rgba(22,163,74,0.38) !important;
-        transform: translateY(-1px) !important;
-    }
-    [data-testid="stDownloadButton"] > button[kind="primary"]:active {
-        transform: translateY(0) !important;
-    }
-
-    /* Download secondary — outlined green (CSV) */
-    [data-testid="stDownloadButton"] > button[kind="secondary"] {
-        background: #f0fdf4 !important;
-        border: 1.5px solid #86efac !important;
-        color: #15803d !important;
-        font-weight: 500 !important;
-    }
-    [data-testid="stDownloadButton"] > button[kind="secondary"]:hover {
-        background: #dcfce7 !important;
-        border-color: #16a34a !important;
-        color: #14532d !important;
-        box-shadow: 0 2px 8px rgba(22,163,74,0.18) !important;
-    }
-    [data-testid="stDownloadButton"] > button[kind="secondary"]:active {
-        background: #bbf7d0 !important;
-    }
-
-    /* ── Radio ────────────────────────────────────────────────── */
-    .stRadio [data-testid="stWidgetLabel"] {
-        font-size: 0.8rem !important;
-        font-weight: 600 !important;
-        color: #6b7280 !important;
-    }
-    .stRadio label {
-        font-size: 0.88rem !important;
-        color: #374151 !important;
-    }
-
-    /* ── Color legend ─────────────────────────────────────────── */
-    .legend-row {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-        margin: 6px 0 18px 0;
-        font-size: 0.8rem;
-        color: #6b7280;
-    }
-    .legend-dot {
-        display: inline-block;
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        margin-right: 5px;
-        vertical-align: middle;
-    }
-
-    /* ── Status cards ─────────────────────────────────────────── */
-    .rev-card-good { background:#f0fdf4; border-left:3px solid #22c55e; color:#166534; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
-    .rev-card-bad  { background:#fef2f2; border-left:3px solid #ef4444; color:#991b1b; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
-    .rev-card-flat { background:#fffbeb; border-left:3px solid #f59e0b; color:#92400e; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
-    .rev-card-info { background:#eff6ff; border-left:3px solid #3b82f6; color:#1e40af; padding:12px 16px; border-radius:6px; margin:4px 0; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.04); }
-
-    /* ── Expanders ────────────────────────────────────────────── */
-    .streamlit-expanderHeader {
-        font-size: 0.88rem !important;
-        font-weight: 500 !important;
-        color: #374151 !important;
-        background: #f9fafb !important;
-        border: 1px solid #e5e7eb !important;
-        border-radius: 6px !important;
-    }
-
-    /* ── Inputs & selectboxes ─────────────────────────────────── */
-    .stSelectbox > div > div { border-radius: 6px !important; }
-    .stTextInput > div > div > input {
-        border-radius: 6px !important;
-        font-size: 0.88rem !important;
-        border-color: #d1d5db !important;
-    }
-
-    /* ── Alerts (info / warning / error) ─────────────────────── */
-    [data-testid="stAlert"] {
-        border-radius: 6px !important;
-    }
-
-    /* ── Captions ─────────────────────────────────────────────── */
-    .stCaption, div[data-testid="stCaptionContainer"] {
-        font-size: 0.8rem !important;
-        color: #9ca3af !important;
-    }
-
-    /* ── Spacing ──────────────────────────────────────────────── */
-    div[data-testid="stHorizontalBlock"] { gap: 0.75rem; }
-
-    /* ── Sidebar property list ─────────────────────────────────
-       Higher specificity (0,2,1) overrides global rules (0,1,1).
-       ─────────────────────────────────────────────────────────── */
-    [data-testid="stSidebar"] .stCheckbox {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    [data-testid="stSidebar"] .stCheckbox > label {
-        display: flex !important;
-        align-items: center !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-        padding: 7px 10px !important;
-        border-radius: 5px !important;
-        border: none !important;
-        background: transparent !important;
-        font-size: 0.87rem !important;
-        color: #374151 !important;
-        font-weight: 400 !important;
-        gap: 8px !important;
-        cursor: pointer !important;
-        transition: background 0.10s !important;
-        margin: 1px 0 !important;
-    }
-    [data-testid="stSidebar"] .stCheckbox > label:hover {
-        background: #eff6ff !important;
-        color: #1677ff !important;
-    }
-    [data-testid="stSidebar"] .stCheckbox > label:has(input:checked) {
-        background: #dbeafe !important;
-        color: #1d4ed8 !important;
-        font-weight: 600 !important;
-        border: none !important;
-    }
-
-    /* ── Hide Streamlit chrome ────────────────────────────────── */
-    #MainMenu { visibility: hidden; }
-    footer    { visibility: hidden; }
-    </style>
-    """,
-    unsafe_allow_html=True,
+from src.core.page import setup_page
+from src.domain.helpers import (
+    add_week_columns,
+    apply_stay_month_filter,
+    budget_delta_text,
+    budget_status_from_variance,
+    calc_budget_variance,
+    compact_metric_table_height,
+    format_compact_value,
+    friendly_week_label,
+    get_metric_options_with_all,
+    metric_label_order,
+    normalize_stay_month_selection,
+    short_hotel_name,
+    stay_month_label,
 )
+from src.data.ingest import (
+    build_file_catalog_from_folder,
+    build_file_catalog_from_uploads,
+    build_metric_long,
+    build_ref_col_map,
+    parse_record,
+    select_role_files,
+)
+from src.services.excel_export import to_excel_bytes
+from src.ui.styles import inject_styles
+from src.ui.sidebar import hotel_key, selected_property_chips_html
+
+
+setup_page(st)
+inject_styles(st)
 
-
-# ============================================================
-# Constants
-# ============================================================
-
-SUPPORTED_EXTENSIONS = [".csv", ".xlsx", ".xls", ".zip"]
-
-MONTH_FORMATS_TRY = [
-    "%b, %Y", "%b-%y", "%b, %y", "%b,%y", "%b %Y", "%b %y",
-    "%B, %Y", "%B-%y", "%B %Y", "%B %y",
-]
-
-REFERENCE_PATTERNS = {
-    "Today": ["Today"],
-    "STLY": ["STLY (DOW)", "STLY"],
-    "ST2Y": ["ST2Y (DOW)", "ST2Y"],
-    "ST3Y": ["ST3Y (DOW)", "ST3Y"],
-    "Duetto": ["Duetto Forecast", "Duetto", "Forecast", "Forecast"],
-    "Budget": ["Locked Budget", "Budget"],
-    "Final LY": ["Final LY (DOW)", "Final LY"],
-    "Final 2Y": ["Final 2Y (DOW)", "Final 2Y"],
-    "Final 3Y": ["Final 3Y (DOW)", "Final 3Y"],
-}
-
-METRIC_PATTERNS = {
-    "Occupancy": ["Occupancy (Physical)", "Occupancy"],
-    "Rooms": ["Rooms (Commit)", "Rooms"],
-    "ADR": ["ADR (Commit)", "ADR"],
-    "Revenue": ["Room Revenue (Commit)", "Room Revenue", "Revenue"],
-}
-
-METRIC_TO_DISPLAY = {
-    "Occupancy": "Occ",
-    "Rooms": "Room",
-    "ADR": "ADR",
-    "Revenue": "Rev",
-}
-
-DISPLAY_TO_METRIC = {v: k for k, v in METRIC_TO_DISPLAY.items()}
-METRIC_ORDER = ["Occ", "Room", "ADR", "Rev"]
-SAME_TIME_REFS = ["STLY", "ST2Y", "ST3Y"]
-FINAL_REFS = ["Final LY", "Final 2Y", "Final 3Y"]
-
-
-# ============================================================
-# Generic helpers
-# ============================================================
-
-def clean_text(x):
-    if x is None:
-        return ""
-    return str(x).strip().strip('"').strip()
-
-def normalize_stay_month(raw):
-    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
-        return None
-    s = str(raw).strip()
-    if not s:
-        return None
-
-    for fmt in MONTH_FORMATS_TRY:
-        try:
-            dt = datetime.strptime(s, fmt)
-            return dt.strftime("%b, %Y")
-        except ValueError:
-            continue
-
-    m = re.match(r"^([A-Za-z]+)[\s\-,\,]+(\d{2,4})$", s)
-    if m:
-        month_part = m.group(1).strip().title()
-        year_part = m.group(2).strip()
-        try:
-            yr = int(year_part)
-            if yr < 100: yr += 2000
-            try:
-                dt = datetime.strptime(f"{month_part} 1 {yr}", "%b %d %Y")
-            except ValueError:
-                dt = datetime.strptime(f"{month_part} 1 {yr}", "%B %d %Y")
-            return dt.strftime("%b, %Y")
-        except ValueError:
-            return None
-    return None
-
-def month_sort_key(x):
-    return pd.to_datetime(x, format="%b, %Y", errors="coerce")
-
-def extract_date_from_filename(file_name):
-    s = str(file_name)
-    patterns = [r"\d{4}-\d{2}-\d{2}", r"\d{4}_\d{2}_\d{2}", r"\d{8}", r"\d{1,2}-\d{1,2}-\d{4}"]
-    for pattern in patterns:
-        m = re.search(pattern, s)
-        if not m: continue
-        date_text = m.group(0)
-        if re.fullmatch(r"\d{8}", date_text):
-            date_text = f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}"
-        date_text = date_text.replace("_", "-")
-        dt = pd.to_datetime(date_text, errors="coerce", dayfirst=False)
-        if pd.notna(dt):
-            return dt.normalize()
-    return pd.NaT
-
-def file_modified_date(path):
-    return pd.to_datetime(Path(path).stat().st_mtime, unit="s").normalize()
-
-def trunc2(x):
-    if x is None or pd.isna(x):
-        return None
-    # Truncate toward zero, not round.
-    return int(float(x) * 100) / 100
-
-
-def fmt_raw2(x):
-    x = trunc2(x)
-    if x is None:
-        return ""
-    return f"{x:,.2f}"
-
-
-def fmt_pct2(x):
-    x = trunc2(x)
-    if x is None:
-        return ""
-    return f"{x:,.2f}%"
-
-def fmt_signed_pct2(x):
-    x = trunc2(x)
-    if x is None:
-        return ""
-    return f"{x:+,.2f}%"
-
-
-def safe_delta(current, base):
-    if base is None or pd.isna(base) or base == 0:
-        return None
-    return fmt_pct2((current - base) / base * 100)
-
-
-# ============================================================
-# File catalog
-# ============================================================
-
-@st.cache_data(show_spinner=False)
-def build_file_catalog_from_folder(folder_path_text):
-    folder_path = Path(folder_path_text)
-    if not folder_path.exists():
-        raise FileNotFoundError(f"Folder not found: {folder_path}")
-    files = [p for p in folder_path.iterdir() if p.is_file() and p.suffix.lower() in SUPPORTED_EXTENSIONS]
-    if not files:
-        raise FileNotFoundError(f"No CSV/Excel files found in {folder_path}")
-
-    rows = []
-    for p in files:
-        report_date = extract_date_from_filename(p.name)
-        if pd.isna(report_date):
-            report_date = file_modified_date(p)
-        rows.append({
-            "Source": "Folder", "File Path": str(p), "File Bytes": None, "File Name": p.name,
-            "Suffix": p.suffix.lower(), "Report Date": report_date,
-            "Modified Time": pd.to_datetime(p.stat().st_mtime, unit="s"),
-        })
-
-    df = pd.DataFrame(rows).sort_values(["Report Date", "File Name"]).reset_index(drop=True)
-    df["File Order"] = range(1, len(df) + 1)
-    df["Report Label"] = df.apply(lambda r: f"{int(r['File Order']):02d} | {r['Report Date'].strftime('%Y-%m-%d')}", axis=1)
-    return df
-
-
-def build_file_catalog_from_uploads(uploaded_files):
-    """
-    Build file catalog from manually uploaded files.
-
-    Supports:
-    - Multiple CSV/XLSX/XLS files
-    - One or more ZIP files containing CSV/XLSX/XLS reports
-
-    ZIP uploads are expanded in memory, so parse_record receives only real
-    report files (.csv/.xlsx/.xls), never the .zip itself.
-    """
-    rows = []
-
-    for upload_order, uploaded_file in enumerate(uploaded_files, start=1):
-        uploaded_name = uploaded_file.name
-        suffix = Path(uploaded_name).suffix.lower()
-
-        if suffix == ".zip":
-            try:
-                with zipfile.ZipFile(io.BytesIO(uploaded_file.getvalue())) as z:
-                    for zip_info in z.infolist():
-                        if zip_info.is_dir():
-                            continue
-
-                        inner_path = zip_info.filename
-                        inner_name = Path(inner_path).name
-                        inner_suffix = Path(inner_name).suffix.lower()
-
-                        if inner_suffix not in [".csv", ".xlsx", ".xls"]:
-                            continue
-                        if inner_name.startswith("~$") or inner_name.startswith("."):
-                            continue
-
-                        report_date = extract_date_from_filename(inner_path)
-                        if pd.isna(report_date):
-                            report_date = pd.Timestamp.today().normalize()
-
-                        rows.append({
-                            "Source": "Upload",
-                            "File Path": None,
-                            "File Bytes": z.read(zip_info),
-                            "File Name": inner_name,
-                            "Original Path": inner_path,
-                            "Suffix": inner_suffix,
-                            "Report Date": report_date,
-                            "Modified Time": pd.NaT,
-                            "Original Upload Order": upload_order,
-                            "Upload Container": uploaded_name,
-                        })
-            except zipfile.BadZipFile:
-                raise ValueError(f"Invalid ZIP file: {uploaded_name}")
-
-        elif suffix in [".csv", ".xlsx", ".xls"]:
-            report_date = extract_date_from_filename(uploaded_name)
-            if pd.isna(report_date):
-                report_date = pd.Timestamp.today().normalize()
-
-            rows.append({
-                "Source": "Upload",
-                "File Path": None,
-                "File Bytes": uploaded_file.getvalue(),
-                "File Name": uploaded_name,
-                "Original Path": uploaded_name,
-                "Suffix": suffix,
-                "Report Date": report_date,
-                "Modified Time": pd.NaT,
-                "Original Upload Order": upload_order,
-                "Upload Container": uploaded_name,
-            })
-
-    if not rows:
-        raise ValueError("No valid CSV/XLSX/XLS files found. Upload daily files or a .zip folder containing them.")
-
-    df = pd.DataFrame(rows).sort_values(["Report Date", "File Name"]).reset_index(drop=True)
-    df["File Order"] = range(1, len(df) + 1)
-    df["Report Label"] = df.apply(
-        lambda r: f"{int(r['File Order']):02d} | {r['Report Date'].strftime('%Y-%m-%d')}",
-        axis=1,
-    )
-    return df
-
-def select_role_files(file_catalog, report_file_month):
-    start = pd.to_datetime(report_file_month, format="%b, %Y")
-    end = start + pd.offsets.MonthEnd(0)
-    month_files = file_catalog[(file_catalog["Report Date"] >= start) & (file_catalog["Report Date"] <= end)].copy()
-    
-    if month_files.empty:
-        raise ValueError(f"No report files found for {report_file_month}")
-
-    latest = month_files.sort_values("Report Date").iloc[-1]
-    latest_date = latest["Report Date"]
-    previous_candidates = month_files[month_files["Report Date"] < latest_date].copy()
-
-    today = latest
-    yesterday = previous_candidates.sort_values("Report Date").iloc[-1] if not previous_candidates.empty else None
-
-    target_7d = latest_date - pd.Timedelta(days=7)
-    seven = None
-    if not previous_candidates.empty:
-        temp = previous_candidates.copy()
-        temp["Distance To 7D"] = (temp["Report Date"] - target_7d).abs()
-        seven = temp.sort_values(["Distance To 7D", "Report Date"]).iloc[0]
-
-    first = month_files.sort_values("Report Date").iloc[0]
-    rows = []
-
-    def add(role, row):
-        if row is None:
-            rows.append({"Role": role, "Report Label": None, "Report Date": None, "File Name": None, "Status": "Missing"})
-        else:
-            rows.append({"Role": role, "Report Label": row["Report Label"], "Report Date": row["Report Date"], "File Name": row["File Name"], "Status": "OK"})
-
-    add("Today / Latest", today)
-    add("Yesterday / Previous", yesterday)
-    add("Last 7D", seven)
-    add("1st Month", first)
-
-    return pd.DataFrame(rows), month_files.copy()
-
-
-# ============================================================
-# Parsing (Keeping Original Solid Logic)
-# ============================================================
-
-def parse_csv_bytes(file_bytes):
-    content = file_bytes.decode("utf-8", errors="ignore")
-    lines = content.splitlines()
-    title = clean_text(lines[0].split(",")[-1]) if lines else ""
-    generated = clean_text(lines[1].split(",")[-1]) if len(lines) > 1 else ""
-    csv_body = "\n".join(lines[2:]) if len(lines) > 2 else ""
-    df = pd.read_csv(io.StringIO(csv_body))
-    return df, title, generated
-
-def parse_csv_path(path):
-    return parse_csv_bytes(Path(path).read_bytes())
-
-def parse_excel_bytes(file_bytes, suffix=".xlsx"):
-    engine = "openpyxl" if suffix == ".xlsx" else None
-    raw = pd.read_excel(io.BytesIO(file_bytes), header=None, engine=engine)
-    header_idx = None
-    for idx in range(min(25, len(raw))):
-        row_join = " ".join(raw.iloc[idx].astype(str).str.lower().tolist())
-        if ("hotel" in row_join) and ("stay" in row_join or "month" in row_join):
-            header_idx = idx
-            break
-    if header_idx is None:
-        return pd.read_excel(io.BytesIO(file_bytes), engine=engine), "", ""
-    title = clean_text(raw.iloc[0].dropna().astype(str).tolist()[-1]) if len(raw) > 0 and not raw.iloc[0].dropna().empty else ""
-    generated = clean_text(raw.iloc[1].dropna().astype(str).tolist()[-1]) if len(raw) > 1 and not raw.iloc[1].dropna().empty else ""
-    headers = raw.iloc[header_idx].tolist()
-    df = raw.iloc[header_idx + 1:].copy()
-    df.columns = headers
-    df = df.dropna(how="all")
-    return df, title, generated
-
-def parse_excel_path(path):
-    suffix = Path(path).suffix.lower()
-    return parse_excel_bytes(Path(path).read_bytes(), suffix=suffix)
-
-def standardize_df(df, report_label, report_date, report_order, file_name, title="", generated=""):
-    df = df.copy()
-    df.columns = [str(c).strip() for c in df.columns]
-    df = df.rename(columns={df.columns[0]: "Hotel", df.columns[1]: "Stay Month"})
-    df["Stay Month"] = df["Stay Month"].apply(lambda x: normalize_stay_month(x) or x)
-    df.insert(0, "Report Order", report_order)
-    df.insert(1, "Report Label", report_label)
-    df.insert(2, "Report Date", report_date)
-    df.insert(3, "Report File", file_name)
-    df.insert(4, "Report Title", title)
-    df.insert(5, "Generated", generated)
-    return df
-
-
-def parse_record(row):
-    suffix = str(row["Suffix"]).lower()
-
-    if suffix == ".zip":
-        raise ValueError(
-            f"ZIP file reached parser unexpectedly: {row.get('File Name', '')}. "
-            "The ZIP must be expanded in build_file_catalog_from_uploads first."
-        )
-
-    if suffix not in [".csv", ".xlsx", ".xls"]:
-        raise ValueError(f"Unsupported file type: {suffix} | file={row.get('File Name', '')}")
-
-    if row["Source"] == "Folder":
-        path = Path(row["File Path"])
-        if suffix == ".csv":
-            df, title, generated = parse_csv_path(path)
-        else:
-            df, title, generated = parse_excel_path(path)
-    else:
-        file_bytes = row["File Bytes"]
-        if file_bytes is None or (isinstance(file_bytes, float) and pd.isna(file_bytes)):
-            raise ValueError(f"Missing file bytes for uploaded file: {row.get('File Name', '')}")
-        if suffix == ".csv":
-            df, title, generated = parse_csv_bytes(file_bytes)
-        else:
-            df, title, generated = parse_excel_bytes(file_bytes, suffix=suffix)
-
-    return standardize_df(
-        df,
-        row["Report Label"],
-        row["Report Date"],
-        int(row["Report Order"]),
-        row["File Name"],
-        title,
-        generated,
-    )
 
 # ============================================================
 # Data Aggregation & Logic (Enhanced with Emojis)
 # ============================================================
 
-def build_ref_col_map(df):
-    mapping = {}
-    for ref, ref_keys in REFERENCE_PATTERNS.items():
-        mapping[ref] = {}
-        for metric, metric_keys in METRIC_PATTERNS.items():
-            for c in df.columns:
-                c_lower = str(c).lower()
-                if any(str(r).lower() in c_lower for r in ref_keys) and any(str(m).lower() in c_lower for m in metric_keys):
-                    mapping[ref][metric] = c
-                    break
-    return mapping
 
-def build_metric_long(combined_df, ref_col_map):
-    rows = []
-    for _, r in combined_df.iterrows():
-        hotel = r["Hotel"]
-        if pd.isna(hotel) or str(hotel).strip() in ["", "Total"]: continue
-        for ref, metric_cols in ref_col_map.items():
-            for metric_full, col in metric_cols.items():
-                val = pd.to_numeric(r.get(col), errors="coerce")
-                if pd.isna(val): continue
-                metric = METRIC_TO_DISPLAY[metric_full]
-                if metric == "Occ": val *= 100
-                rows.append({"Report Label": r["Report Label"], "Report Date": r["Report Date"], "Report File": r["Report File"], "Hotel": hotel, "Stay Month": r["Stay Month"], "Reference": ref, "Metric": metric, "Value": val})
-    return pd.DataFrame(rows).sort_values(["Report Date", "Hotel", "Stay Month", "Reference", "Metric"]).reset_index(drop=True) if rows else pd.DataFrame()
 
 def risk_level(diff_pct):
     if pd.isna(diff_pct): return "Unknown"
@@ -996,7 +105,7 @@ def build_movement_summary(metric_data, role_selection):
 
 def build_pace_summary(metric_data, role_selection):
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date — supports look-back at past stay months.
+    # available Report Date â€” supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
     if "Report Date" in metric_data.columns:
@@ -1029,7 +138,7 @@ def build_pace_summary(metric_data, role_selection):
 
 def build_final_comparison(metric_data, role_selection):
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date — supports look-back at past stay months.
+    # available Report Date â€” supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
     if "Report Date" in metric_data.columns:
@@ -1056,20 +165,8 @@ def build_final_comparison(metric_data, role_selection):
 
 
 # ============================================================
-# Daily Briefing Excel — one-click morning meeting deck
+# Daily Briefing Excel â€” one-click morning meeting deck
 # ============================================================
-def to_excel_bytes(sheets_dict):
-    """Pack a {sheet_name: DataFrame} dict into XLSX bytes."""
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        for name, df in sheets_dict.items():
-            safe_name = str(name)[:31]   # Excel sheet name max 31 chars
-            if df is None or (isinstance(df, pd.DataFrame) and df.empty):
-                pd.DataFrame({"(empty)": []}).to_excel(writer, sheet_name=safe_name, index=False)
-            else:
-                df.to_excel(writer, sheet_name=safe_name, index=False)
-    output.seek(0)
-    return output.getvalue()
 
 
 def build_portfolio_snapshot(metric_data, role_selection):
@@ -1180,14 +277,14 @@ def build_daily_briefing_sheets(metric_data, role_selection, report_file_month):
     Assemble the full multi-sheet daily briefing for the morning meeting.
 
     Sheet order is curated for the meeting flow:
-      1. Portfolio Snapshot     — the headline numbers
-      2. Hotel Scorecard        — per-hotel summary
-      3. Variance Pivot         — detailed pivot with all variance %
-      4. Same-Time Pace         — OTB vs STLY / ST2Y / ST3Y
-      5. Historical Final       — Forecast vs Final LY / 2Y / 3Y
-      6. Forecast Movement      — vs 1D / 7D / First-day
-      7. Hotel Momentum         — daily forecast pickup per hotel
-      8. Role Selection         — file roles validation
+      1. Portfolio Snapshot     â€” the headline numbers
+      2. Hotel Scorecard        â€” per-hotel summary
+      3. Variance Pivot         â€” detailed pivot with all variance %
+      4. Same-Time Pace         â€” OTB vs STLY / ST2Y / ST3Y
+      5. Historical Final       â€” Forecast vs Final LY / 2Y / 3Y
+      6. Forecast Movement      â€” vs 1D / 7D / First-day
+      7. Hotel Momentum         â€” daily forecast pickup per hotel
+      8. Role Selection         â€” file roles validation
     """
     sheets = {}
 
@@ -1258,19 +355,8 @@ def render_hotel_table(df, view_mode, key_prefix, column_config=None):
 
 
 
-HOTEL_SHORT_NAMES = {
-    "The Grass Serviced Suites": "TG",
-    "Hotel Amber Pattaya": "Amber PTY",
-    "Hotel Amber Sukhumvit 85": "Amber 85",
-    "Altera Hotel & Residence Pattaya": "Altera",
-    "Arbour Hotel and Residence": "Arbour",
-    "Arden Hotel & Residence Pattaya": "Arden",
-    "Aster Hotel & Residence Pattaya": "Aster",
-}
 
 
-def short_hotel_name(hotel_name):
-    return HOTEL_SHORT_NAMES.get(str(hotel_name), str(hotel_name))
 
 
 def build_latest_pivot_table(metric_data, role_selection):
@@ -1281,7 +367,7 @@ def build_latest_pivot_table(metric_data, role_selection):
     Per-(Hotel, Stay Month, Metric, Reference) we keep the LATEST available
     Report Date row. This ensures that a past stay month (e.g. May while
     we're on June's report) still shows data taken from its OWN latest
-    report file — fixing the "No data in latest report" issue when looking
+    report file â€” fixing the "No data in latest report" issue when looking
     back at past months.
     Keeps metric order: Occ, Room, ADR, Rev.
     """
@@ -1327,13 +413,13 @@ def build_variance_pivot_table(metric_data, role_selection):
     Extended pivot: raw values PLUS colour-coded variance % columns.
 
     Added columns (only when both sides are available):
-        Today VS BUD       — Today (OTB) vs Budget %
-        Duetto VS BUD      — Duetto vs Budget %                 ← headline variance
-        Today VS Duetto    — Today vs Duetto (pace toward forecast)
-        Today VS STLY      — Today vs best same-time (STLY / ST2Y / ST3Y) %
-        Duetto VS Final LY — Duetto vs Final LY %
-        Duetto VS Final 2Y — Duetto vs Final 2Y %
-        Duetto VS Final 3Y — Duetto vs Final 3Y %
+        Today VS BUD       â€” Today (OTB) vs Budget %
+        Duetto VS BUD      â€” Duetto vs Budget %                 â† headline variance
+        Today VS Duetto    â€” Today vs Duetto (pace toward forecast)
+        Today VS STLY      â€” Today vs best same-time (STLY / ST2Y / ST3Y) %
+        Duetto VS Final LY â€” Duetto vs Final LY %
+        Duetto VS Final 2Y â€” Duetto vs Final 2Y %
+        Duetto VS Final 3Y â€” Duetto vs Final 3Y %
 
     Column order:
       Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
@@ -1362,11 +448,11 @@ def build_variance_pivot_table(metric_data, role_selection):
     if "Today" in pivot.columns and "Duetto" in pivot.columns:
         pivot["Today VS Duetto"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
 
-    # ── Same-Time variances — each year compared INDEPENDENTLY ──
+    # â”€â”€ Same-Time variances â€” each year compared INDEPENDENTLY â”€â”€
     # FIX (Bug: Arbour STLY sign flip):
     #   Old code computed "Today VS STLY" against MAX(STLY, ST2Y, ST3Y), which
     #   could flip signs when ST2Y/ST3Y were higher than STLY. Now we compute
-    #   each variance against its OWN reference year — STLY vs STLY only,
+    #   each variance against its OWN reference year â€” STLY vs STLY only,
     #   ST2Y vs ST2Y only, ST3Y vs ST3Y only. No more "best-of-3" surprise.
     if "Today" in pivot.columns:
         for ref_col, var_col in [
@@ -1398,7 +484,7 @@ def build_variance_pivot_table(metric_data, role_selection):
     for col in ["Today", "Budget", "Today VS BUD", "Duetto", "Duetto VS BUD", "Today VS Duetto"]:
         if col in pivot.columns:
             ordered.append(col)
-    # Same-time benchmarks — each with its OWN variance (no more best-of-3)
+    # Same-time benchmarks â€” each with its OWN variance (no more best-of-3)
     for ref_col, var_col in [
         ("STLY", "Today VS STLY"),
         ("ST2Y", "Today VS ST2Y"),
@@ -1426,10 +512,10 @@ def build_variance_pivot_table(metric_data, role_selection):
 def style_latest_pivot_table(df):
     """
     Pro-readable compact table styling:
-    • Duetto column = always tinted blue (focal — current forecast)
-    • Budget column = always tinted amber (target)
-    • Rev row      = headline background (stronger orange)
-    • Duetto vs Budget on Rev row = green if above target, red if below
+    â€¢ Duetto column = always tinted blue (focal â€” current forecast)
+    â€¢ Budget column = always tinted amber (target)
+    â€¢ Rev row      = headline background (stronger orange)
+    â€¢ Duetto vs Budget on Rev row = green if above target, red if below
     """
     if df is None or df.empty:
         return df
@@ -1441,13 +527,13 @@ def style_latest_pivot_table(df):
         styles = pd.Series("", index=row.index)
         metric = str(row.get("Metric", ""))
 
-        # ── Base banding by metric row ────────────────────────
+        # â”€â”€ Base banding by metric row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if metric == "Occ":
             styles[:] = "background-color: #f9fafb"
         elif metric == "Rev":
             styles[:] = "background-color: #fff7ed; font-weight: 500"
 
-        # ── Always emphasise the focal columns ────────────────
+        # â”€â”€ Always emphasise the focal columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if "Duetto" in row.index:
             base = "background-color: #eff6ff; font-weight: 600; color: #1e40af"
             if metric == "Rev":
@@ -1460,7 +546,7 @@ def style_latest_pivot_table(df):
                 base = "background-color: #fef3c7; font-weight: 600; color: #713f12"
             styles["Budget"] = base
 
-        # ── Headline call-out: Duetto vs Budget on Rev row ────
+        # â”€â”€ Headline call-out: Duetto vs Budget on Rev row â”€â”€â”€â”€
         if metric == "Rev" and "Duetto" in row.index and "Budget" in row.index:
             d = row.get("Duetto")
             b = row.get("Budget")
@@ -1478,11 +564,11 @@ def style_latest_pivot_table(df):
 def style_variance_pivot(df):
     """
     Style the variance pivot table.
-    • Today  → blue tint (focal — on-the-book)
-    • Duetto → green tint (forecast)
-    • Budget → amber tint (target)
-    • VS variance columns → green if positive, red if negative, yellow if zero
-    • Rev row → slightly warmer background for row emphasis
+    â€¢ Today  â†’ blue tint (focal â€” on-the-book)
+    â€¢ Duetto â†’ green tint (forecast)
+    â€¢ Budget â†’ amber tint (target)
+    â€¢ VS variance columns â†’ green if positive, red if negative, yellow if zero
+    â€¢ Rev row â†’ slightly warmer background for row emphasis
     """
     if df is None or df.empty:
         return df
@@ -1496,7 +582,7 @@ def style_variance_pivot(df):
             v = float(x)
             return f"{v:+.1f}%"
         except (TypeError, ValueError):
-            return "—"
+            return "â€”"
 
     fmt = {c: fmt_raw2 for c in raw_cols}
     for c in var_cols:
@@ -1544,7 +630,7 @@ def style_variance_pivot(df):
 
         return styles
 
-    return df.style.format(fmt, na_rep="—").apply(row_style, axis=1)
+    return df.style.format(fmt, na_rep="â€”").apply(row_style, axis=1)
 
 
 def style_final_variance_table(df):
@@ -1609,7 +695,7 @@ def _render_comparison_summary_cards(df, value_col, value_label):
                     {fmt_raw2(variance)}
                 </div>
                 <div style="font-size:0.86rem;font-weight:800;color:{text};margin-top:2px;">
-                    {fmt_signed_pct2(variance_pct)} · {status}
+                    {fmt_signed_pct2(variance_pct)} Â· {status}
                 </div>
             </div>
             """,
@@ -1625,7 +711,7 @@ def _render_comparison_summary_cards(df, value_col, value_label):
 
 def _render_forecast_vs_budget(pivot_df):
     """
-    Forecast VS Budget snapshot — KPI cards only.
+    Forecast VS Budget snapshot â€” KPI cards only.
     Metric selector: Revenue Summary (default) or any individual metric.
     """
     st.markdown('<div class="section-title">Duetto VS Budget</div>', unsafe_allow_html=True)
@@ -1667,10 +753,10 @@ def _render_forecast_vs_budget(pivot_df):
 
 def _render_otb_comparison_chart(pivot_df):
     """
-    Compare On The Book — KPI cards only.
+    Compare On The Book â€” KPI cards only.
     Metric selector: Revenue Summary (default) or individual metric.
     """
-    st.markdown('<div class="section-title">Compare — Today VS Budget</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Compare â€” Today VS Budget</div>', unsafe_allow_html=True)
 
     if pivot_df is None or pivot_df.empty or "Today" not in pivot_df.columns:
         st.info("No On-The-Book data available.")
@@ -1712,7 +798,7 @@ def _render_otb_comparison_chart(pivot_df):
 
 def render_compact_hotel_tabs(pivot_df):
     """
-    Duetto pivot table — variance-enhanced view.
+    Duetto pivot table â€” variance-enhanced view.
     Columns: Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
              STLY | Today VS STLY | Final LY | Duetto VS Final LY | ... + more.
     """
@@ -1720,7 +806,7 @@ def render_compact_hotel_tabs(pivot_df):
         st.info("No pivot data for selected filters.")
         return
 
-    st.markdown('<div class="section-title">Duetto Pivot — by Stay Month</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Duetto Pivot â€” by Stay Month</div>', unsafe_allow_html=True)
 
     c_view, c_legend = st.columns([1.6, 3])
     with c_view:
@@ -1738,18 +824,18 @@ def render_compact_hotel_tabs(pivot_df):
         if has_var:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">Today</b> = on-the-book &nbsp;·&nbsp; '
-                '<b style="color:#15803d;">Duetto</b> = forecast &nbsp;·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = target &nbsp;·&nbsp; '
-                '<b style="color:#166534;">VS %</b> = variance (green +, red −)'
+                '<b style="color:#1e40af;">Today</b> = on-the-book &nbsp;Â·&nbsp; '
+                '<b style="color:#15803d;">Duetto</b> = forecast &nbsp;Â·&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;Â·&nbsp; '
+                '<b style="color:#166534;">VS %</b> = variance (green +, red âˆ’)'
                 '</div>'
             )
         else:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">Duetto</b> = forecast &nbsp;·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = target &nbsp;·&nbsp; '
-                'STLY/ST2Y/ST3Y = same-time &nbsp;·&nbsp; Final LY/2Y/3Y = actuals'
+                '<b style="color:#1e40af;">Duetto</b> = forecast &nbsp;Â·&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;Â·&nbsp; '
+                'STLY/ST2Y/ST3Y = same-time &nbsp;Â·&nbsp; Final LY/2Y/3Y = actuals'
                 '</div>'
             )
         st.markdown(legend_html, unsafe_allow_html=True)
@@ -1757,7 +843,7 @@ def render_compact_hotel_tabs(pivot_df):
     _style_fn = style_variance_pivot if any(" VS " in str(c) for c in pivot_df.columns) else style_latest_pivot_table
 
     # Pin "Stay Month" + "Metric" (the context columns) to the left when the
-    # table scrolls horizontally — so the user keeps seeing which row is what.
+    # table scrolls horizontally â€” so the user keeps seeing which row is what.
     def _pinned_config(df_cols):
         cfg = {}
         for col in ("Stay Month", "Metric"):
@@ -2151,18 +1237,10 @@ def compact_number_display_df(df, cols):
     return out
 
 
-def metric_label_order():
-    return ["Occ", "Room", "ADR", "Rev"]
 
 
-def get_metric_options_with_all():
-    return ["All Metrics"] + metric_label_order()
 
 
-def compact_metric_table_height(df, row_height=36, max_height=520):
-    if df is None or df.empty:
-        return 160
-    return min(max_height, 48 + row_height * len(df))
 
 
 def render_metric_sections(
@@ -2339,57 +1417,12 @@ def render_color_matrix_no_clip(matrix):
     )
 
 
-def normalize_stay_month_selection(selected_months):
-    """
-    Convert multiselect result to either:
-    - "All" when all months should be included
-    - list[str] when user selected specific stay months
-    """
-    if selected_months is None:
-        return "All"
-
-    if isinstance(selected_months, str):
-        return "All" if selected_months == "All" else [selected_months]
-
-    selected_months = list(selected_months)
-
-    if not selected_months or "All" in selected_months:
-        return "All"
-
-    return selected_months
 
 
-def stay_month_label(stay_month_selection):
-    if stay_month_selection == "All":
-        return "All"
-    if isinstance(stay_month_selection, (list, tuple, set)):
-        values = list(stay_month_selection)
-        if len(values) <= 3:
-            return ", ".join(values)
-        return f"{len(values)} months selected"
-    return str(stay_month_selection)
 
 
-def apply_stay_month_filter(df, stay_month_selection):
-    """
-    Supports single month, multiple months, or All.
-    """
-    if df is None or df.empty:
-        return df
-
-    if stay_month_selection == "All":
-        return df
-
-    if isinstance(stay_month_selection, (list, tuple, set)):
-        return df[df["Stay Month"].isin(list(stay_month_selection))].copy()
-
-    return df[df["Stay Month"] == stay_month_selection].copy()
 
 
-def format_compact_value(x, is_pct=False):
-    if x is None or pd.isna(x):
-        return ""
-    return fmt_pct2(x) if is_pct else fmt_raw2(x)
 
 
 def make_recommended_pace_compact(df):
@@ -2586,7 +1619,7 @@ def render_pace_cards(df):
                         box-shadow: 0 1px 4px rgba(15,23,42,0.08);
                     ">
                         <div style="font-weight:700; font-size:1.02rem; margin-bottom:6px;">
-                            {row['Stay Month']} · {row['Metric']} · {row['Status']}
+                            {row['Stay Month']} Â· {row['Metric']} Â· {row['Status']}
                         </div>
                         <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px;">
                             <div><span style="color:#64748b;">Today</span><br><b>{row['Today']}</b></div>
@@ -2673,11 +1706,6 @@ def render_budget_vs_d4cast(metric_data, role_selection):
     return budget_df
 
 
-def add_week_columns(df):
-    if df is None or df.empty: return df
-    out=df.copy(); dt=pd.to_datetime(out["Report Date"])
-    out["Report Week"] = dt.dt.to_period("W-MON").astype(str)
-    return out
 
 
 def build_weekly_movement(metric_data):
@@ -2753,12 +1781,6 @@ def render_metric_dictionary():
         """)
 
 
-def friendly_week_label(start_date, end_date):
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date)
-    if pd.isna(start) or pd.isna(end):
-        return ""
-    return f"{start.strftime('%d %b')} - {end.strftime('%d %b')}"
 
 
 def build_weekly_movement_v2(metric_data):
@@ -2819,7 +1841,7 @@ def build_weekly_movement_v2(metric_data):
 
 def render_weekly_movement_v2(metric_data):
     st.markdown('<div class="section-title">Weekly Revenue Movement</div>', unsafe_allow_html=True)
-    st.caption("Purpose: see which hotel moved up/down by week. Weekly Movement = End-of-week forecast − Start-of-week forecast.")
+    st.caption("Purpose: see which hotel moved up/down by week. Weekly Movement = End-of-week forecast âˆ’ Start-of-week forecast.")
 
     weekly = build_weekly_movement_v2(metric_data)
     if weekly.empty:
@@ -2939,7 +1961,7 @@ def build_budget_review(metric_data, role_selection):
         return pd.DataFrame()
 
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date — supports look-back at past stay months.
+    # available Report Date â€” supports look-back at past stay months.
     if "Report Date" in metric_data.columns:
         latest = (
             metric_data.sort_values("Report Date")
@@ -3230,7 +2252,7 @@ def render_forecast_trend_by_month_v3(metric_data):
         ["Value", "Daily % Change"],
         index=0,
         key="trend_v3_view_mode",
-        help="Daily % Change = (today − yesterday) / yesterday × 100 per stay month",
+        help="Daily % Change = (today âˆ’ yesterday) / yesterday Ã— 100 per stay month",
     )
 
     view = d4.copy()
@@ -3250,7 +2272,7 @@ def render_forecast_trend_by_month_v3(metric_data):
         .sort_values(["Stay Month", "Report Date"])
     )
 
-    # ── Daily % Change mode ───────────────────────────────────
+    # â”€â”€ Daily % Change mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     is_pct_mode = (view_mode == "Daily % Change")
     if is_pct_mode:
         trend["Pct Change"] = (
@@ -3260,13 +2282,13 @@ def render_forecast_trend_by_month_v3(metric_data):
         trend = trend.dropna(subset=["Pct Change"]).copy()
         plot_col   = "Pct Change"
         y_title    = "Daily % Change"
-        chart_title = f"Daily % Change — Forecast by Stay Month ({metric_choice})"
+        chart_title = f"Daily % Change â€” Forecast by Stay Month ({metric_choice})"
     else:
         plot_col   = "Value"
         y_title    = "Forecast"
         chart_title = f"Forecast Trend by Stay Month ({metric_choice})"
 
-    # ── Point labels ─────────────────────────────────────────
+    # â”€â”€ Point labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _fmt_label(val):
         if pd.isna(val):
             return ""
@@ -3350,17 +2372,17 @@ def render_forecast_trend_by_month_v3(metric_data):
 
 
 # ============================================================
-# Trend Comparison — two metrics side-by-side with baselines
+# Trend Comparison â€” two metrics side-by-side with baselines
 # ============================================================
 def render_trend_comparison(metric_data, role_selection):
     """
-    Trend Comparison — single combo chart with dual Y-axis.
-        • Metric A → bars on LEFT axis (e.g. Revenue)
-        • Metric B → line on RIGHT axis (e.g. ADR)
-        • Baseline drawn as dashed reference for each metric.
+    Trend Comparison â€” single combo chart with dual Y-axis.
+        â€¢ Metric A â†’ bars on LEFT axis (e.g. Revenue)
+        â€¢ Metric B â†’ line on RIGHT axis (e.g. ADR)
+        â€¢ Baseline drawn as dashed reference for each metric.
     """
     st.markdown(
-        '<div class="section-title">Trend Comparison — Two Metrics vs Baseline</div>',
+        '<div class="section-title">Trend Comparison â€” Two Metrics vs Baseline</div>',
         unsafe_allow_html=True,
     )
     st.caption(
@@ -3409,9 +2431,9 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No baseline references available.")
         return
 
-    # ── Controls ─────────────────────────────────────────────
-    # Comparison mode pill — what to compare against Budget:
-    #   "Forecast VS Budget" (default when available — Duetto vs locked Budget)
+    # â”€â”€ Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Comparison mode pill â€” what to compare against Budget:
+    #   "Forecast VS Budget" (default when available â€” Duetto vs locked Budget)
     #   "OTB VS Budget"      (Today/on-the-book vs locked Budget)
     cmp_modes = []
     latest_refs = latest["Reference"].unique()
@@ -3441,7 +2463,7 @@ def render_trend_comparison(metric_data, role_selection):
         )
         if not cmp_choice:
             cmp_choice = cmp_modes[0]
-    # Map mode → reference names in data
+    # Map mode â†’ reference names in data
     actual_ref = "Duetto" if cmp_choice == "Forecast VS Budget" else "Today"
     actual_label = "Forecast" if actual_ref == "Duetto" else "OTB"
     baseline = "Budget"
@@ -3464,7 +2486,7 @@ def render_trend_comparison(metric_data, role_selection):
             key="trend_cmp_metric_b",
         )
 
-    # ── Data builder ─────────────────────────────────────────
+    # â”€â”€ Data builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Actual = Forecast (Duetto) or OTB (Today); baseline = Budget
     def get_trend(metric):
         sub = latest[latest["Metric"] == metric]
@@ -3484,12 +2506,12 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No stay months in data.")
         return
 
-    # ─────────────────────────────────────────────────────────
+    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # DUETTO-STYLE CUMULATIVE CURVE
-    #   • Filled area (green) for Metric A — left Y axis
-    #   • Smooth line (amber) for Metric B — right Y axis
-    #   • Dashed line baselines on each axis
-    # ─────────────────────────────────────────────────────────
+    #   â€¢ Filled area (green) for Metric A â€” left Y axis
+    #   â€¢ Smooth line (amber) for Metric B â€” right Y axis
+    #   â€¢ Dashed line baselines on each axis
+    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     _metric_full = {"Rev": "Revenue", "ADR": "ADR", "Occ": "Occupancy", "Room": "Rooms"}
     full_a = f"{actual_label} {_metric_full.get(metric_a, metric_a)}"
     full_b = f"{actual_label} {_metric_full.get(metric_b, metric_b)}"
@@ -3528,7 +2550,7 @@ def render_trend_comparison(metric_data, role_selection):
             return f"{v/1_000:,.1f}K"
         return f"{v:,.1f}"
 
-    # ── Aggregate totals for KPI cards ────────────────────────
+    # â”€â”€ Aggregate totals for KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _total(vals):
         return sum(v for v in vals if v is not None and pd.notna(v))
 
@@ -3545,12 +2567,12 @@ def render_trend_comparison(metric_data, role_selection):
     var_a_pct = (total_a - total_a_b) / abs(total_a_b) * 100 if total_a_b else None
     var_b_pct = (total_b - total_b_b) / abs(total_b_b) * 100 if total_b_b else None
 
-    # ── KPI cards ─────────────────────────────────────────────
+    # â”€â”€ KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _kpi_card(full_label, kind, value, base_value, var_pct, accent):
         if var_pct is None:
             var_chip = '<span style="color:#9ca3af;font-size:11px;">no baseline</span>'
         else:
-            arrow = "▲" if var_pct >= 0 else "▼"
+            arrow = "â–²" if var_pct >= 0 else "â–¼"
             var_color = "#15803d" if var_pct >= 0 else "#b91c1c"
             var_bg = "#dcfce7" if var_pct >= 0 else "#fee2e2"
             var_chip = (
@@ -3564,7 +2586,7 @@ def render_trend_comparison(metric_data, role_selection):
             f'border-radius:10px;padding:16px 20px;'
             f'box-shadow:0 1px 2px rgba(15,23,42,0.04);">'
             f'<div style="font-size:11px;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:#6b7280;">{full_label} · {kind}</div>'
+            f'letter-spacing:0.08em;color:#6b7280;">{full_label} Â· {kind}</div>'
             f'<div style="display:flex;align-items:baseline;gap:14px;margin-top:8px;">'
             f'<span style="font-size:28px;font-weight:800;color:{INK};'
             f'letter-spacing:-0.02em;font-variant-numeric:tabular-nums;">'
@@ -3583,12 +2605,12 @@ def render_trend_comparison(metric_data, role_selection):
     k2.markdown(_kpi_card(full_b, kind_b, total_b, total_b_b, var_b_pct, AMBER_LINE), unsafe_allow_html=True)
     st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
 
-    # ── Duetto-style combo chart ─────────────────────────────
+    # â”€â”€ Duetto-style combo chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     from plotly.subplots import make_subplots
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
     # If only 1 stay month is in scope, the spline curve and area-fill can't
-    # render visibly with a single point — we make the markers larger so the
+    # render visibly with a single point â€” we make the markers larger so the
     # single point is clearly visible. Style stays identical for 2+ months.
     n_pts = len(months_union)
     _marker_a = 14 if n_pts == 1 else 7
@@ -3596,7 +2618,7 @@ def render_trend_comparison(metric_data, role_selection):
     _marker_base = 14 if n_pts == 1 else 6
     _base_mode = "markers" if n_pts == 1 else "lines"
 
-    # Metric A — filled area (left Y)
+    # Metric A â€” filled area (left Y)
     fig.add_trace(
         go.Scatter(
             x=months_union,
@@ -3612,7 +2634,7 @@ def render_trend_comparison(metric_data, role_selection):
         secondary_y=False,
     )
 
-    # Metric A baseline — dashed line (left Y)
+    # Metric A baseline â€” dashed line (left Y)
     if any(v is not None for v in base_a_v):
         fig.add_trace(
             go.Scatter(
@@ -3632,7 +2654,7 @@ def render_trend_comparison(metric_data, role_selection):
             secondary_y=False,
         )
 
-    # Metric B — smooth line (right Y)
+    # Metric B â€” smooth line (right Y)
     fig.add_trace(
         go.Scatter(
             x=months_union,
@@ -3646,7 +2668,7 @@ def render_trend_comparison(metric_data, role_selection):
         secondary_y=True,
     )
 
-    # Metric B baseline — dotted line (right Y)
+    # Metric B baseline â€” dotted line (right Y)
     if any(v is not None for v in base_b_v):
         fig.add_trace(
             go.Scatter(
@@ -3667,12 +2689,12 @@ def render_trend_comparison(metric_data, role_selection):
             secondary_y=True,
         )
 
-    # Subtle hint when only 1 month — chart can't draw a "trend" with 1 point
+    # Subtle hint when only 1 month â€” chart can't draw a "trend" with 1 point
     if n_pts == 1:
         st.caption(
-            "ℹ️ เลือกเพียง 1 stay month — กราฟ Trend จะวาด curve ไม่ได้ "
-            "(ต้องการอย่างน้อย 2 เดือน). ค่าโชว์เป็น marker จุดเดียว · "
-            "KPI cards ด้านบนยังถูกต้อง"
+            "â„¹ï¸ à¹€à¸¥à¸·à¸­à¸à¹€à¸žà¸µà¸¢à¸‡ 1 stay month â€” à¸à¸£à¸²à¸Ÿ Trend à¸ˆà¸°à¸§à¸²à¸” curve à¹„à¸¡à¹ˆà¹„à¸”à¹‰ "
+            "(à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸­à¸¢à¹ˆà¸²à¸‡à¸™à¹‰à¸­à¸¢ 2 à¹€à¸”à¸·à¸­à¸™). à¸„à¹ˆà¸²à¹‚à¸Šà¸§à¹Œà¹€à¸›à¹‡à¸™ marker à¸ˆà¸¸à¸”à¹€à¸”à¸µà¸¢à¸§ Â· "
+            "KPI cards à¸”à¹‰à¸²à¸™à¸šà¸™à¸¢à¸±à¸‡à¸–à¸¹à¸à¸•à¹‰à¸­à¸‡"
         )
 
     fig.update_layout(
@@ -3727,29 +2749,29 @@ def render_trend_comparison(metric_data, role_selection):
         },
     )
 
-    # ── Auto-diagnosis ────────────────────────────────────────
+    # â”€â”€ Auto-diagnosis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if metric_a == "Rev" and metric_b == "ADR" and var_a_pct is not None and var_b_pct is not None:
         if var_a_pct > 0 and var_b_pct > 0:
             narrative = (
-                f"Revenue **+{var_a_pct:.1f}%** and ADR **+{var_b_pct:.1f}%** vs {baseline} — "
+                f"Revenue **+{var_a_pct:.1f}%** and ADR **+{var_b_pct:.1f}%** vs {baseline} â€” "
                 f"growth is **rate-driven** (selling at higher prices)."
             )
             tone = "good"
         elif var_a_pct > 0 and var_b_pct <= 0:
             narrative = (
-                f"Revenue **+{var_a_pct:.1f}%** despite ADR at **{var_b_pct:+.1f}%** vs {baseline} — "
+                f"Revenue **+{var_a_pct:.1f}%** despite ADR at **{var_b_pct:+.1f}%** vs {baseline} â€” "
                 f"growth is **volume-driven** (more rooms sold at lower rates)."
             )
             tone = "info"
         elif var_a_pct <= 0 and var_b_pct > 0:
             narrative = (
-                f"Revenue **{var_a_pct:+.1f}%** while ADR **+{var_b_pct:.1f}%** vs {baseline} — "
+                f"Revenue **{var_a_pct:+.1f}%** while ADR **+{var_b_pct:.1f}%** vs {baseline} â€” "
                 f"rate is up but **volume is dragging** revenue down."
             )
             tone = "warn"
         else:
             narrative = (
-                f"Revenue **{var_a_pct:+.1f}%** and ADR **{var_b_pct:+.1f}%** vs {baseline} — "
+                f"Revenue **{var_a_pct:+.1f}%** and ADR **{var_b_pct:+.1f}%** vs {baseline} â€” "
                 f"**both rate and volume** under pressure."
             )
             tone = "bad"
@@ -3770,13 +2792,13 @@ def render_trend_comparison(metric_data, role_selection):
 
 # ============================================================
 # Revenue Momentum % Change chart
-# Formula: (revenue_t - revenue_{t-1}) / revenue_{t-1} × 100 per day
+# Formula: (revenue_t - revenue_{t-1}) / revenue_{t-1} Ã— 100 per day
 # ============================================================
 def render_revenue_momentum_pct_chart(metric_data):
     """
     Daily % Change momentum chart.
     - Bars: selected metric's daily % change
-    - Dashed reference line: ADR daily % change (when selected metric ≠ ADR)
+    - Dashed reference line: ADR daily % change (when selected metric â‰  ADR)
     - Filter by stay months (default = first 3 months, can show all selected)
     """
     st.markdown('<div class="section-title">Daily Duetto Movement (%)</div>', unsafe_allow_html=True)
@@ -3815,7 +2837,7 @@ def render_revenue_momentum_pct_chart(metric_data):
 
     view_months = sel_months
 
-    # ── Build daily % change for one stay month ─────────────────
+    # â”€â”€ Build daily % change for one stay month â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _daily_pct(metric, stay_month):
         sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"] == stay_month)].copy()
         if sub.empty:
@@ -3912,7 +2934,7 @@ def render_revenue_momentum_pct_chart(metric_data):
             key=f"revenue_momentum_pct_chart_{container_key}",
         )
 
-        # ── Summary stats ─────────────────────────────────────
+        # â”€â”€ Summary stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         pos_days = int((grp["Pct Change"] > 0).sum())
         neg_days = int((grp["Pct Change"] < 0).sum())
         avg_pct  = grp["Pct Change"].mean()
@@ -4052,7 +3074,7 @@ def render_forecast_movement_v31(metric_data, role_selection):
             st.markdown(
                 f"""
                 <div style="background:{color}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
-                    <div style="font-weight:800; font-size:1.02rem;">{row['Hotel']} · {row['Metric']} · {row['Stay Month']} · {row['Period']}</div>
+                    <div style="font-weight:800; font-size:1.02rem;">{row['Hotel']} Â· {row['Metric']} Â· {row['Stay Month']} Â· {row['Period']}</div>
                     <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-top:8px;">
                         <div><span style="color:#64748b;">Latest</span><br><b>{fmt_raw2(row['Latest Forecast'])}</b></div>
                         <div><span style="color:#64748b;">Base</span><br><b>{fmt_raw2(row['Base Forecast'])}</b></div>
@@ -4219,7 +3241,18 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
 
     # Worst first = ascending (most negative variance at top)
     summary_view = summary_view.sort_values(sort_choice, ascending=True).reset_index(drop=True)
-    month_view = month_view.sort_values(sort_choice, ascending=True).reset_index(drop=True)
+    if not month_view.empty:
+        month_view["_month_sort"] = month_view["Stay Month"].apply(month_sort_key)
+        month_view = (
+            month_view
+            .sort_values(
+                ["_month_sort", sort_choice, "Hotel", "Metric"],
+                ascending=[True, True, True, True],
+                na_position="last",
+            )
+            .drop(columns=["_month_sort"])
+            .reset_index(drop=True)
+        )
 
     total_forecast = summary_view["Forecast"].sum()
     total_budget = summary_view["Budget"].sum()
@@ -4319,8 +3352,8 @@ def build_leaderboard_by_month(
 ):
     """
     Rank ALL hotels per Stay Month by the chosen metric.
-    rank_by = "Budget Variance %" → rank 1 = most behind budget (needs attention)
-    rank_by = "Today OTB" / "Forecast" → rank 1 = highest value (best performer)
+    rank_by = "Budget Variance %" â†’ rank 1 = most behind budget (needs attention)
+    rank_by = "Today OTB" / "Forecast" â†’ rank 1 = highest value (best performer)
     selected_hotels are highlighted at render time, not filtered here.
     """
     base = metric_long.copy()                         # ALL properties
@@ -4341,8 +3374,8 @@ def build_leaderboard_by_month(
     budget_df["_month_sort"] = budget_df["Stay Month"].apply(month_sort_key)
 
     # Rank within each Stay Month
-    # Budget Variance % ascending=True  → most negative = rank 1 (most behind)
-    # OTB / Forecast    ascending=False → highest = rank 1 (strongest)
+    # Budget Variance % ascending=True  â†’ most negative = rank 1 (most behind)
+    # OTB / Forecast    ascending=False â†’ highest = rank 1 (strongest)
     asc_rank = (rank_by == "Budget Variance %")
     rank_col = rank_by if rank_by in budget_df.columns else "Today OTB"
     budget_df["Rank"] = (
@@ -4371,7 +3404,7 @@ def render_leaderboard_by_month(
     st.caption(
         "All properties ranked per stay month. "
         "Highlighted rows = your selected properties. "
-        "Budget Variance % cells: green = above budget · red = below · yellow = flat. "
+        "Budget Variance % cells: green = above budget Â· red = below Â· yellow = flat. "
         "Rank 1 = highest OTB/Forecast, or most behind budget when ranked by Variance %."
     )
 
@@ -4413,7 +3446,7 @@ def render_leaderboard_by_month(
     # Fast lookup set for highlight check
     selected_set = set(selected_hotels)
 
-    # ── Cell color helpers ───────────────────────────────────
+    # â”€â”€ Cell color helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def _var_color(val):
         if pd.isna(val):  return "#dbeafe"
         if val > 0:       return "#bbf7d0"
@@ -4421,12 +3454,12 @@ def render_leaderboard_by_month(
         return "#fef08a"
 
     def _fmt(val):
-        return fmt_raw2(val) if pd.notna(val) else "—"
+        return fmt_raw2(val) if pd.notna(val) else "â€”"
 
     def _fmt_pct(val):
-        return fmt_signed_pct2(val) if pd.notna(val) else "—"
+        return fmt_signed_pct2(val) if pd.notna(val) else "â€”"
 
-    # ── One Plotly table per Stay Month ──────────────────────
+    # â”€â”€ One Plotly table per Stay Month â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     for stay_month in stay_months:
         grp = lb_data[lb_data["Stay Month"] == stay_month].sort_values("Rank")
         if grp.empty:
@@ -4437,7 +3470,7 @@ def render_leaderboard_by_month(
         # Determine which rows belong to selected hotels
         is_sel = [h in selected_set for h in grp["Hotel"].tolist()]
 
-        # ── Background colors ─────────────────────────────
+        # â”€â”€ Background colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # Selected rows: blue tint across data columns
         # Non-selected: default muted tones
         HL_RANK  = "#dbeafe"   # blue-100
@@ -4459,7 +3492,7 @@ def render_leaderboard_by_month(
         # Variance columns keep semantic color regardless
         colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
 
-        # ── Font colors ────────────────────────────────────
+        # â”€â”€ Font colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         fc_rank = [
             "#1d4ed8" if s else _RANK_FC.get(r, "#475569")
             for r, s in zip(grp["Rank"], is_sel)
@@ -4468,13 +3501,13 @@ def render_leaderboard_by_month(
         fc_data = ["#1d4ed8" if s else "#334155" for s in is_sel]
         fc_var  = ["#374151"] * n
 
-        # ── Hotel name: bold for selected rows ─────────────
+        # â”€â”€ Hotel name: bold for selected rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         hotel_names = [
             f"<b>{name}</b>" if s else name
             for name, s in zip(grp["Hotel Short"].tolist(), is_sel)
         ]
 
-        # ── Clean rank numbers ─────────────────────────────
+        # â”€â”€ Clean rank numbers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         rank_display = [str(r) for r in grp["Rank"]]
 
         fig = go.Figure(data=[go.Table(
@@ -4574,7 +3607,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         st.info("No stay months in data.")
         return
 
-    # ── Month tags (CM / M+1 / M-1 …) ─────────────────────────
+    # â”€â”€ Month tags (CM / M+1 / M-1 â€¦) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     cm_dt = pd.to_datetime(report_file_month, format="%b, %Y", errors="coerce")
     month_tags = []
     for sm in stay_months:
@@ -4586,7 +3619,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         tag = "CM" if delta == 0 else (f"M+{delta}" if delta > 0 else f"M{delta}")
         month_tags.append((tag, sm))
 
-    # Pre-compute LATEST snapshot per (Hotel, Stay Month, Metric, Reference) —
+    # Pre-compute LATEST snapshot per (Hotel, Stay Month, Metric, Reference) â€”
     # so look-back stay months pull from their own latest available report file.
     if "Report Date" in base.columns:
         base_latest = (
@@ -4599,7 +3632,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
     else:
         base_latest = base
 
-    # ── Data helpers ──────────────────────────────────────────
+    # â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def get_value(metric, sm, report_label, reference="Today"):
         # If report_label is the today_label sentinel, use the latest-snapshot
         # view (works for past stay months). For 1st-of-month, filter exactly.
@@ -4700,7 +3733,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         out.insert(1, "Rank", range(1, len(out) + 1))
         return out
 
-    # Top-3 tints — gold / silver / bronze backgrounds (no emoji, kept professional)
+    # Top-3 tints â€” gold / silver / bronze backgrounds (no emoji, kept professional)
     _MEDAL_BG = {1: "#fef3c7", 2: "#e2e8f0", 3: "#fed7aa"}
     _MEDAL_FG = {1: "#78350f", 2: "#1f2937", 3: "#7c2d12"}
 
@@ -4713,12 +3746,12 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         def apply_style(_):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx in show.index:
-                # ── Subtle zebra striping for unselected rows ───
+                # â”€â”€ Subtle zebra striping for unselected rows â”€â”€â”€
                 if not selected[idx] and idx % 2 == 1:
                     for col in show.columns:
                         styles.loc[idx, col] = "background-color:#fafbfc"
 
-                # ── Rank medal coloring (top 3) ─────────────────
+                # â”€â”€ Rank medal coloring (top 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 rk = ranks[idx] if idx < len(ranks) else None
                 if "Rank" in show.columns and pd.notna(rk) and int(rk) in _MEDAL_BG:
                     r = int(rk)
@@ -4728,7 +3761,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
                         f"font-weight:900; text-align:center;"
                     )
 
-                # ── Selected hotel highlight ────────────────────
+                # â”€â”€ Selected hotel highlight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if selected[idx]:
                     for col in show.columns:
                         styles.loc[idx, col] = "background-color:#eff6ff; color:#1e3a8a; font-weight:700"
@@ -4747,7 +3780,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
                             f"box-shadow: inset 0 0 0 2px #2563eb;"
                         )
 
-                # ── Variance cell coloring ──────────────────────
+                # â”€â”€ Variance cell coloring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 for col in [
                     "ADR Today VS BUD %",  "ADR Duetto VS BUD %",
                     "Rev Today VS BUD (K)", "Rev Duetto VS BUD (K)",
@@ -4833,13 +3866,13 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
             f'box-shadow:0 1px 2px rgba(30,58,138,0.15);">{html.escape(tag)}</span>'
             f'<span style="font-weight:700;font-size:14px;color:#0f172a;">{html.escape(str(sm))}</span>'
             f'<span style="font-size:11px;color:#94a3b8;font-weight:500;">'
-            f'· {n_hotels} hotels ranked</span>'
+            f'Â· {n_hotels} hotels ranked</span>'
             '</div>'
         )
 
     st.caption(
         "One table per stay month. Selected properties highlighted in blue. "
-        f"Top 3 ranks (gold / silver / bronze cells) sorted by {rank_by} · "
+        f"Top 3 ranks (gold / silver / bronze cells) sorted by {rank_by} Â· "
         "Green / red columns show budget variance."
     )
     for tag, sm in month_tags:
@@ -4881,7 +3914,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         st.info("No movement data. Upload multiple report dates to compare.")
         return pd.DataFrame()
 
-    # ── Stay Month pills filter ──────────────────────────────
+    # â”€â”€ Stay Month pills filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if "Stay Month" in movement.columns:
         mv_months = sorted(movement["Stay Month"].dropna().unique(), key=month_sort_key)
         if mv_months:
@@ -4944,7 +3977,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         st.info("No movement data for selected filters.")
         return movement
 
-    # ── Canonical sort keys ───────────────────────────────────
+    # â”€â”€ Canonical sort keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     _M_ORD = {"Occ": 0, "Room": 1, "ADR": 2, "Rev": 3}
     _P_ORD = {"1 Day": 0, "7 Days": 1, "First Day of Month": 2}
     view["_mo"] = view["Metric"].map(_M_ORD).fillna(99)
@@ -4967,7 +4000,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
 
     view = view.drop(columns=["_mo", "_po"], errors="ignore")
 
-    # ── Top KPI row — colored ─────────────────────────────────
+    # â”€â”€ Top KPI row â€” colored â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     total_move = view["Movement"].sum() if "Movement" in view.columns else 0
     up_rows   = int((view["Movement"] > 0).sum()) if "Movement" in view.columns else 0
     down_rows = int((view["Movement"] < 0).sum()) if "Movement" in view.columns else 0
@@ -4991,8 +4024,8 @@ def render_forecast_movement_table_only(metric_data, role_selection):
 
     k1, k2, k3 = st.columns(3)
     k1.markdown(_kpi_html("Total Movement", fmt_raw2(total_move), move_color, move_bg), unsafe_allow_html=True)
-    k2.markdown(_kpi_html("Rows Up ↑",   str(up_rows),   "#15803d", "#f6ffed"), unsafe_allow_html=True)
-    k3.markdown(_kpi_html("Rows Down ↓", str(down_rows), "#b91c1c", "#fff1f0"), unsafe_allow_html=True)
+    k2.markdown(_kpi_html("Rows Up â†‘",   str(up_rows),   "#15803d", "#f6ffed"), unsafe_allow_html=True)
+    k3.markdown(_kpi_html("Rows Down â†“", str(down_rows), "#b91c1c", "#fff1f0"), unsafe_allow_html=True)
 
     st.markdown("#### Movement table")
 
@@ -5084,7 +4117,7 @@ def render_budget_first_kpi_cards(metric_data, role_selection, selected_metric):
     3. Variance vs Budget = Forecast - Budget
     4. Variance vs Budget % = Variance / Budget * 100
     """
-    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget × 100.")
+    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget Ã— 100.")
 
     metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
 
@@ -5132,49 +4165,10 @@ def render_budget_first_executive_cards(metric_data, role_selection):
 
 
 
-def calc_budget_variance(forecast, budget):
-    """
-    Single source of truth for Budget vs Forecast.
-
-    Budget is the target/base.
-    Forecast is the latest expected result.
-
-    Variance = Forecast - Budget
-    Variance % = Variance / Budget * 100
-    """
-    if pd.isna(forecast):
-        forecast = 0
-    if pd.isna(budget):
-        budget = 0
-
-    variance = forecast - budget
-
-    if budget is None or pd.isna(budget) or budget == 0:
-        variance_pct = None
-    else:
-        variance_pct = variance / budget * 100
-
-    return variance, variance_pct
 
 
-def budget_status_from_variance(variance):
-    if variance is None or pd.isna(variance):
-        return "No Budget"
-    if variance > 0:
-        return "Above Budget"
-    if variance < 0:
-        return "Below Budget"
-    return "On Budget"
 
 
-def budget_delta_text(variance_pct):
-    """
-    Streamlit metric delta text.
-    Use already-calculated budget variance %, not safe_delta().
-    """
-    if variance_pct is None or pd.isna(variance_pct):
-        return None
-    return fmt_pct2(variance_pct)
 
 
 def _latest_budget_totals_for_metric_v39(metric_data, role_selection, metric_name):
@@ -5204,7 +4198,7 @@ KPI_AXIS_MAP = {
     "On The Book": "Today OTB",
 }
 # Order determines base axis: earlier = base.
-# Forecast before OTB → "On The Book vs Forecast" (OTB is compare, Forecast is base)
+# Forecast before OTB â†’ "On The Book vs Forecast" (OTB is compare, Forecast is base)
 KPI_AXIS_ORDER = list(KPI_AXIS_MAP)
 
 
@@ -5387,7 +4381,7 @@ def render_priority_budget_table(view, show_heading=True, key_suffix="default"):
 
         return styles
 
-    # Display-only column rename — internal `raw`/`show` keep old names
+    # Display-only column rename â€” internal `raw`/`show` keep old names
     # for the styler closure; we rename ONLY the dataframe shown to user.
     _display_rename = {
         "Forecast":           "Duetto",
@@ -5520,854 +4514,845 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-# ── Page title slot (filled after sidebar so we know the report date) ─
+# â”€â”€ Page title slot (filled after sidebar so we know the report date) â”€
 # Reserve top-of-page space here, fill it once `report_file_month` is set.
 _title_slot = st.empty()
 
-# ── Sidebar ───────────────────────────────────────────────────
+# â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
 # Reason: stop in main area = sidebar never renders = widgets disappear.
 # Correct pattern: let sidebar finish first, then guard-check in main area.
-# ─────────────────────────────────────────────────────────────
+# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-# Default values — overwritten by sidebar once data is loaded
-file_catalog = None
-mode = "Upload"
+def main() -> None:
+    # Default values â€” overwritten by sidebar once data is loaded
+    file_catalog = None
+    mode = "Upload"
 
-def hotel_key(hotel_name):
-    safe = re.sub(r"[^A-Za-z0-9_]+", "_", str(hotel_name))
-    return f"hotel_checkbox_{safe}"
-
-def selected_property_chips_html(selected_hotels):
-    chips = []
-    for hotel in selected_hotels:
-        name = str(hotel)
-        chips.append(
-            f'<span class="property-chip" title="{html.escape(name)}">'
-            f'{html.escape(name)}</span>'
-        )
-    return "".join(chips)
-
-with st.sidebar:
-    # ── Brand header ─────────────────────────────────────────
-    if _LOGO_B64:
-        st.markdown(
-            f"""
-            <div style="
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 14px 4px 12px 4px;
-                border-bottom: 1px solid #e4e4e4;
-                margin-bottom: 10px;
-            ">
-                <img
-                    src="data:image/png;base64,{_LOGO_B64}"
-                    style="
-                        width: 34px;
-                        height: 34px;
-                        border-radius: 7px;
-                        object-fit: cover;
-                        flex-shrink: 0;
-                    "
-                />
-                <div style="line-height: 1.35;">
-                    <div style="font-size:0.95rem;font-weight:700;
-                                color:#111;letter-spacing:0.03em;">
-                        ATMIND GROUP
-                    </div>
-                    <div style="font-size:0.78rem;color:#888;">
-                        Revenue Dashboard
+    with st.sidebar:
+        # â”€â”€ Brand header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if LOGO_B64:
+            st.markdown(
+                f"""
+                <div style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 14px 4px 12px 4px;
+                    border-bottom: 1px solid #e4e4e4;
+                    margin-bottom: 10px;
+                ">
+                    <img
+                        src="data:image/png;base64,{LOGO_B64}"
+                        style="
+                            width: 34px;
+                            height: 34px;
+                            border-radius: 7px;
+                            object-fit: cover;
+                            flex-shrink: 0;
+                        "
+                    />
+                    <div style="line-height: 1.35;">
+                        <div style="font-size:0.95rem;font-weight:700;
+                                    color:#111;letter-spacing:0.03em;">
+                            ATMIND GROUP
+                        </div>
+                        <div style="font-size:0.78rem;color:#888;">
+                            Revenue Dashboard
+                        </div>
                     </div>
                 </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("## Data source")
+        if st.session_state.pop("force_upload_mode", False):
+            st.session_state["data_source_mode"] = "Upload"
+
+        mode = st.radio(
+            "source_mode",
+            ["Folder", "Upload"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="data_source_mode",
+        )
+
+        # â”€â”€ Load data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if mode == "Folder":
+            folder_path = st.text_input(
+                "Path",
+                value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
+            )
+            if st.button("â†»  Refresh Data", use_container_width=True, type="primary"):
+                st.cache_data.clear()
+                st.rerun()
+            try:
+                with st.spinner("Loadingâ€¦"):
+                    file_catalog = build_file_catalog_from_folder(folder_path)
+                st.caption(f"{len(file_catalog)} files found")
+            except Exception as e:
+                st.error(str(e))
+                # file_catalog stays None â€” main area guard will stop rendering
+        else:
+            uploaded = st.file_uploader(
+                "Files",
+                type=["zip", "csv", "xlsx", "xls"],
+                accept_multiple_files=True,
+                label_visibility="visible",
+                help="Drop daily G5 CSV/Excel files, or one ZIP.",
+            )
+            if uploaded:
+                file_catalog = build_file_catalog_from_uploads(uploaded)
+                st.session_state["uploaded_file_catalog"] = file_catalog
+            elif st.session_state.get("uploaded_file_catalog") is not None:
+                file_catalog = st.session_state["uploaded_file_catalog"]
+            else:
+                st.caption("Drop files above to begin.")
+                # file_catalog stays None â€” main area guard will stop rendering
+
+        # â”€â”€ Data processing (filters live on main page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        if file_catalog is not None:
+            latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
+            report_file_month = latest_report_month  # Always auto-use latest report
+
+            # Role identification stays anchored to the CURRENT report month
+            role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
+
+            # â”€â”€ Look-back: also load the previous month's report files so
+            # the Stay Month dropdown can include past months. Role mapping
+            # (Today / Yesterday / 7D / 1st Month) still comes from the
+            # current month only.
+            try:
+                _cur_dt = pd.to_datetime(report_file_month, format="%b, %Y")
+                _prev_start = (_cur_dt - pd.DateOffset(months=1))
+                _prev_end   = _prev_start + pd.offsets.MonthEnd(0)
+                _prev_files = file_catalog[
+                    (file_catalog["Report Date"] >= _prev_start)
+                    & (file_catalog["Report Date"] <= _prev_end)
+                ].copy()
+            except Exception:
+                _prev_files = pd.DataFrame(columns=file_catalog.columns)
+
+            # Merge prev + current month catalogs. The two date ranges are disjoint
+            # by construction so concat without dedup is safe â€” and this avoids the
+            # None-File-Path collision that would dedupe uploaded files.
+            if _prev_files.empty:
+                extended_catalog = month_file_catalog.copy()
+            else:
+                extended_catalog = pd.concat(
+                    [_prev_files, month_file_catalog], ignore_index=True
+                )
+                # Safe dedup using (File Name + Report Date) â€” works for both
+                # folder mode and upload mode (where File Path may be None).
+                if {"File Name", "Report Date"}.issubset(extended_catalog.columns):
+                    extended_catalog = extended_catalog.drop_duplicates(
+                        subset=["File Name", "Report Date"]
+                    )
+            selected_file_catalog = extended_catalog.sort_values("Report Date").reset_index(drop=True)
+            selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
+
+            with st.spinner("Processingâ€¦"):
+                combined_df = pd.concat(
+                    [parse_record(row) for _, row in selected_file_catalog.iterrows()],
+                    ignore_index=True,
+                )
+                ref_col_map = build_ref_col_map(combined_df)
+                if not ref_col_map.get("Duetto"):
+                    st.error("No Forecast / Duetto columns found.")
+                    file_catalog = None  # reset â†’ main area guard will stop
+                else:
+                    metric_long = build_metric_long(combined_df, ref_col_map)
+
+        if file_catalog is not None:
+            all_hotels = sorted(metric_long["Hotel"].dropna().unique())
+            all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
+            # Default hotels = Altera properties (or all if none found)
+            _default_hotels = [h for h in all_hotels if "altera" in str(h).lower()] or list(all_hotels)
+            # Default stay window = (report month âˆ’ 1) â†’ report month + 2
+            # so when a new report month is uploaded the team can still look back
+            # at the previous month's pace.
+            _rpt_idx = all_stay_months.index(report_file_month) if report_file_month in all_stay_months else 0
+            _default_start = all_stay_months[max(_rpt_idx - 1, 0)]
+            _default_end   = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
+            # Metric: always All â€” each tab handles its own filtering
+            selected_metric = "All Metrics"
+            st.caption(f"Report: {report_file_month}  Â·  {len(file_catalog)} files")
+
+    # â”€â”€ Fill the title slot now that sidebar has set report_file_month â”€â”€
+    with _title_slot.container():
+        _ttl_left, _ttl_right = st.columns([3, 2])
+        with _ttl_left:
+            st.markdown("## Revenue Briefing")
+        with _ttl_right:
+            if file_catalog is not None:
+                _latest_dt = file_catalog["Report Date"].max()
+                _n_files = len(file_catalog)
+                _latest_label = (
+                    _latest_dt.strftime("%a, %d %b %Y")
+                    if pd.notna(_latest_dt) else "â€”"
+                )
+                _is_today_data = (
+                    pd.notna(_latest_dt)
+                    and _latest_dt.normalize() == pd.Timestamp.today().normalize()
+                )
+                _freshness_bg = "#dcfce7" if _is_today_data else "#eff6ff"
+                _freshness_fg = "#15803d" if _is_today_data else "#1e40af"
+                _freshness_dot = "#16a34a" if _is_today_data else "#3b82f6"
+                _freshness_text = "Today's data" if _is_today_data else "Latest available"
+                st.markdown(
+                    f'''
+                    <div style="display:flex;justify-content:flex-end;
+                                align-items:flex-start;padding-top:6px;">
+                      <div style="background:#ffffff;border:1px solid #e5e7eb;
+                                  border-radius:10px;padding:10px 16px;
+                                  box-shadow:0 1px 3px rgba(15,23,42,0.05);
+                                  min-width:240px;">
+                        <div style="display:flex;align-items:center;gap:6px;
+                                    margin-bottom:4px;">
+                          <span style="width:7px;height:7px;border-radius:50%;
+                                       background:{_freshness_dot};
+                                       box-shadow:0 0 0 3px {_freshness_dot}22;"></span>
+                          <span style="font-size:10px;font-weight:700;
+                                       text-transform:uppercase;letter-spacing:0.08em;
+                                       color:{_freshness_fg};background:{_freshness_bg};
+                                       padding:2px 8px;border-radius:10px;">
+                            {_freshness_text}
+                          </span>
+                        </div>
+                        <div style="font-size:14px;font-weight:700;color:#0f172a;
+                                    letter-spacing:-0.01em;line-height:1.3;
+                                    font-variant-numeric:tabular-nums;">
+                          {_latest_label}
+                        </div>
+                        <div style="font-size:11px;color:#6b7280;margin-top:3px;
+                                    font-weight:500;">
+                          Report month <b style="color:#374151;">{report_file_month}</b>
+                          &nbsp;Â·&nbsp; {_n_files} file{"" if _n_files == 1 else "s"}
+                        </div>
+                      </div>
+                    </div>
+                    ''',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div style="display:flex;justify-content:flex-end;'
+                    'padding-top:14px;color:#9ca3af;font-size:12px;">'
+                    'No data loaded</div>',
+                    unsafe_allow_html=True,
+                )
+
+    # â”€â”€ Main area: guard â€” no data loaded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if file_catalog is None:
+        st.markdown(
+            """
+            <div style="
+                margin: 48px auto 0 auto;
+                max-width: 400px;
+                text-align: center;
+                padding: 48px 32px;
+                border: 1px dashed #d9d9d9;
+                border-radius: 8px;
+                background: #fafafa;
+            ">
+                <p style="font-size:1.6rem;margin:0 0 14px 0;color:#d9d9d9;">&#8679;</p>
+                <p style="font-size:0.95rem;font-weight:600;color:#1a1a1a;margin:0 0 6px 0;">
+                    Upload report files to begin
+                </p>
+                <p style="font-size:0.82rem;color:#8c8c8c;margin:0;line-height:1.5;">
+                    Use the <b>sidebar</b> to upload CSV / Excel files<br>
+                    or a single ZIP containing daily reports
+                </p>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        empty_left, empty_center, empty_right = st.columns([1, 1.2, 1])
+        with empty_center:
+            main_uploaded = st.file_uploader(
+                "Upload File",
+                type=["zip", "csv", "xlsx", "xls"],
+                accept_multiple_files=True,
+                label_visibility="collapsed",
+                help="Upload daily G5 CSV/Excel files, or one ZIP.",
+                key="main_empty_state_upload",
+            )
+            if main_uploaded:
+                st.session_state["force_upload_mode"] = True
+                st.session_state["uploaded_file_catalog"] = build_file_catalog_from_uploads(main_uploaded)
+                st.rerun()
+        st.stop()
 
-    st.markdown("## Data source")
-    if st.session_state.pop("force_upload_mode", False):
-        st.session_state["data_source_mode"] = "Upload"
-
-    mode = st.radio(
-        "source_mode",
-        ["Folder", "Upload"],
-        horizontal=True,
+    # â”€â”€ Top page navigation (above filters â€” always visible) â”€â”€â”€â”€â”€
+    _NAV_PAGES = ["Leaderboard", "Overview", "Budget Review", "Trend", "Export"]
+    st.markdown('<div class="main-page-nav">', unsafe_allow_html=True)
+    selected_page = st.pills(
+        "main_page_nav",
+        options=_NAV_PAGES,
+        selection_mode="single",
+        default="Leaderboard",
         label_visibility="collapsed",
-        key="data_source_mode",
+        key="main_page_nav",
     )
+    st.markdown('</div>', unsafe_allow_html=True)
+    if not selected_page:
+        selected_page = "Leaderboard"
 
-    # ── Load data ──────────────────────────────────────────
-    if mode == "Folder":
-        folder_path = st.text_input(
-            "Path",
-            value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
-        )
-        if st.button("↻  Refresh Data", use_container_width=True, type="primary"):
-            st.cache_data.clear()
-            st.rerun()
-        try:
-            with st.spinner("Loading…"):
-                file_catalog = build_file_catalog_from_folder(folder_path)
-            st.caption(f"{len(file_catalog)} files found")
-        except Exception as e:
-            st.error(str(e))
-            # file_catalog stays None — main area guard will stop rendering
-    else:
-        uploaded = st.file_uploader(
-            "Files",
-            type=["zip", "csv", "xlsx", "xls"],
-            accept_multiple_files=True,
-            label_visibility="visible",
-            help="Drop daily G5 CSV/Excel files, or one ZIP.",
-        )
-        if uploaded:
-            file_catalog = build_file_catalog_from_uploads(uploaded)
-            st.session_state["uploaded_file_catalog"] = file_catalog
-        elif st.session_state.get("uploaded_file_catalog") is not None:
-            file_catalog = st.session_state["uploaded_file_catalog"]
-        else:
-            st.caption("Drop files above to begin.")
-            # file_catalog stays None — main area guard will stop rendering
-
-    # ── Data processing (filters live on main page) ────────────
-    if file_catalog is not None:
-        latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
-        report_file_month = latest_report_month  # Always auto-use latest report
-
-        # Role identification stays anchored to the CURRENT report month
-        role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
-
-        # ── Look-back: also load the previous month's report files so
-        # the Stay Month dropdown can include past months. Role mapping
-        # (Today / Yesterday / 7D / 1st Month) still comes from the
-        # current month only.
-        try:
-            _cur_dt = pd.to_datetime(report_file_month, format="%b, %Y")
-            _prev_start = (_cur_dt - pd.DateOffset(months=1))
-            _prev_end   = _prev_start + pd.offsets.MonthEnd(0)
-            _prev_files = file_catalog[
-                (file_catalog["Report Date"] >= _prev_start)
-                & (file_catalog["Report Date"] <= _prev_end)
-            ].copy()
-        except Exception:
-            _prev_files = pd.DataFrame(columns=file_catalog.columns)
-
-        # Merge prev + current month catalogs. The two date ranges are disjoint
-        # by construction so concat without dedup is safe — and this avoids the
-        # None-File-Path collision that would dedupe uploaded files.
-        if _prev_files.empty:
-            extended_catalog = month_file_catalog.copy()
-        else:
-            extended_catalog = pd.concat(
-                [_prev_files, month_file_catalog], ignore_index=True
-            )
-            # Safe dedup using (File Name + Report Date) — works for both
-            # folder mode and upload mode (where File Path may be None).
-            if {"File Name", "Report Date"}.issubset(extended_catalog.columns):
-                extended_catalog = extended_catalog.drop_duplicates(
-                    subset=["File Name", "Report Date"]
-                )
-        selected_file_catalog = extended_catalog.sort_values("Report Date").reset_index(drop=True)
-        selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
-
-        with st.spinner("Processing…"):
-            combined_df = pd.concat(
-                [parse_record(row) for _, row in selected_file_catalog.iterrows()],
-                ignore_index=True,
-            )
-            ref_col_map = build_ref_col_map(combined_df)
-            if not ref_col_map.get("Duetto"):
-                st.error("No Forecast / Duetto columns found.")
-                file_catalog = None  # reset → main area guard will stop
-            else:
-                metric_long = build_metric_long(combined_df, ref_col_map)
-
-    if file_catalog is not None:
-        all_hotels = sorted(metric_long["Hotel"].dropna().unique())
-        all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
-        # Default hotels = Altera properties (or all if none found)
-        _default_hotels = [h for h in all_hotels if "altera" in str(h).lower()] or list(all_hotels)
-        # Default stay window = (report month − 1) → report month + 2
-        # so when a new report month is uploaded the team can still look back
-        # at the previous month's pace.
-        _rpt_idx = all_stay_months.index(report_file_month) if report_file_month in all_stay_months else 0
-        _default_start = all_stay_months[max(_rpt_idx - 1, 0)]
-        _default_end   = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
-        # Metric: always All — each tab handles its own filtering
-        selected_metric = "All Metrics"
-        st.caption(f"Report: {report_file_month}  ·  {len(file_catalog)} files")
-
-# ── Fill the title slot now that sidebar has set report_file_month ──
-with _title_slot.container():
-    _ttl_left, _ttl_right = st.columns([3, 2])
-    with _ttl_left:
-        st.markdown("## Revenue Briefing")
-    with _ttl_right:
-        if file_catalog is not None:
-            _latest_dt = file_catalog["Report Date"].max()
-            _n_files = len(file_catalog)
-            _latest_label = (
-                _latest_dt.strftime("%a, %d %b %Y")
-                if pd.notna(_latest_dt) else "—"
-            )
-            _is_today_data = (
-                pd.notna(_latest_dt)
-                and _latest_dt.normalize() == pd.Timestamp.today().normalize()
-            )
-            _freshness_bg = "#dcfce7" if _is_today_data else "#eff6ff"
-            _freshness_fg = "#15803d" if _is_today_data else "#1e40af"
-            _freshness_dot = "#16a34a" if _is_today_data else "#3b82f6"
-            _freshness_text = "Today's data" if _is_today_data else "Latest available"
-            st.markdown(
-                f'''
-                <div style="display:flex;justify-content:flex-end;
-                            align-items:flex-start;padding-top:6px;">
-                  <div style="background:#ffffff;border:1px solid #e5e7eb;
-                              border-radius:10px;padding:10px 16px;
-                              box-shadow:0 1px 3px rgba(15,23,42,0.05);
-                              min-width:240px;">
-                    <div style="display:flex;align-items:center;gap:6px;
-                                margin-bottom:4px;">
-                      <span style="width:7px;height:7px;border-radius:50%;
-                                   background:{_freshness_dot};
-                                   box-shadow:0 0 0 3px {_freshness_dot}22;"></span>
-                      <span style="font-size:10px;font-weight:700;
-                                   text-transform:uppercase;letter-spacing:0.08em;
-                                   color:{_freshness_fg};background:{_freshness_bg};
-                                   padding:2px 8px;border-radius:10px;">
-                        {_freshness_text}
-                      </span>
-                    </div>
-                    <div style="font-size:14px;font-weight:700;color:#0f172a;
-                                letter-spacing:-0.01em;line-height:1.3;
-                                font-variant-numeric:tabular-nums;">
-                      {_latest_label}
-                    </div>
-                    <div style="font-size:11px;color:#6b7280;margin-top:3px;
-                                font-weight:500;">
-                      Report month <b style="color:#374151;">{report_file_month}</b>
-                      &nbsp;·&nbsp; {_n_files} file{"" if _n_files == 1 else "s"}
-                    </div>
-                  </div>
-                </div>
-                ''',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown(
-                '<div style="display:flex;justify-content:flex-end;'
-                'padding-top:14px;color:#9ca3af;font-size:12px;">'
-                'No data loaded</div>',
-                unsafe_allow_html=True,
-            )
-
-# ── Main area: guard — no data loaded ────────────────────────
-if file_catalog is None:
     st.markdown(
-        """
-        <div style="
-            margin: 48px auto 0 auto;
-            max-width: 400px;
-            text-align: center;
-            padding: 48px 32px;
-            border: 1px dashed #d9d9d9;
-            border-radius: 8px;
-            background: #fafafa;
-        ">
-            <p style="font-size:1.6rem;margin:0 0 14px 0;color:#d9d9d9;">&#8679;</p>
-            <p style="font-size:0.95rem;font-weight:600;color:#1a1a1a;margin:0 0 6px 0;">
-                Upload report files to begin
-            </p>
-            <p style="font-size:0.82rem;color:#8c8c8c;margin:0;line-height:1.5;">
-                Use the <b>sidebar</b> to upload CSV / Excel files<br>
-                or a single ZIP containing daily reports
-            </p>
-        </div>
-        """,
+        '<hr style="margin:6px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
         unsafe_allow_html=True,
     )
-    empty_left, empty_center, empty_right = st.columns([1, 1.2, 1])
-    with empty_center:
-        main_uploaded = st.file_uploader(
-            "Upload File",
-            type=["zip", "csv", "xlsx", "xls"],
-            accept_multiple_files=True,
+
+    # â”€â”€ Inline filters (Properties + Stay Month) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    _fc1, _fc2, _fc3 = st.columns([3, 1.6, 1.6])
+
+    with _fc1:
+        st.markdown(
+            '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Properties</p>',
+            unsafe_allow_html=True,
+        )
+        selected_hotels = st.multiselect(
+            "Properties",
+            options=all_hotels,
+            default=[h for h in _default_hotels if h in all_hotels] or list(all_hotels),
             label_visibility="collapsed",
-            help="Upload daily G5 CSV/Excel files, or one ZIP.",
-            key="main_empty_state_upload",
+            placeholder="Select propertiesâ€¦",
+            key="main_hotel_multiselect",
         )
-        if main_uploaded:
-            st.session_state["force_upload_mode"] = True
-            st.session_state["uploaded_file_catalog"] = build_file_catalog_from_uploads(main_uploaded)
-            st.rerun()
-    st.stop()
 
-# ── Top page navigation (above filters — always visible) ─────
-_NAV_PAGES = ["Leaderboard", "Overview", "Budget Review", "Trend", "Export"]
-st.markdown('<div class="main-page-nav">', unsafe_allow_html=True)
-selected_page = st.pills(
-    "main_page_nav",
-    options=_NAV_PAGES,
-    selection_mode="single",
-    default="Leaderboard",
-    label_visibility="collapsed",
-    key="main_page_nav",
-)
-st.markdown('</div>', unsafe_allow_html=True)
-if not selected_page:
-    selected_page = "Leaderboard"
+    with _fc2:
+        st.markdown(
+            '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month â€” From</p>',
+            unsafe_allow_html=True,
+        )
+        _start_idx = all_stay_months.index(_default_start) if _default_start in all_stay_months else 0
+        stay_start = st.selectbox(
+            "Stay Month From",
+            all_stay_months,
+            index=_start_idx,
+            label_visibility="collapsed",
+            key="main_stay_start",
+        )
 
-st.markdown(
-    '<hr style="margin:6px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
-    unsafe_allow_html=True,
-)
+    with _fc3:
+        st.markdown(
+            '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month â€” To</p>',
+            unsafe_allow_html=True,
+        )
+        _end_idx = all_stay_months.index(_default_end) if _default_end in all_stay_months else len(all_stay_months) - 1
+        stay_end = st.selectbox(
+            "Stay Month To",
+            all_stay_months,
+            index=_end_idx,
+            label_visibility="collapsed",
+            key="main_stay_end",
+        )
 
-# ── Inline filters (Properties + Stay Month) ─────────────────
-_fc1, _fc2, _fc3 = st.columns([3, 1.6, 1.6])
-
-with _fc1:
     st.markdown(
-        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
-        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Properties</p>',
+        '<hr style="margin:8px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
         unsafe_allow_html=True,
     )
-    selected_hotels = st.multiselect(
-        "Properties",
-        options=all_hotels,
-        default=[h for h in _default_hotels if h in all_hotels] or list(all_hotels),
-        label_visibility="collapsed",
-        placeholder="Select properties…",
-        key="main_hotel_multiselect",
+
+    # Build stay_month_selection from start/end dropdowns
+    _si = all_stay_months.index(stay_start) if stay_start in all_stay_months else 0
+    _ei = all_stay_months.index(stay_end) if stay_end in all_stay_months else len(all_stay_months) - 1
+    if _ei < _si:
+        _ei = _si
+    selected_stay_months_raw = all_stay_months[_si : _ei + 1]
+    stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
+
+    # â”€â”€ Guard: no hotels selected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if not selected_hotels:
+        st.warning("Select at least one property above.")
+        st.stop()
+
+    # â”€â”€ Filter data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
+
+    kpi_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
+    kpi_metric_data = apply_stay_month_filter(kpi_metric_data, stay_month_selection)
+
+    if metric_data.empty:
+        st.warning("No data for the current filter selection.")
+        st.stop()
+
+    # â”€â”€ Pre-build summaries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    movement_summary = build_movement_summary(metric_data, role_selection)
+    pace_summary     = build_pace_summary(metric_data, role_selection)
+    final_comparison = build_final_comparison(metric_data, role_selection)
+
+    d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
+    momentum_summary = (
+        d4.groupby(["Report Date", "Report Label"])["Value"].sum()
+        .reset_index().sort_values("Report Date")
+        if not d4.empty else pd.DataFrame()
+    )
+    hotel_momentum = (
+        d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month"])["Value"].sum()
+        .reset_index().sort_values(["Hotel", "Stay Month", "Report Date"])
+        if not d4.empty else pd.DataFrame()
     )
 
-with _fc2:
-    st.markdown(
-        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
-        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month — From</p>',
-        unsafe_allow_html=True,
-    )
-    _start_idx = all_stay_months.index(_default_start) if _default_start in all_stay_months else 0
-    stay_start = st.selectbox(
-        "Stay Month From",
-        all_stay_months,
-        index=_start_idx,
-        label_visibility="collapsed",
-        key="main_stay_start",
-    )
+    # â”€â”€ Page content (driven by top-nav pills) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    if selected_page == "Overview":
+        # Build variance pivot (OTB + variances)
+        latest_pivot = build_variance_pivot_table(metric_data, role_selection)
 
-with _fc3:
-    st.markdown(
-        '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
-        'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month — To</p>',
-        unsafe_allow_html=True,
-    )
-    _end_idx = all_stay_months.index(_default_end) if _default_end in all_stay_months else len(all_stay_months) - 1
-    stay_end = st.selectbox(
-        "Stay Month To",
-        all_stay_months,
-        index=_end_idx,
-        label_visibility="collapsed",
-        key="main_stay_end",
-    )
+        # â”€â”€ 1. Compare On The Book (KPI cards) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        _render_otb_comparison_chart(latest_pivot)
 
-st.markdown(
-    '<hr style="margin:8px 0 14px 0;border:none;border-top:1px solid #e8eaed;">',
-    unsafe_allow_html=True,
-)
+        # â”€â”€ 2. Forecast VS Budget (KPI cards) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        _render_forecast_vs_budget(latest_pivot)
 
-# Build stay_month_selection from start/end dropdowns
-_si = all_stay_months.index(stay_start) if stay_start in all_stay_months else 0
-_ei = all_stay_months.index(stay_end) if stay_end in all_stay_months else len(all_stay_months) - 1
-if _ei < _si:
-    _ei = _si
-selected_stay_months_raw = all_stay_months[_si : _ei + 1]
-stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
+        # â”€â”€ 3. Forecast Pivot with variance columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        render_compact_hotel_tabs(latest_pivot)
 
-# ── Guard: no hotels selected ────────────────────────────────
-if not selected_hotels:
-    st.warning("Select at least one property above.")
-    st.stop()
-
-# ── Filter data ───────────────────────────────────────────────
-metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
-metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
-
-kpi_metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
-kpi_metric_data = apply_stay_month_filter(kpi_metric_data, stay_month_selection)
-
-if metric_data.empty:
-    st.warning("No data for the current filter selection.")
-    st.stop()
-
-# ── Pre-build summaries ───────────────────────────────────────
-movement_summary = build_movement_summary(metric_data, role_selection)
-pace_summary     = build_pace_summary(metric_data, role_selection)
-final_comparison = build_final_comparison(metric_data, role_selection)
-
-d4 = metric_data[metric_data["Reference"] == "Duetto"].copy()
-momentum_summary = (
-    d4.groupby(["Report Date", "Report Label"])["Value"].sum()
-    .reset_index().sort_values("Report Date")
-    if not d4.empty else pd.DataFrame()
-)
-hotel_momentum = (
-    d4.groupby(["Report Date", "Report Label", "Hotel", "Stay Month"])["Value"].sum()
-    .reset_index().sort_values(["Hotel", "Stay Month", "Report Date"])
-    if not d4.empty else pd.DataFrame()
-)
-
-# ── Page content (driven by top-nav pills) ───────────────────
-if selected_page == "Overview":
-    # Build variance pivot (OTB + variances)
-    latest_pivot = build_variance_pivot_table(metric_data, role_selection)
-
-    # ── 1. Compare On The Book (KPI cards) ───────────────────
-    _render_otb_comparison_chart(latest_pivot)
-
-    # ── 2. Forecast VS Budget (KPI cards) ────────────────────
-    _render_forecast_vs_budget(latest_pivot)
-
-    # ── 3. Forecast Pivot with variance columns ───────────────
-    render_compact_hotel_tabs(latest_pivot)
-
-    # ── 4. Same-Time Pace Benchmark (always visible) ─────────
-    st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
-    st.caption("Today VS STLY / ST2Y / ST3Y — how today's on-the-book compares to same-time prior years.")
-    pace_view = pace_summary.copy()
-    if not pace_view.empty and "Stay Month" in pace_view.columns:
-        current_month_key = month_sort_key(report_file_month)
-        pace_view["_month_sort"] = pace_view["Stay Month"].apply(month_sort_key)
-        pace_view = (
-            pace_view[pace_view["_month_sort"] >= current_month_key]
-            .sort_values(["_month_sort", "Hotel", "Metric"])
-            .drop(columns=["_month_sort"])
-            .reset_index(drop=True)
-        )
-
-    if pace_view.empty:
-        st.info("No pace data.")
-    else:
-        _pace_c1, _pace_c2 = st.columns([1.2, 1])
-        view_mode_pace = _pace_c1.selectbox(
-            "Pace view", ["Hotel tabs", "List view"], index=0, key="analysis_pace_view",
-        )
-        pace_layout = _pace_c2.radio(
-            "Layout", ["Cards", "Compact table"], index=0, horizontal=True, key="pace_compact_layout",
-        )
-        pace_display = make_recommended_pace_compact(pace_view)
-        if pace_layout == "Cards":
-            render_pace_cards(pace_view)
-        else:
-            render_compact_by_hotel(pace_display, view_mode_pace, "pace")
-
-    # ── 5. Historical Final Comparison (collapsed, coloured) ─
-    st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
-    with st.expander("Expand — Duetto vs Final LY / 2Y / 3Y", expanded=False):
-        st.caption("Duetto vs Final LY / Final 2Y / Final 3Y. Historical context only — not a budget target.")
-        if final_comparison.empty:
-            st.info("No final comparison data.")
-        else:
-            view_mode_final = st.selectbox(
-                "Final view", ["Hotel tabs", "List view"], index=0, key="analysis_final_view",
+        # â”€â”€ 4. Same-Time Pace Benchmark (always visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
+        st.caption("Today VS STLY / ST2Y / ST3Y â€” how today's on-the-book compares to same-time prior years.")
+        pace_view = pace_summary.copy()
+        if not pace_view.empty and "Stay Month" in pace_view.columns:
+            current_month_key = month_sort_key(report_file_month)
+            pace_view["_month_sort"] = pace_view["Stay Month"].apply(month_sort_key)
+            pace_view = (
+                pace_view[pace_view["_month_sort"] >= current_month_key]
+                .sort_values(["_month_sort", "Hotel", "Metric"])
+                .drop(columns=["_month_sort"])
+                .reset_index(drop=True)
             )
-            final_display = make_final_compact(final_comparison)
-            render_compact_by_hotel(final_display, view_mode_final, "final")
 
-    # ── 6. Forecast Movement (collapsed by default) ───────────
-    with st.expander("Duetto Movement", expanded=False):
-        forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
-
-
-elif selected_page == "Budget Review":
-    leaderboard_summary = render_budget_sort_board_v32(
-        metric_long=metric_long,
-        role_selection=role_selection,
-        selected_hotels=selected_hotels,
-        stay_month_selection=stay_month_selection,
-    )
-
-
-elif selected_page == "Leaderboard":
-    st.markdown(
-        '<div class="section-title">Leaderboard — Key Metrics by Stay Month</div>',
-        unsafe_allow_html=True,
-    )
-    st.caption(
-        "One clean table per stay month. Selected properties are highlighted in blue. "
-        "Green = above budget, red = below budget. Room Nights excluded."
-    )
-    render_mega_leaderboard(
-        metric_long=metric_long,
-        role_selection=role_selection,
-        hotels=selected_hotels,
-        stay_month_selection=stay_month_selection,
-        report_file_month=report_file_month,
-    )
-
-
-elif selected_page == "Trend":
-    # ──────────────────────────────────────────────────────────
-    # TREND TAB — narrative flow:
-    #   1) Strategic — two metrics vs baseline (high-level read)
-    #   2) Forecast trend over report days (absolute values)
-    #   3) Daily % change (momentum view)
-    #   4) Hotel-level drill-down (bubble chart)
-    # ──────────────────────────────────────────────────────────
-
-    # 1. Strategic — compare two metrics with shared baseline
-    render_trend_comparison(metric_data, role_selection)
-
-    st.divider()
-
-    # 2. Absolute-value trend by stay month
-    trend_summary = render_forecast_trend_by_month_v3(metric_data)
-
-    st.divider()
-
-    # 3. Daily % change bar chart (momentum)
-    render_revenue_momentum_pct_chart(metric_data)
-
-    st.divider()
-
-    # 4. Hotel-level momentum (drill-down)
-    st.markdown('<div class="section-title">Hotel Momentum — Per-Property Drill-Down</div>', unsafe_allow_html=True)
-    st.caption("Bubble size = forecast magnitude · Bubble color = daily % change. Use this to spot which hotels are driving the overall trend.")
-
-    if hotel_momentum.empty:
-        st.info("No hotel momentum data.")
-    else:
-        bubble = hotel_momentum.copy()
-        # Bubble-specific Stay Month filter
-        if "Stay Month" in bubble.columns:
-            bubble_month_options = sorted(bubble["Stay Month"].dropna().unique(), key=month_sort_key)
-            bubble_month = st.selectbox(
-                "Bubble Stay Month",
-                ["All Months"] + bubble_month_options,
-                index=0,
-                key="bubble_stay_month_filter_v31",
+        if pace_view.empty:
+            st.info("No pace data.")
+        else:
+            _pace_c1, _pace_c2 = st.columns([1.2, 1])
+            view_mode_pace = _pace_c1.selectbox(
+                "Pace view", ["Hotel tabs", "List view"], index=0, key="analysis_pace_view",
             )
-            if bubble_month != "All Months":
-                bubble = bubble[bubble["Stay Month"] == bubble_month].copy()
-
-        bubble = bubble.sort_values(["Hotel", "Stay Month", "Report Date"])
-        bubble["Previous Forecast"] = bubble.groupby(["Hotel", "Stay Month"])["Value"].shift(1)
-        bubble["Daily Change"] = bubble["Value"] - bubble["Previous Forecast"]
-        bubble["Daily Change %"] = bubble["Daily Change"] / bubble["Previous Forecast"] * 100
-        bubble["Bubble Size"] = bubble["Value"].abs()
-
-        latest_snapshot = (
-            bubble.sort_values(["Hotel", "Report Date"])
-            .groupby(["Hotel", "Stay Month"], as_index=False)
-            .tail(1)
-            .copy()
-        )
-        latest_snapshot["Abs Daily PU"] = latest_snapshot["Daily Change"].abs()
-
-        ctl1, ctl2, ctl3 = st.columns([1.1, 1.1, 1.1])
-
-        max_hotels = int(max(1, latest_snapshot["Hotel"].nunique()))
-        top_options_raw = [5, 8, 10, 15, 20]
-        top_options = [f"Top {n}" for n in top_options_raw if n <= max_hotels]
-        if not top_options:
-            top_options = [f"Top {max_hotels}"]
-        top_options.append("All selected hotels")
-
-        default_display = "Top 8" if "Top 8" in top_options else top_options[0]
-
-        display_hotels = ctl1.selectbox(
-            "Display hotels",
-            top_options,
-            index=top_options.index(default_display),
-            key="bubble_display_hotels_dropdown",
-        )
-
-        focus_mode = ctl2.selectbox(
-            "Focus by",
-            [
-                "Biggest movement",
-                "Biggest drop",
-                "Biggest gain",
-                "Highest Forecast",
-            ],
-            index=0,
-            key="bubble_focus_mode_dropdown",
-        )
-
-        size_mode = ctl3.selectbox(
-            "Bubble size",
-            [
-                "Abs Daily PU",
-                "Latest D4cast",
-            ],
-            index=0,
-            key="bubble_size_mode_dropdown",
-        )
-
-        # Rank hotels based on what the user wants to focus on.
-        if focus_mode == "Biggest movement":
-            ranked_hotels = latest_snapshot.sort_values("Abs Daily PU", ascending=False)
-        elif focus_mode == "Biggest drop":
-            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=True)
-        elif focus_mode == "Biggest gain":
-            ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=False)
-        else:
-            ranked_hotels = latest_snapshot.sort_values("Value", ascending=False)
-
-        if display_hotels == "All selected hotels":
-            visible_hotels = ranked_hotels["Hotel"].tolist()
-        else:
-            top_n = int(display_hotels.replace("Top ", ""))
-            visible_hotels = ranked_hotels.head(top_n)["Hotel"].tolist()
-
-        bubble_view = bubble[bubble["Hotel"].isin(visible_hotels)].copy()
-
-        if size_mode == "Abs Daily PU":
-            bubble_view["Bubble Size"] = bubble_view["Daily Change"].abs().fillna(0)
-            # Avoid invisible first-date bubbles.
-            if bubble_view["Bubble Size"].max() == 0:
-                bubble_view["Bubble Size"] = bubble_view["Value"].abs()
-        else:
-            bubble_view["Bubble Size"] = bubble_view["Value"].abs()
-
-        bubble_view["Latest D4cast"] = bubble_view["Value"]
-        bubble_view["Daily PU"] = bubble_view["Daily Change"]
-        bubble_view["Daily PU %"] = bubble_view["Daily Change %"]
-
-        fig_hotel = px.scatter(
-            bubble_view,
-            x="Report Date",
-            y="Hotel",
-            size="Bubble Size",
-            color="Daily Change %",
-            hover_data={
-                "Report Label": True,
-                "Latest D4cast": ":,.2f",
-                "Previous Forecast": ":,.2f",
-                "Daily PU": ":,.2f",
-                "Daily PU %": ":.2f",
-                "Bubble Size": False,
-            },
-            title="Hotel-level Forecast Momentum / Daily %",
-            color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
-            color_continuous_midpoint=0,
-            size_max=34,
-        )
-
-        fig_hotel.update_layout(
-            plot_bgcolor="rgba(0,0,0,0)",
-            paper_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(
-                title="Report Date",
-                showgrid=True,
-                gridcolor="#f1f5f9",
-                tickformat="%d %b",
-            ),
-            yaxis=dict(
-                title="Hotel",
-                showgrid=True,
-                gridcolor="#f8fafc",
-                categoryorder="array",
-                categoryarray=list(reversed(bubble_view["Hotel"].dropna().unique())),
-            ),
-            height=max(420, 46 * bubble_view["Hotel"].nunique()),
-            margin=dict(l=20, r=20, t=60, b=20),
-            coloraxis_colorbar=dict(title="Daily %", ticksuffix="%"),
-        )
-
-        fig_hotel.update_traces(
-            marker=dict(line=dict(width=0.7, color="white"), opacity=0.86),
-            selector=dict(mode="markers"),
-        )
-
-        st.plotly_chart(
-            fig_hotel,
-            use_container_width=True,
-            config={
-                "displayModeBar": True,
-                "displaylogo": False,
-                "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-            },
-        )
-
-        st.markdown('<div class="section-title">Hotel Momentum Summary</div>', unsafe_allow_html=True)
-
-        latest_rows = (
-            bubble.sort_values(["Hotel", "Report Date"])
-            .groupby(["Hotel", "Stay Month"], as_index=False)
-            .tail(1)
-            .copy()
-        )
-
-        latest_rows["Status"] = latest_rows["Daily Change"].apply(
-            lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
-        )
-
-        summary_cols = [
-            "Hotel",
-            "Report Date",
-            "Value",
-            "Previous Forecast",
-            "Daily Change %",
-            "Status",
-        ]
-
-        summary_view = latest_rows[summary_cols].copy()
-        summary_view = summary_view.rename(columns={
-            "Value": "Latest D4cast",
-            "Daily Change %": "Daily PU %",
-        })
-        summary_view = summary_view.sort_values("Daily PU %", ascending=True).reset_index(drop=True)
-
-        def color_momentum_row(row):
-            styles = pd.Series("", index=row.index)
-            daily_pu = row.get("Daily PU %")
-            if pd.notna(daily_pu) and daily_pu > 0:
-                for col in ["Daily PU %", "Status"]:
-                    if col in styles.index:
-                        styles[col] = "background-color: #bbf7d0; font-weight: 700"
-            elif pd.notna(daily_pu) and daily_pu < 0:
-                for col in ["Daily PU %", "Status"]:
-                    if col in styles.index:
-                        styles[col] = "background-color: #fecaca; font-weight: 700"
+            pace_layout = _pace_c2.radio(
+                "Layout", ["Cards", "Compact table"], index=0, horizontal=True, key="pace_compact_layout",
+            )
+            pace_display = make_recommended_pace_compact(pace_view)
+            if pace_layout == "Cards":
+                render_pace_cards(pace_view)
             else:
-                if "Status" in styles.index:
-                    styles["Status"] = "background-color: #fef08a; font-weight: 700"
-            return styles
+                render_compact_by_hotel(pace_display, view_mode_pace, "pace")
 
-        st.dataframe(
-            summary_view.style.format({
-                "Latest D4cast": fmt_raw2,
-                "Previous Forecast": fmt_raw2,
-                "Daily PU %": fmt_signed_pct2,
-            }).apply(color_momentum_row, axis=1),
-            use_container_width=True,
-            hide_index=True,
-            height=min(520, 44 + 36 * len(summary_view)),
+        # â”€â”€ 5. Historical Final Comparison (collapsed, coloured) â”€
+        st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
+        with st.expander("Expand â€” Duetto vs Final LY / 2Y / 3Y", expanded=False):
+            st.caption("Duetto vs Final LY / Final 2Y / Final 3Y. Historical context only â€” not a budget target.")
+            if final_comparison.empty:
+                st.info("No final comparison data.")
+            else:
+                view_mode_final = st.selectbox(
+                    "Final view", ["Hotel tabs", "List view"], index=0, key="analysis_final_view",
+                )
+                final_display = make_final_compact(final_comparison)
+                render_compact_by_hotel(final_display, view_mode_final, "final")
+
+        # â”€â”€ 6. Forecast Movement (collapsed by default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        with st.expander("Duetto Movement", expanded=False):
+            forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
+
+
+    elif selected_page == "Budget Review":
+        leaderboard_summary = render_budget_sort_board_v32(
+            metric_long=metric_long,
+            role_selection=role_selection,
+            selected_hotels=selected_hotels,
+            stay_month_selection=stay_month_selection,
         )
 
-        with st.expander("Full hotel-level daily data"):
-            full_view = bubble[[
-                "Report Date",
-                "Report Label",
-                "Hotel",
-                "Value",
-                "Previous Forecast",
-                "Daily Change",
-                "Daily Change %",
-            ]].sort_values(["Hotel", "Report Date"]).reset_index(drop=True)
 
-            full_view = full_view.rename(columns={
-                "Value": "Forecast",
-                "Daily Change": "Daily PU",
-                "Daily Change %": "Daily PU %",
-            })
+    elif selected_page == "Leaderboard":
+        st.markdown(
+            '<div class="section-title">Leaderboard â€” Key Metrics by Stay Month</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "One clean table per stay month. Selected properties are highlighted in blue. "
+            "Green = above budget, red = below budget. Room Nights excluded."
+        )
+        render_mega_leaderboard(
+            metric_long=metric_long,
+            role_selection=role_selection,
+            hotels=selected_hotels,
+            stay_month_selection=stay_month_selection,
+            report_file_month=report_file_month,
+        )
 
-            st.dataframe(
-                full_view,
+
+    elif selected_page == "Trend":
+        # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # TREND TAB â€” narrative flow:
+        #   1) Strategic â€” two metrics vs baseline (high-level read)
+        #   2) Forecast trend over report days (absolute values)
+        #   3) Daily % change (momentum view)
+        #   4) Hotel-level drill-down (bubble chart)
+        # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        # 1. Strategic â€” compare two metrics with shared baseline
+        render_trend_comparison(metric_data, role_selection)
+
+        st.divider()
+
+        # 2. Absolute-value trend by stay month
+        trend_summary = render_forecast_trend_by_month_v3(metric_data)
+
+        st.divider()
+
+        # 3. Daily % change bar chart (momentum)
+        render_revenue_momentum_pct_chart(metric_data)
+
+        st.divider()
+
+        # 4. Hotel-level momentum (drill-down)
+        st.markdown('<div class="section-title">Hotel Momentum â€” Per-Property Drill-Down</div>', unsafe_allow_html=True)
+        st.caption("Bubble size = forecast magnitude Â· Bubble color = daily % change. Use this to spot which hotels are driving the overall trend.")
+
+        if hotel_momentum.empty:
+            st.info("No hotel momentum data.")
+        else:
+            bubble = hotel_momentum.copy()
+            # Bubble-specific Stay Month filter
+            if "Stay Month" in bubble.columns:
+                bubble_month_options = sorted(bubble["Stay Month"].dropna().unique(), key=month_sort_key)
+                bubble_month = st.selectbox(
+                    "Bubble Stay Month",
+                    ["All Months"] + bubble_month_options,
+                    index=0,
+                    key="bubble_stay_month_filter_v31",
+                )
+                if bubble_month != "All Months":
+                    bubble = bubble[bubble["Stay Month"] == bubble_month].copy()
+
+            bubble = bubble.sort_values(["Hotel", "Stay Month", "Report Date"])
+            bubble["Previous Forecast"] = bubble.groupby(["Hotel", "Stay Month"])["Value"].shift(1)
+            bubble["Daily Change"] = bubble["Value"] - bubble["Previous Forecast"]
+            bubble["Daily Change %"] = bubble["Daily Change"] / bubble["Previous Forecast"] * 100
+            bubble["Bubble Size"] = bubble["Value"].abs()
+
+            latest_snapshot = (
+                bubble.sort_values(["Hotel", "Report Date"])
+                .groupby(["Hotel", "Stay Month"], as_index=False)
+                .tail(1)
+                .copy()
+            )
+            latest_snapshot["Abs Daily PU"] = latest_snapshot["Daily Change"].abs()
+
+            ctl1, ctl2, ctl3 = st.columns([1.1, 1.1, 1.1])
+
+            max_hotels = int(max(1, latest_snapshot["Hotel"].nunique()))
+            top_options_raw = [5, 8, 10, 15, 20]
+            top_options = [f"Top {n}" for n in top_options_raw if n <= max_hotels]
+            if not top_options:
+                top_options = [f"Top {max_hotels}"]
+            top_options.append("All selected hotels")
+
+            default_display = "Top 8" if "Top 8" in top_options else top_options[0]
+
+            display_hotels = ctl1.selectbox(
+                "Display hotels",
+                top_options,
+                index=top_options.index(default_display),
+                key="bubble_display_hotels_dropdown",
+            )
+
+            focus_mode = ctl2.selectbox(
+                "Focus by",
+                [
+                    "Biggest movement",
+                    "Biggest drop",
+                    "Biggest gain",
+                    "Highest Forecast",
+                ],
+                index=0,
+                key="bubble_focus_mode_dropdown",
+            )
+
+            size_mode = ctl3.selectbox(
+                "Bubble size",
+                [
+                    "Abs Daily PU",
+                    "Latest D4cast",
+                ],
+                index=0,
+                key="bubble_size_mode_dropdown",
+            )
+
+            # Rank hotels based on what the user wants to focus on.
+            if focus_mode == "Biggest movement":
+                ranked_hotels = latest_snapshot.sort_values("Abs Daily PU", ascending=False)
+            elif focus_mode == "Biggest drop":
+                ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=True)
+            elif focus_mode == "Biggest gain":
+                ranked_hotels = latest_snapshot.sort_values("Daily Change", ascending=False)
+            else:
+                ranked_hotels = latest_snapshot.sort_values("Value", ascending=False)
+
+            if display_hotels == "All selected hotels":
+                visible_hotels = ranked_hotels["Hotel"].tolist()
+            else:
+                top_n = int(display_hotels.replace("Top ", ""))
+                visible_hotels = ranked_hotels.head(top_n)["Hotel"].tolist()
+
+            bubble_view = bubble[bubble["Hotel"].isin(visible_hotels)].copy()
+
+            if size_mode == "Abs Daily PU":
+                bubble_view["Bubble Size"] = bubble_view["Daily Change"].abs().fillna(0)
+                # Avoid invisible first-date bubbles.
+                if bubble_view["Bubble Size"].max() == 0:
+                    bubble_view["Bubble Size"] = bubble_view["Value"].abs()
+            else:
+                bubble_view["Bubble Size"] = bubble_view["Value"].abs()
+
+            bubble_view["Latest D4cast"] = bubble_view["Value"]
+            bubble_view["Daily PU"] = bubble_view["Daily Change"]
+            bubble_view["Daily PU %"] = bubble_view["Daily Change %"]
+
+            fig_hotel = px.scatter(
+                bubble_view,
+                x="Report Date",
+                y="Hotel",
+                size="Bubble Size",
+                color="Daily Change %",
+                hover_data={
+                    "Report Label": True,
+                    "Latest D4cast": ":,.2f",
+                    "Previous Forecast": ":,.2f",
+                    "Daily PU": ":,.2f",
+                    "Daily PU %": ":.2f",
+                    "Bubble Size": False,
+                },
+                title="Hotel-level Forecast Momentum / Daily %",
+                color_continuous_scale=["#b91c1c", "#facc15", "#15803d"],
+                color_continuous_midpoint=0,
+                size_max=34,
+            )
+
+            fig_hotel.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(
+                    title="Report Date",
+                    showgrid=True,
+                    gridcolor="#f1f5f9",
+                    tickformat="%d %b",
+                ),
+                yaxis=dict(
+                    title="Hotel",
+                    showgrid=True,
+                    gridcolor="#f8fafc",
+                    categoryorder="array",
+                    categoryarray=list(reversed(bubble_view["Hotel"].dropna().unique())),
+                ),
+                height=max(420, 46 * bubble_view["Hotel"].nunique()),
+                margin=dict(l=20, r=20, t=60, b=20),
+                coloraxis_colorbar=dict(title="Daily %", ticksuffix="%"),
+            )
+
+            fig_hotel.update_traces(
+                marker=dict(line=dict(width=0.7, color="white"), opacity=0.86),
+                selector=dict(mode="markers"),
+            )
+
+            st.plotly_chart(
+                fig_hotel,
                 use_container_width=True,
-                hide_index=True,
-                height=520,
-                column_config={
-                    "Report Date": st.column_config.DateColumn("Report Date", format="DD MMM YYYY"),
-                    "Forecast": st.column_config.NumberColumn("Forecast", format="%,.2f"),
-                    "Previous Forecast": st.column_config.NumberColumn("Previous Forecast", format="%,.2f"),
-                    "Daily PU": st.column_config.NumberColumn("Daily PU", format="%,.2f"),
-                    "Daily PU %": st.column_config.NumberColumn("Daily PU %", format="%.2f%%"),
+                config={
+                    "displayModeBar": True,
+                    "displaylogo": False,
+                    "modeBarButtonsToRemove": ["lasso2d", "select2d"],
                 },
             )
 
+            st.markdown('<div class="section-title">Hotel Momentum Summary</div>', unsafe_allow_html=True)
+
+            latest_rows = (
+                bubble.sort_values(["Hotel", "Report Date"])
+                .groupby(["Hotel", "Stay Month"], as_index=False)
+                .tail(1)
+                .copy()
+            )
+
+            latest_rows["Status"] = latest_rows["Daily Change"].apply(
+                lambda x: "Up" if pd.notna(x) and x > 0 else "Down" if pd.notna(x) and x < 0 else "Flat"
+            )
+
+            summary_cols = [
+                "Hotel",
+                "Report Date",
+                "Value",
+                "Previous Forecast",
+                "Daily Change %",
+                "Status",
+            ]
+
+            summary_view = latest_rows[summary_cols].copy()
+            summary_view = summary_view.rename(columns={
+                "Value": "Latest D4cast",
+                "Daily Change %": "Daily PU %",
+            })
+            summary_view = summary_view.sort_values("Daily PU %", ascending=True).reset_index(drop=True)
+
+            def color_momentum_row(row):
+                styles = pd.Series("", index=row.index)
+                daily_pu = row.get("Daily PU %")
+                if pd.notna(daily_pu) and daily_pu > 0:
+                    for col in ["Daily PU %", "Status"]:
+                        if col in styles.index:
+                            styles[col] = "background-color: #bbf7d0; font-weight: 700"
+                elif pd.notna(daily_pu) and daily_pu < 0:
+                    for col in ["Daily PU %", "Status"]:
+                        if col in styles.index:
+                            styles[col] = "background-color: #fecaca; font-weight: 700"
+                else:
+                    if "Status" in styles.index:
+                        styles["Status"] = "background-color: #fef08a; font-weight: 700"
+                return styles
+
+            st.dataframe(
+                summary_view.style.format({
+                    "Latest D4cast": fmt_raw2,
+                    "Previous Forecast": fmt_raw2,
+                    "Daily PU %": fmt_signed_pct2,
+                }).apply(color_momentum_row, axis=1),
+                use_container_width=True,
+                hide_index=True,
+                height=min(520, 44 + 36 * len(summary_view)),
+            )
+
+            with st.expander("Full hotel-level daily data"):
+                full_view = bubble[[
+                    "Report Date",
+                    "Report Label",
+                    "Hotel",
+                    "Value",
+                    "Previous Forecast",
+                    "Daily Change",
+                    "Daily Change %",
+                ]].sort_values(["Hotel", "Report Date"]).reset_index(drop=True)
+
+                full_view = full_view.rename(columns={
+                    "Value": "Forecast",
+                    "Daily Change": "Daily PU",
+                    "Daily Change %": "Daily PU %",
+                })
+
+                st.dataframe(
+                    full_view,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=520,
+                    column_config={
+                        "Report Date": st.column_config.DateColumn("Report Date", format="DD MMM YYYY"),
+                        "Forecast": st.column_config.NumberColumn("Forecast", format="%,.2f"),
+                        "Previous Forecast": st.column_config.NumberColumn("Previous Forecast", format="%,.2f"),
+                        "Daily PU": st.column_config.NumberColumn("Daily PU", format="%,.2f"),
+                        "Daily PU %": st.column_config.NumberColumn("Daily PU %", format="%.2f%%"),
+                    },
+                )
 
 
 
 
 
 
-elif selected_page == "Export":
-    # ── Primary: Daily Briefing Excel ─────────────────────────
-    st.markdown('<div class="section-title">Daily Briefing Excel — One-Click Morning Deck</div>', unsafe_allow_html=True)
-    st.caption(
-        "Single multi-sheet workbook with every key view from this dashboard — "
-        "ready to share with GMs or open at the morning meeting."
-    )
 
-    def trigger_download_toast():
-        st.toast("File downloaded successfully.")
-
-    # Build all sheets
-    briefing_sheets = build_daily_briefing_sheets(metric_data, role_selection, report_file_month)
-
-    # ── Sheet preview strip ───────────────────────────────────
-    preview_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px 0;">'
-    sheet_icons = {
-        "Portfolio Snapshot": "📊",
-        "Hotel Scorecard":    "🏨",
-        "Variance Pivot":     "📈",
-        "Same-Time Pace":     "⏱",
-        "Historical Final":   "📅",
-        "Duetto Movement":    "📉",
-        "Hotel Momentum":     "🚀",
-        "Role Selection":     "✅",
-    }
-    for name, df in briefing_sheets.items():
-        n_rows = 0 if (df is None or df.empty) else len(df)
-        empty = n_rows == 0
-        bg = "#f9fafb" if empty else "#eff6ff"
-        bd = "#e5e7eb" if empty else "#bfdbfe"
-        fg = "#9ca3af" if empty else "#1e40af"
-        preview_html += (
-            f'<div style="background:{bg};border:1px solid {bd};border-radius:8px;'
-            f'padding:8px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">'
-            f'<span style="font-size:14px;opacity:0.7;">{sheet_icons.get(name, "•")}</span>'
-            f'<span style="color:{fg};font-weight:600;">{html.escape(name)}</span>'
-            f'<span style="color:#94a3b8;font-size:11px;font-variant-numeric:tabular-nums;">'
-            f'{n_rows:,} row{"" if n_rows == 1 else "s"}</span>'
-            f'</div>'
+    elif selected_page == "Export":
+        # â”€â”€ Primary: Daily Briefing Excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        st.markdown('<div class="section-title">Daily Briefing Excel â€” One-Click Morning Deck</div>', unsafe_allow_html=True)
+        st.caption(
+            "Single multi-sheet workbook with every key view from this dashboard â€” "
+            "ready to share with GMs or open at the morning meeting."
         )
-    preview_html += '</div>'
-    st.markdown(preview_html, unsafe_allow_html=True)
 
-    # ── Primary download button ───────────────────────────────
-    file_stamp = report_file_month.replace(", ", "_").replace(" ", "_")
-    st.download_button(
-        "📥  Download Daily Briefing Excel",
-        data=to_excel_bytes(briefing_sheets),
-        file_name=f"g5_daily_briefing_{file_stamp}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        on_click=trigger_download_toast,
-        type="primary",
-        use_container_width=True,
-    )
+        def trigger_download_toast():
+            st.toast("File downloaded successfully.")
 
-    # ── Secondary: quick CSVs ─────────────────────────────────
-    st.markdown('<div class="section-title">Quick CSV Exports</div>', unsafe_allow_html=True)
-    st.caption("Individual CSVs for spreadsheet pivots or sharing a single view.")
+        # Build all sheets
+        briefing_sheets = build_daily_briefing_sheets(metric_data, role_selection, report_file_month)
 
-    csv_c1, csv_c2 = st.columns(2)
-    with csv_c1:
+        # â”€â”€ Sheet preview strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        preview_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px 0;">'
+        sheet_icons = {
+            "Portfolio Snapshot": "ðŸ“Š",
+            "Hotel Scorecard":    "ðŸ¨",
+            "Variance Pivot":     "ðŸ“ˆ",
+            "Same-Time Pace":     "â±",
+            "Historical Final":   "ðŸ“…",
+            "Duetto Movement":    "ðŸ“‰",
+            "Hotel Momentum":     "ðŸš€",
+            "Role Selection":     "âœ…",
+        }
+        for name, df in briefing_sheets.items():
+            n_rows = 0 if (df is None or df.empty) else len(df)
+            empty = n_rows == 0
+            bg = "#f9fafb" if empty else "#eff6ff"
+            bd = "#e5e7eb" if empty else "#bfdbfe"
+            fg = "#9ca3af" if empty else "#1e40af"
+            preview_html += (
+                f'<div style="background:{bg};border:1px solid {bd};border-radius:8px;'
+                f'padding:8px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">'
+                f'<span style="font-size:14px;opacity:0.7;">{sheet_icons.get(name, "â€¢")}</span>'
+                f'<span style="color:{fg};font-weight:600;">{html.escape(name)}</span>'
+                f'<span style="color:#94a3b8;font-size:11px;font-variant-numeric:tabular-nums;">'
+                f'{n_rows:,} row{"" if n_rows == 1 else "s"}</span>'
+                f'</div>'
+            )
+        preview_html += '</div>'
+        st.markdown(preview_html, unsafe_allow_html=True)
+
+        # â”€â”€ Primary download button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        file_stamp = report_file_month.replace(", ", "_").replace(" ", "_")
         st.download_button(
-            "Duetto Movement (CSV)",
-            data=movement_summary.to_csv(index=False).encode("utf-8"),
-            file_name=f"g5_duetto_movement_{file_stamp}.csv",
-            mime="text/csv",
+            "ðŸ“¥  Download Daily Briefing Excel",
+            data=to_excel_bytes(briefing_sheets),
+            file_name=f"g5_daily_briefing_{file_stamp}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             on_click=trigger_download_toast,
-            type="secondary",
+            type="primary",
             use_container_width=True,
         )
-    with csv_c2:
-        var_pivot = briefing_sheets.get("Variance Pivot")
-        if isinstance(var_pivot, pd.DataFrame) and not var_pivot.empty:
+
+        # â”€â”€ Secondary: quick CSVs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        st.markdown('<div class="section-title">Quick CSV Exports</div>', unsafe_allow_html=True)
+        st.caption("Individual CSVs for spreadsheet pivots or sharing a single view.")
+
+        csv_c1, csv_c2 = st.columns(2)
+        with csv_c1:
             st.download_button(
-                "Variance Pivot (CSV)",
-                data=var_pivot.to_csv(index=False).encode("utf-8"),
-                file_name=f"g5_variance_pivot_{file_stamp}.csv",
+                "Duetto Movement (CSV)",
+                data=movement_summary.to_csv(index=False).encode("utf-8"),
+                file_name=f"g5_duetto_movement_{file_stamp}.csv",
                 mime="text/csv",
                 on_click=trigger_download_toast,
                 type="secondary",
                 use_container_width=True,
             )
+        with csv_c2:
+            var_pivot = briefing_sheets.get("Variance Pivot")
+            if isinstance(var_pivot, pd.DataFrame) and not var_pivot.empty:
+                st.download_button(
+                    "Variance Pivot (CSV)",
+                    data=var_pivot.to_csv(index=False).encode("utf-8"),
+                    file_name=f"g5_variance_pivot_{file_stamp}.csv",
+                    mime="text/csv",
+                    on_click=trigger_download_toast,
+                    type="secondary",
+                    use_container_width=True,
+                )
 
-    # ── Role validation (kept at bottom for transparency) ─────
-    with st.expander("Report Roles Validation", expanded=False):
-        st.caption("Confirms which files were assigned to Today / Yesterday / 7D / 1st Month roles.")
-        st.dataframe(role_selection, use_container_width=True, hide_index=True)
+        # â”€â”€ Role validation (kept at bottom for transparency) â”€â”€â”€â”€â”€
+        with st.expander("Report Roles Validation", expanded=False):
+            st.caption("Confirms which files were assigned to Today / Yesterday / 7D / 1st Month roles.")
+            st.dataframe(role_selection, use_container_width=True, hide_index=True)
+
+
+if __name__ == "__main__":
+    main()

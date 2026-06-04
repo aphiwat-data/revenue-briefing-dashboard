@@ -12,13 +12,13 @@
 
 **Turns 30+ daily Duetto D4cast exports into a 5-page operational dashboard with a single-click morning briefing.**
 
-[Live Demo](#) · [Architecture](#-architecture) · [Features](#-features) · [Tech Stack](#-tech-stack)
+[Live Demo](#) · [Architecture](#architecture) · [Features](#features) · [Tech Stack](#tech-stack)
 
 </div>
 
 ---
 
-## 💡 The Problem
+## The Problem
 
 Hotel revenue management teams spent **20–30 minutes every morning** manually:
 - Opening each property's Duetto export individually
@@ -30,7 +30,7 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ---
 
-## 📊 Impact
+## Impact
 
 | Metric | Before | After |
 | :--- | :--- | :--- |
@@ -42,7 +42,7 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 <table>
 <tr>
@@ -77,9 +77,9 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ---
 
-## ⚡ Features
+## Features
 
-### 5 Pages, One Source of Truth
+### Five Pages, One Source of Truth
 
 | Page | What it does |
 | :--- | :--- |
@@ -91,16 +91,16 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ### Engineering Highlights
 
-- **🧠 Smart File Role Detection** — Auto-classifies uploads as Today / Yesterday / Last-7D / 1st-of-Month without configuration
-- **🔄 Look-back Logic** — `drop_duplicates(["Hotel","Stay Month","Metric","Reference"], keep="last")` pattern lets past stay months pull from their own latest report, enabling month-over-month analysis
-- **🎨 Generic Variance Styler** — Any column matching `" VS "` is auto-color-coded — add new variance columns without touching the styler
-- **📊 Variance Pivot with 7 columns** — `Today VS BUD`, `Duetto VS BUD`, `Today VS Duetto`, `Today VS STLY/ST2Y/ST3Y`, `Duetto VS Final LY/2Y/3Y`
-- **🔒 Sticky Columns** — Stay Month + Metric pinned left when the variance pivot scrolls horizontally
-- **🏷️ Status Badge** — Top-right freshness indicator: green dot = today's data, blue dot = latest available
+- **Smart File Role Detection** — Auto-classifies uploads as Today / Yesterday / Last-7D / 1st-of-Month without configuration
+- **Look-back Logic** — `drop_duplicates(["Hotel","Stay Month","Metric","Reference"], keep="last")` pattern lets past stay months pull from their own latest report, enabling month-over-month analysis
+- **Generic Variance Styler** — Any column matching `" VS "` is auto-color-coded — add new variance columns without touching the styler
+- **Variance Pivot with 7 columns** — `Today VS BUD`, `Duetto VS BUD`, `Today VS Duetto`, `Today VS STLY/ST2Y/ST3Y`, `Duetto VS Final LY/2Y/3Y`
+- **Sticky Columns** — Stay Month + Metric pinned left when the variance pivot scrolls horizontally
+- **Status Badge** — Top-right freshness indicator showing report date and file count, with auto-detection of today's data
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```text
                     ┌─────────────────────────────────────────────┐
@@ -151,7 +151,7 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ---
 
-## 🎯 Skills Demonstrated
+## Skills Demonstrated
 
 | Domain | Skills |
 | :--- | :--- |
@@ -164,7 +164,7 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 .
@@ -175,7 +175,7 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 └── README.md               # This file
 ```
 
-### Function Map (high level)
+### Function Map
 
 ```python
 # Data layer
@@ -201,7 +201,7 @@ _render_forecast_vs_budget   # KPI snapshot
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Local Run
 
@@ -232,7 +232,7 @@ Push to `main` → Streamlit Cloud auto-redeploys.
 
 ---
 
-## 🧠 Naming Convention
+## Naming Convention
 
 | Term | Meaning |
 | :--- | :--- |
@@ -251,27 +251,13 @@ For every `X VS Y` column:
 variance_pct = (X - Y) / abs(Y) * 100
 ```
 
-- 🟢 Green = positive (ahead of target / pace)
-- 🔴 Red = negative (behind)
-- 🟡 Yellow = flat
+- Green = positive (ahead of target / pace)
+- Red = negative (behind)
+- Yellow = flat
 
 ---
 
-## 🛡️ Bug Prevention Checklist
-
-When adding a new variance column:
-
-1. ✅ Name it `<X> VS <Y>` where `<Y>` matches the actual reference used in the formula
-2. ❌ Never hide `max()` / `min()` / `best` inside a column labeled by a specific reference
-3. ✅ Use `safe_pct(num, denom)` — handles NaN and divide-by-zero
-4. ✅ Aggregate correctly:
-   - **Rev / Rooms** → `sum`
-   - **ADR / Occ** → `mean`
-5. ✅ Add the column to the order list in `build_variance_pivot_table()` — styler auto-detects via `" VS "` matching
-
----
-
-## 🩺 Troubleshooting
+## Troubleshooting
 
 | Symptom | Likely cause |
 | :--- | :--- |
@@ -283,7 +269,7 @@ When adding a new variance column:
 
 ---
 
-## 📜 License
+## License
 
 This is a portfolio project. The code is shared for demonstration purposes.
 Refer to the LICENSE file for terms.
