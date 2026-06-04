@@ -9,7 +9,15 @@ from __future__ import annotations
 import pandas as pd
 
 from src.core.constants import FINAL_REFS, METRIC_ORDER
-from src.domain.helpers import format_compact_value
+from src.core.helpers import fmt_pct2, fmt_raw2
+
+try:
+    from src.domain.helpers import format_compact_value as _format_compact_value
+except (ImportError, AttributeError):
+    def _format_compact_value(x, is_pct: bool = False) -> str:
+        if x is None or pd.isna(x):
+            return ""
+        return fmt_pct2(x) if is_pct else fmt_raw2(x)
 
 
 def risk_level(diff_pct: float | None) -> str:
@@ -123,17 +131,17 @@ def make_recommended_pace_compact(df: pd.DataFrame) -> pd.DataFrame:
         benchmark_text = []
         for ref in ["STLY", "ST2Y", "ST3Y"]:
             if ref in out.columns:
-                benchmark_text.append(f"{ref}: {format_compact_value(r.get(ref))}")
+                benchmark_text.append(f"{ref}: {_format_compact_value(r.get(ref))}")
 
         cols.append({
             "Hotel": r.get("Hotel"),
             "Stay Month": r.get("Stay Month"),
             "Metric": r.get("Metric"),
-            "Today": format_compact_value(r.get("Today")),
+            "Today": _format_compact_value(r.get("Today")),
             "Recommended Pace": r.get("Recommended Pace"),
-            "Rec. Pace Value": format_compact_value(r.get("Recommended Pace Value")),
-            "Variance": format_compact_value(r.get("Pace Diff")),
-            "Variance %": format_compact_value(r.get("Pace Diff %"), is_pct=True),
+            "Rec. Pace Value": _format_compact_value(r.get("Recommended Pace Value")),
+            "Variance": _format_compact_value(r.get("Pace Diff")),
+            "Variance %": _format_compact_value(r.get("Pace Diff %"), is_pct=True),
             "Status": r.get("Status"),
             "Benchmarks": " | ".join(benchmark_text),
         })
@@ -159,10 +167,10 @@ def make_final_compact(df: pd.DataFrame) -> pd.DataFrame:
             "Stay Month": r.get("Stay Month"),
             "Metric": r.get("Metric"),
             "Base Final": r.get("Base Final"),
-            "Forecast": format_compact_value(r.get("Forecast")),
-            "Final Value": format_compact_value(r.get("Final Value")),
-            "Variance": format_compact_value(r.get("Diff")),
-            "Variance %": format_compact_value(r.get("Diff %"), is_pct=True),
+            "Forecast": _format_compact_value(r.get("Forecast")),
+            "Final Value": _format_compact_value(r.get("Final Value")),
+            "Variance": _format_compact_value(r.get("Diff")),
+            "Variance %": _format_compact_value(r.get("Diff %"), is_pct=True),
             "Status": r.get("Status"),
         })
 
