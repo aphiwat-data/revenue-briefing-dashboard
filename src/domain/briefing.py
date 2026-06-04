@@ -12,7 +12,7 @@ import pandas as pd
 from src.domain.aggregations import build_pace_summary, build_final_comparison, build_movement_summary
 from src.domain.pivot import build_variance_pivot_table
 
-def build_portfolio_snapshot(metric_data, role_selection):
+def build_portfolio_snapshot(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     """
     Portfolio totals per metric: OTB / Forecast / Budget / STLY,
     plus Forecast vs Budget % and OTB vs STLY %.
@@ -58,7 +58,7 @@ def build_portfolio_snapshot(metric_data, role_selection):
         })
     return pd.DataFrame(rows)
 
-def build_hotel_scorecard(metric_data, role_selection):
+def build_hotel_scorecard(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     """
     Per-hotel scorecard: total Forecast / Budget / Var% for Rev,
     plus ADR (avg) and Occ (avg) OTB. One row per hotel.
@@ -113,7 +113,11 @@ def build_hotel_scorecard(metric_data, role_selection):
         })
     return pd.DataFrame(rows)
 
-def build_daily_briefing_sheets(metric_data, role_selection, report_file_month):
+def build_daily_briefing_sheets(
+    metric_data: pd.DataFrame,
+    role_selection: pd.DataFrame,
+    report_file_month: str,
+) -> dict[str, pd.DataFrame]:
     """
     Assemble the full multi-sheet daily briefing for the morning meeting.
 

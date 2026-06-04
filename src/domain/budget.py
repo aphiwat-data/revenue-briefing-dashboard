@@ -11,7 +11,7 @@ import pandas as pd
 
 from src.domain.helpers import calc_budget_variance, budget_status_from_variance
 
-def build_budget_review(metric_data, role_selection):
+def build_budget_review(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
 
@@ -64,7 +64,7 @@ def build_budget_review(metric_data, role_selection):
     out["Status"] = out["Budget Variance"].apply(budget_status_from_variance)
     return out
 
-def build_budget_review_summary_view(budget_df, view_level):
+def build_budget_review_summary_view(budget_df: pd.DataFrame, view_level: str) -> pd.DataFrame:
     """
     Make Budget Review/Sort Board easier for All Month usage.
 
@@ -107,7 +107,7 @@ def build_budget_review_summary_view(budget_df, view_level):
 
     return out
 
-def build_forecast_movement_v31(metric_data, role_selection):
+def build_forecast_movement_v31(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     role_map = {
         row["Role"]: row["Report Label"]
         for _, row in role_selection.iterrows()

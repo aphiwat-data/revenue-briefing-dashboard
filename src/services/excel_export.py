@@ -5,7 +5,7 @@ import io
 import pandas as pd
 
 
-def to_excel_bytes(sheets_dict):
+def to_excel_bytes(sheets_dict: dict[str, pd.DataFrame]) -> bytes:
     """Pack a {sheet_name: DataFrame} dict into XLSX bytes."""
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:

@@ -1,0 +1,33 @@
+# Duetto export schema configuration.
+# Update this file to extend column-name matching when Duetto changes
+# its export format — no code change needed.
+
+# Reference patterns: each key is the canonical name, value is a list
+# of substrings to match (case-insensitive) inside the Duetto column header.
+references:
+  Today:    ["Today"]
+  STLY:     ["STLY (DOW)", "STLY"]
+  ST2Y:     ["ST2Y (DOW)", "ST2Y"]
+  ST3Y:     ["ST3Y (DOW)", "ST3Y"]
+  Duetto:   ["Duetto Forecast", "Duetto", "Forecast"]
+  Budget:   ["Locked Budget", "Budget"]
+  Final LY: ["Final LY (DOW)", "Final LY"]
+  Final 2Y: ["Final 2Y (DOW)", "Final 2Y"]
+  Final 3Y: ["Final 3Y (DOW)", "Final 3Y"]
+
+# Metric patterns: same matching rule as references.
+metrics:
+  Occupancy: ["Occupancy (Physical)", "Occupancy"]
+  Rooms:     ["Rooms (Commit)", "Rooms"]
+  ADR:       ["ADR (Commit)", "ADR"]
+  Revenue:   ["Room Revenue (Commit)", "Room Revenue", "Revenue"]
+
+# Display label for each canonical metric.
+metric_to_display:
+  Occupancy: Occ
+  Rooms:     Room
+  ADR:       ADR
+  Revenue:   Rev
+
+# Canonical display order in tables.
+metric_order: [Occ, Room, ADR, Rev]

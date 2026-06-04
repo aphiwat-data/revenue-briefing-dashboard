@@ -9,6 +9,8 @@
 [![Pandas](https://img.shields.io/badge/Pandas-2.x-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org/)
 [![Plotly](https://img.shields.io/badge/Plotly-5.x-3F4F75?style=for-the-badge&logo=plotly&logoColor=white)](https://plotly.com/)
 [![OpenPyXL](https://img.shields.io/badge/openpyxl-Excel%20I%2FO-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)](https://openpyxl.readthedocs.io/)
+[![Tests](https://img.shields.io/badge/tests-77%20passing-3DA639?style=for-the-badge&logo=pytest&logoColor=white)](#code-quality)
+[![Type Hints](https://img.shields.io/badge/type%20hints-public%20API-3776AB?style=for-the-badge&logo=python&logoColor=white)](#code-quality)
 
 **Turns 30+ daily Duetto D4cast exports into a 5-page operational dashboard with a single-click morning briefing.**
 
@@ -159,7 +161,18 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 ├── app.py                          # Thin orchestrator (~1,000 LOC) — main UI flow only
 ├── assets/
 │   └── logo.png                    # Brand logo (base64-encoded at startup)
+├── config/
+│   └── duetto_schema.yaml          # Externalised column-name patterns (no code change to extend)
+├── tests/                          # pytest suite (77 tests)
+│   ├── test_helpers.py
+│   ├── test_domain_helpers.py
+│   ├── test_variance_pivot.py
+│   ├── test_lookback.py
+│   └── test_config.py
+├── .github/
+│   └── workflows/test.yml          # CI: pytest on Python 3.10/3.11/3.12
 ├── requirements.txt
+├── requirements-dev.txt            # adds pytest
 ├── README.md
 └── src/
     ├── core/                       # Constants, formatters, shared helpers
@@ -284,8 +297,25 @@ variance_pct = (X - Y) / abs(Y) * 100
 | Number of Python modules | 21 |
 | Largest single module | `features/trend.py` (~770 LOC) |
 | Top-level functions in `app.py` | 1 (`main()`) — everything else lives in modules |
-| Test coverage | Roadmap — `pytest` planned |
+| **Test suite** | **77 passing tests** covering helpers, variance formulas, look-back pattern, config |
+| **Type hints** | Public API (core/, domain/, services/) fully typed |
+| **Config externalisation** | `config/duetto_schema.yaml` — non-engineers can extend column matching without code change |
+| **CI/CD** | GitHub Actions: pytest + import checks on Python 3.10 / 3.11 / 3.12 |
 | Compile-clean | `python -m py_compile` passes on every commit |
+
+### Running the test suite
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Key test files:
+- `tests/test_helpers.py` — formatter and date utilities
+- `tests/test_domain_helpers.py` — budget variance, stay-month filter
+- `tests/test_variance_pivot.py` — variance formula correctness, column order, edge cases (incl. the STLY sign-flip regression test)
+- `tests/test_lookback.py` — `drop_duplicates(keep="last")` pattern guarantees
+- `tests/test_config.py` — YAML schema loading
 
 ---
 

@@ -10,13 +10,13 @@ import pandas as pd
 
 from src.core.constants import FINAL_REFS, METRIC_ORDER
 
-def risk_level(diff_pct):
+def risk_level(diff_pct: float | None) -> str:
     if pd.isna(diff_pct): return "Unknown"
     if diff_pct <= -5: return "High"
     if diff_pct <= -2: return "Medium"
     return "Low"
 
-def build_movement_summary(metric_data, role_selection):
+def build_movement_summary(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     role_map = {row["Role"]: row["Report Label"] for _, row in role_selection.iterrows() if pd.notna(row["Report Label"])}
     latest_label = role_map.get("Today / Latest")
     base_map = {"vs Yesterday": role_map.get("Yesterday / Previous"), "vs 7D": role_map.get("Last 7D"), "vs 1st Month": role_map.get("1st Month")}
@@ -46,7 +46,7 @@ def build_movement_summary(metric_data, role_selection):
         out = out.sort_values(["Hotel", "Stay Month", "Metric", "Compare"]).reset_index(drop=True)
     return out
 
-def build_pace_summary(metric_data, role_selection):
+def build_pace_summary(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
     # available Report Date - supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
@@ -79,7 +79,7 @@ def build_pace_summary(metric_data, role_selection):
         rows.append({"Hotel": h, "Stay Month": sm, "Metric": m, "Today": today, "STLY": stly, "ST2Y": st2y, "ST3Y": st3y, "Recommended Pace": pace_ref, "Recommended Pace Value": pace_value, "Pace Diff": diff, "Pace Diff %": diff_pct, "Status": status, "Risk": risk_level(diff_pct)})
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric"]).reset_index(drop=True) if rows else pd.DataFrame()
 
-def build_final_comparison(metric_data, role_selection):
+def build_final_comparison(metric_data: pd.DataFrame, role_selection: pd.DataFrame) -> pd.DataFrame:
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
     # available Report Date - supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
@@ -106,7 +106,7 @@ def build_final_comparison(metric_data, role_selection):
             rows.append({"Hotel": keys[0], "Stay Month": keys[1], "Metric": keys[2], "Forecast": d4, "Base Final": final_ref, "Final Value": base, "Diff": diff, "Diff %": diff / base * 100, "Status": "Higher" if diff > 0 else "Lower" if diff < 0 else "Equal"})
     return pd.DataFrame(rows).sort_values(["Hotel", "Stay Month", "Metric", "Base Final"]).reset_index(drop=True) if rows else pd.DataFrame()
 
-def make_recommended_pace_compact(df):
+def make_recommended_pace_compact(df: pd.DataFrame) -> pd.DataFrame:
     """
     Compact view for Recommended Pace.
     Avoids wide tables that require horizontal scrolling.
@@ -143,7 +143,7 @@ def make_recommended_pace_compact(df):
 
     return result
 
-def make_final_compact(df):
+def make_final_compact(df: pd.DataFrame) -> pd.DataFrame:
     """
     Compact view for D4cast vs Final.
     """

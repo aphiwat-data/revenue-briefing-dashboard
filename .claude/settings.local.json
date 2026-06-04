@@ -31,7 +31,13 @@
       "Bash(git fsck *)",
       "Bash(git push *)",
       "Bash(grep -n \"My Drive\\\\|G:\\\\\\\\\\\\\\\\\\\\\\\\|G5 - Weekly\" app.py)",
-      "Bash(python -c \"import app\")"
+      "Bash(python -c \"import app\")",
+      "Bash(pip install *)",
+      "Bash(python -m pytest tests/)",
+      "Bash(python -m pytest tests/ -q)",
+      "Bash(grep -v \"^$\")",
+      "Bash(python -m pytest tests/ --tb=short)",
+      "Bash(xargs wc -l)"
     ]
   }
 }

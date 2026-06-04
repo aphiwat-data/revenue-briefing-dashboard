@@ -15,7 +15,10 @@ import pandas as pd
 from src.core.constants import METRIC_ORDER
 from src.core.helpers import month_sort_key
 
-def build_latest_pivot_table(metric_data, role_selection):
+def build_latest_pivot_table(
+    metric_data: pd.DataFrame,
+    role_selection: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Build compact pivot table like the reference screenshot:
     Month | Metric | Today | STLY | ST2Y | ST3Y | Duetto | Budget | Final LY | Final 2Y | Final 3Y
@@ -63,7 +66,10 @@ def build_latest_pivot_table(metric_data, role_selection):
 
     return pivot[["Hotel", "Stay Month", "Metric"] + available_refs].reset_index(drop=True)
 
-def build_variance_pivot_table(metric_data, role_selection):
+def build_variance_pivot_table(
+    metric_data: pd.DataFrame,
+    role_selection: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Extended pivot: raw values PLUS colour-coded variance % columns.
 

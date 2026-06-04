@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data — never commit real customer/business data
+data/
+*.csv
+*.xlsx
+!sample_data/*.csv
+!sample_data/*.xlsx
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Local config overrides
+.env
+.env.local
