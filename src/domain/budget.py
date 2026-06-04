@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.core.constants import METRIC_ORDER
 from src.domain.aggregations import risk_level
 from src.domain.helpers import calc_budget_variance, budget_status_from_variance
 
