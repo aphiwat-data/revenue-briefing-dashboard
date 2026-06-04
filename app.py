@@ -3246,8 +3246,8 @@ def render_budget_sort_board_v32(metric_long, role_selection, selected_hotels, s
         month_view = (
             month_view
             .sort_values(
-                ["_month_sort", sort_choice, "Hotel", "Metric"],
-                ascending=[True, True, True, True],
+                ["_month_sort", "Hotel", "Metric"],
+                ascending=[True, True, True],
                 na_position="last",
             )
             .drop(columns=["_month_sort"])
@@ -4300,7 +4300,21 @@ def render_priority_budget_table(view, show_heading=True, key_suffix="default"):
     multi_hotel = table_df["Hotel"].nunique() > 1 if "Hotel" in table_df.columns else False
     table_sort = "Worst variance first"
 
-    if multi_hotel:
+    if key_suffix == "month" and {"Stay Month", "Metric"}.issubset(table_df.columns):
+        table_sort = "Month order"
+        table_df["_month_sort"] = table_df["Stay Month"].apply(month_sort_key)
+        table_df["Metric"] = pd.Categorical(table_df["Metric"], categories=METRIC_ORDER, ordered=True)
+        sort_cols = ["_month_sort"]
+        if "Hotel" in table_df.columns:
+            sort_cols.append("Hotel")
+        sort_cols.append("Metric")
+        table_df = (
+            table_df
+            .sort_values(sort_cols, ascending=True, na_position="last")
+            .drop(columns=["_month_sort"])
+            .reset_index(drop=True)
+        )
+    elif multi_hotel:
         table_sort = st.selectbox(
             "Table sort",
             ["Worst variance first", "Best variance first", "Hotel order"],
