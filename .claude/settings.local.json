@@ -10,7 +10,25 @@
       "Bash(python -c ' *)",
       "Bash(ls \"C:\\\\Users\\\\Lenovo\\\\Downloads\\\\g5_d4cast_streamlit_deploy_package\\\\\")",
       "Bash(python -m py_compile app.py)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py',encoding='utf-8'\\).read\\(\\)\\); print\\('AST OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('app.py',encoding='utf-8'\\).read\\(\\)\\); print\\('AST OK'\\)\")",
+      "Bash(python -X utf8)",
+      "Bash(where python *)",
+      "Bash(where python3 *)",
+      "Bash(where py *)",
+      "Bash(\"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python311\\\\python.exe\" -c \"import selenium; print\\('selenium OK'\\)\")",
+      "PowerShell(schtasks /create /tn \"SiteMinder Checkout Scraper\" /tr \"\\\\\"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\\\\\" \\\\\"G:\\\\My Drive\\\\Ecom\\\\Report\\\\SMD - Checkout\\\\Dev\\\\scraper.py\\\\\"\" /sc ONLOGON /delay 0002:00 /f /rl LIMITED)",
+      "PowerShell($env:USERNAME)",
+      "PowerShell(Start-Process schtasks -ArgumentList '/create /tn \"SiteMinder Checkout Scraper\" /xml \"C:\\\\Temp\\\\smd_task.xml\" /f' -Verb RunAs -Wait -PassThru 2>&1)",
+      "Bash(\"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\" -c \"import pandas; print\\('pandas', pandas.__version__\\)\")",
+      "Bash(\"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\" -c \"import openpyxl; print\\('openpyxl', openpyxl.__version__\\)\")",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\" commission_report.py)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:\\\\Users\\\\Lenovo\\\\AppData\\\\Local\\\\Python\\\\bin\\\\python.exe\" -)",
+      "Bash(PYTHONIOENCODING=utf-8 powershell -NoProfile -Command 'Get-ChildItem -Directory -Filter '\\\\''*_checkout_*'\\\\'' | ForEach-Object { Write-Host \\('\\\\''[DIR] '\\\\'' + $_.Name\\); Get-ChildItem $_.FullName -Filter '\\\\''*.csv'\\\\'' | ForEach-Object { Write-Host \\('\\\\''      '\\\\'' + $_.Name\\) } }')",
+      "Bash(tasklist /fi \"imagename eq python.exe\" /fo list)",
+      "Bash(tasklist /fi \"imagename eq chrome.exe\" /fo list)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | ForEach-Object { $_.MainWindowTitle }; Get-ChildItem \"$env:TEMP\\\\siteminder_downloads\" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime, Length)",
+      "Bash(python -X utf8 _validate.py)",
+      "Bash(git fsck *)"
     ]
   }
 }
