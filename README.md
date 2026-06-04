@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # Daily Revenue Briefing Dashboard
 
@@ -12,7 +12,7 @@
 
 **Turns 30+ daily Duetto D4cast exports into a 5-page operational dashboard with a single-click morning briefing.**
 
-[Live Demo](#) · [Architecture](#architecture) · [Features](#features) · [Tech Stack](#tech-stack)
+[Live Demo](#)  [Architecture](#architecture)  [Features](#features)  [Tech Stack](#tech-stack)
 
 </div>
 
@@ -20,9 +20,9 @@
 
 ## The Problem
 
-Hotel revenue management teams spent **20–30 minutes every morning** manually:
+Hotel revenue management teams spent **2030 minutes every morning** manually:
 - Opening each property's Duetto export individually
-- Calculating variances (Forecast vs Budget, OTB vs STLY, …) in Excel
+- Calculating variances (Forecast vs Budget, OTB vs STLY, ) in Excel
 - Switching between 7+ workbooks to compare hotels
 - Re-formatting tables for the morning briefing meeting
 
@@ -83,71 +83,71 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 | Page | What it does |
 | :--- | :--- |
-| **Overview** | At-a-glance KPI snapshot · Compare chart · Variance Pivot · Same-Time Pace · Historical Finals · Forecast Movement |
-| **Budget Review** | Priority table sorted by worst variance — green/red/yellow color-coded with sticky context columns |
-| **Leaderboard** | 7 hotels × 10 metrics, ranked per stay month, with gold/silver/bronze tints for top 3 and blue highlights for selected hotels |
-| **Trend** | Dual-Y combo chart (bars + line + baselines) with `vs Forecast` / `vs Budget` toggle · Daily % momentum |
+| **Overview** | At-a-glance KPI snapshot  Compare chart  Variance Pivot  Same-Time Pace  Historical Finals  Forecast Movement |
+| **Budget Review** | Priority table sorted by worst variance  green/red/yellow color-coded with sticky context columns |
+| **Leaderboard** | 7 hotels  10 metrics, ranked per stay month, with gold/silver/bronze tints for top 3 and blue highlights for selected hotels |
+| **Trend** | Dual-Y combo chart (bars + line + baselines) with `vs Forecast` / `vs Budget` toggle  Daily % momentum |
 | **Export** | One-click **8-sheet Excel briefing** + quick CSV exports, with auto-named files (`g5_daily_briefing_<month>.xlsx`) |
 
 ### Engineering Highlights
 
-- **Smart File Role Detection** — Auto-classifies uploads as Today / Yesterday / Last-7D / 1st-of-Month without configuration
-- **Look-back Logic** — `drop_duplicates(["Hotel","Stay Month","Metric","Reference"], keep="last")` pattern lets past stay months pull from their own latest report, enabling month-over-month analysis
-- **Generic Variance Styler** — Any column matching `" VS "` is auto-color-coded — add new variance columns without touching the styler
-- **Variance Pivot with 7 columns** — `Today VS BUD`, `Duetto VS BUD`, `Today VS Duetto`, `Today VS STLY/ST2Y/ST3Y`, `Duetto VS Final LY/2Y/3Y`
-- **Sticky Columns** — Stay Month + Metric pinned left when the variance pivot scrolls horizontally
-- **Status Badge** — Top-right freshness indicator showing report date and file count, with auto-detection of today's data
+- **Smart File Role Detection**  Auto-classifies uploads as Today / Yesterday / Last-7D / 1st-of-Month without configuration
+- **Look-back Logic**  `drop_duplicates(["Hotel","Stay Month","Metric","Reference"], keep="last")` pattern lets past stay months pull from their own latest report, enabling month-over-month analysis
+- **Generic Variance Styler**  Any column matching `" VS "` is auto-color-coded  add new variance columns without touching the styler
+- **Variance Pivot with 7 columns**  `Today VS BUD`, `Duetto VS BUD`, `Today VS Duetto`, `Today VS STLY/ST2Y/ST3Y`, `Duetto VS Final LY/2Y/3Y`
+- **Sticky Columns**  Stay Month + Metric pinned left when the variance pivot scrolls horizontally
+- **Status Badge**  Top-right freshness indicator showing report date and file count, with auto-detection of today's data
 
 ---
 
 ## Architecture
 
 ```text
-                    ┌─────────────────────────────────────────────┐
-   Duetto Reports   │  Upload Mode  ─── ZIP expansion (in memory) │
-   (CSV/XLSX)  ──→  │  Folder Mode  ─── Path scanning             │
-                    └─────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  File Catalog   ─── auto-detect report date │
-                    │                     from filename patterns  │
-                    └─────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  Role Selection ─── Today/Yesterday/7D/1st  │
-                    │                     + look-back month merge │
-                    └─────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  Parser  ─── pattern-match column names →   │
-                    │              canonical (Today, Duetto, …)   │
-                    └─────────────────────────────────────────────┘
-                                       │
-                                       ▼
-                    ┌─────────────────────────────────────────────┐
-                    │  metric_long DataFrame                      │
-                    │  (Hotel × Stay Month × Metric × Reference)  │
-                    └─────────────────────────────────────────────┘
-                                       │
-        ┌──────────────────┬──────────────────┬──────────────────┐
-        ▼                  ▼                  ▼                  ▼
-  ┌─────────────┐  ┌────────────────┐  ┌─────────────┐  ┌─────────────┐
-  │  Overview   │  │ Budget Review  │  │ Leaderboard │  │   Export    │
-  │  (Pivot +   │  │   (Priority    │  │ (Mega rank  │  │  (8-sheet   │
-  │   KPIs)     │  │    table)      │  │  table)     │  │   Excel)    │
-  └─────────────┘  └────────────────┘  └─────────────┘  └─────────────┘
+
+   Duetto Reports     Upload Mode   ZIP expansion (in memory)
+   (CSV/XLSX)      Folder Mode   Path scanning
+
+
+
+
+                      File Catalog    auto-detect report date
+                                         from filename patterns
+
+
+
+
+                      Role Selection  Today/Yesterday/7D/1st
+                                         + look-back month merge
+
+
+
+
+                      Parser   pattern-match column names
+                                  canonical (Today, Duetto, )
+
+
+
+
+                      metric_long DataFrame
+                      (Hotel  Stay Month  Metric  Reference)
+
+
+
+
+
+    Overview      Budget Review     Leaderboard      Export
+    (Pivot +        (Priority       (Mega rank      (8-sheet
+     KPIs)           table)          table)          Excel)
+
 ```
 
 ### Key Design Patterns
 
-- **Single-file deployment** — Streamlit Cloud one-shot deploy with no module imports
-- **Long-format core** — All filters/aggregations operate on a uniform `(Hotel, Stay Month, Metric, Reference, Value)` long-format DataFrame
-- **Latest-snapshot pattern** — `drop_duplicates` with `keep="last"` on a sort key, applied at every render to support look-back
-- **Display-layer rename** — Internal column names stay stable for styling logic; user-facing labels rename at `st.dataframe` time via `.rename()` + parallel styler
-- **Generic detection** — Variance styler auto-discovers VS-pattern columns; no per-column wiring needed
+- **Single-file deployment**  Streamlit Cloud one-shot deploy with no module imports
+- **Long-format core**  All filters/aggregations operate on a uniform `(Hotel, Stay Month, Metric, Reference, Value)` long-format DataFrame
+- **Latest-snapshot pattern**  `drop_duplicates` with `keep="last"` on a sort key, applied at every render to support look-back
+- **Display-layer rename**  Internal column names stay stable for styling logic; user-facing labels rename at `st.dataframe` time via `.rename()` + parallel styler
+- **Generic detection**  Variance styler auto-discovers VS-pattern columns; no per-column wiring needed
 
 ---
 
@@ -168,11 +168,11 @@ This dashboard collapses that whole workflow into **5 minutes** with auto-loaded
 
 ```text
 .
-├── app.py                  # Single-file Streamlit dashboard (~6,300 LOC)
-├── assets/
-│   └── logo.png            # Brand logo (base64-encoded at startup)
-├── requirements.txt        # Python dependencies
-└── README.md               # This file
+ app.py                  # Single-file Streamlit dashboard (~6,300 LOC)
+ assets/
+    logo.png            # Brand logo (base64-encoded at startup)
+ requirements.txt        # Python dependencies
+ README.md               # This file
 ```
 
 ### Function Map
@@ -220,7 +220,7 @@ The app opens at `http://localhost:8501`.
 - Python: `3.10+`
 - Requirements: `requirements.txt`
 
-Push to `main` → Streamlit Cloud auto-redeploys.
+Push to `main`  Streamlit Cloud auto-redeploys.
 
 ### Using the Dashboard
 
@@ -236,10 +236,10 @@ Push to `main` → Streamlit Cloud auto-redeploys.
 
 | Term | Meaning |
 | :--- | :--- |
-| **Today** | On-the-book (OTB) — what's already booked |
-| **Duetto** | Forecast — Duetto's predicted landing |
+| **Today** | On-the-book (OTB)  what's already booked |
+| **Duetto** | Forecast  Duetto's predicted landing |
 | **Budget** / **BUD** | Locked target for the period |
-| **VS** | Comparison operator — export-safe (no `▲` symbols that break CSV/Excel imports) |
+| **VS** | Comparison operator  export-safe (no `` symbols that break CSV/Excel imports) |
 | **STLY / ST2Y / ST3Y** | Same-time last year / 2 years ago / 3 years ago |
 | **Final LY / 2Y / 3Y** | Historical full-period actuals |
 
@@ -261,10 +261,10 @@ variance_pct = (X - Y) / abs(Y) * 100
 
 | Symptom | Likely cause |
 | :--- | :--- |
-| "No Forecast / Duetto columns found" | Source files don't match `REFERENCE_PATTERNS` — extend the pattern list |
-| Empty Stay Month dropdown | Uploaded files filtered out — check filenames and date parsing |
-| Past stay month shows "No data" | Previous month's report files not in catalog — upload them too |
-| Variance cell uncolored | Column name missing `" VS "` — the styler won't auto-detect it |
+| "No Forecast / Duetto columns found" | Source files don't match `REFERENCE_PATTERNS`  extend the pattern list |
+| Empty Stay Month dropdown | Uploaded files filtered out  check filenames and date parsing |
+| Past stay month shows "No data" | Previous month's report files not in catalog  upload them too |
+| Variance cell uncolored | Column name missing `" VS "`  the styler won't auto-detect it |
 | `git push` rejected (non-fast-forward) | Use `git push --force-with-lease origin main` after verifying local has the right code |
 
 ---

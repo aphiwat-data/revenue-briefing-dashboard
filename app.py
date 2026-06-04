@@ -105,7 +105,7 @@ def build_movement_summary(metric_data, role_selection):
 
 def build_pace_summary(metric_data, role_selection):
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date â€” supports look-back at past stay months.
+    # available Report Date - supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
     if "Report Date" in metric_data.columns:
@@ -138,7 +138,7 @@ def build_pace_summary(metric_data, role_selection):
 
 def build_final_comparison(metric_data, role_selection):
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date â€” supports look-back at past stay months.
+    # available Report Date - supports look-back at past stay months.
     if metric_data is None or metric_data.empty:
         return pd.DataFrame()
     if "Report Date" in metric_data.columns:
@@ -165,7 +165,7 @@ def build_final_comparison(metric_data, role_selection):
 
 
 # ============================================================
-# Daily Briefing Excel â€” one-click morning meeting deck
+# Daily Briefing Excel - one-click morning meeting deck
 # ============================================================
 
 
@@ -277,14 +277,14 @@ def build_daily_briefing_sheets(metric_data, role_selection, report_file_month):
     Assemble the full multi-sheet daily briefing for the morning meeting.
 
     Sheet order is curated for the meeting flow:
-      1. Portfolio Snapshot     â€” the headline numbers
-      2. Hotel Scorecard        â€” per-hotel summary
-      3. Variance Pivot         â€” detailed pivot with all variance %
-      4. Same-Time Pace         â€” OTB vs STLY / ST2Y / ST3Y
-      5. Historical Final       â€” Forecast vs Final LY / 2Y / 3Y
-      6. Forecast Movement      â€” vs 1D / 7D / First-day
-      7. Hotel Momentum         â€” daily forecast pickup per hotel
-      8. Role Selection         â€” file roles validation
+      1. Portfolio Snapshot     - the headline numbers
+      2. Hotel Scorecard        - per-hotel summary
+      3. Variance Pivot         - detailed pivot with all variance %
+      4. Same-Time Pace         - OTB vs STLY / ST2Y / ST3Y
+      5. Historical Final       - Forecast vs Final LY / 2Y / 3Y
+      6. Forecast Movement      - vs 1D / 7D / First-day
+      7. Hotel Momentum         - daily forecast pickup per hotel
+      8. Role Selection         - file roles validation
     """
     sheets = {}
 
@@ -367,7 +367,7 @@ def build_latest_pivot_table(metric_data, role_selection):
     Per-(Hotel, Stay Month, Metric, Reference) we keep the LATEST available
     Report Date row. This ensures that a past stay month (e.g. May while
     we're on June's report) still shows data taken from its OWN latest
-    report file â€” fixing the "No data in latest report" issue when looking
+    report file - fixing the "No data in latest report" issue when looking
     back at past months.
     Keeps metric order: Occ, Room, ADR, Rev.
     """
@@ -413,13 +413,13 @@ def build_variance_pivot_table(metric_data, role_selection):
     Extended pivot: raw values PLUS colour-coded variance % columns.
 
     Added columns (only when both sides are available):
-        Today VS BUD       â€” Today (OTB) vs Budget %
-        Duetto VS BUD      â€” Duetto vs Budget %                 â† headline variance
-        Today VS Duetto    â€” Today vs Duetto (pace toward forecast)
-        Today VS STLY      â€” Today vs best same-time (STLY / ST2Y / ST3Y) %
-        Duetto VS Final LY â€” Duetto vs Final LY %
-        Duetto VS Final 2Y â€” Duetto vs Final 2Y %
-        Duetto VS Final 3Y â€” Duetto vs Final 3Y %
+        Today VS BUD       - Today (OTB) vs Budget %
+        Duetto VS BUD      - Duetto vs Budget %                 -> headline variance
+        Today VS Duetto    - Today vs Duetto (pace toward forecast)
+        Today VS STLY      - Today vs best same-time (STLY / ST2Y / ST3Y) %
+        Duetto VS Final LY - Duetto vs Final LY %
+        Duetto VS Final 2Y - Duetto vs Final 2Y %
+        Duetto VS Final 3Y - Duetto vs Final 3Y %
 
     Column order:
       Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
@@ -448,11 +448,11 @@ def build_variance_pivot_table(metric_data, role_selection):
     if "Today" in pivot.columns and "Duetto" in pivot.columns:
         pivot["Today VS Duetto"] = pivot.apply(lambda r: safe_pct(r["Today"], r["Duetto"]), axis=1)
 
-    # â”€â”€ Same-Time variances â€” each year compared INDEPENDENTLY â”€â”€
+    # -- Same-Time variances - each year compared INDEPENDENTLY --
     # FIX (Bug: Arbour STLY sign flip):
     #   Old code computed "Today VS STLY" against MAX(STLY, ST2Y, ST3Y), which
     #   could flip signs when ST2Y/ST3Y were higher than STLY. Now we compute
-    #   each variance against its OWN reference year â€” STLY vs STLY only,
+    #   each variance against its OWN reference year - STLY vs STLY only,
     #   ST2Y vs ST2Y only, ST3Y vs ST3Y only. No more "best-of-3" surprise.
     if "Today" in pivot.columns:
         for ref_col, var_col in [
@@ -484,7 +484,7 @@ def build_variance_pivot_table(metric_data, role_selection):
     for col in ["Today", "Budget", "Today VS BUD", "Duetto", "Duetto VS BUD", "Today VS Duetto"]:
         if col in pivot.columns:
             ordered.append(col)
-    # Same-time benchmarks â€” each with its OWN variance (no more best-of-3)
+    # Same-time benchmarks - each with its OWN variance (no more best-of-3)
     for ref_col, var_col in [
         ("STLY", "Today VS STLY"),
         ("ST2Y", "Today VS ST2Y"),
@@ -512,10 +512,10 @@ def build_variance_pivot_table(metric_data, role_selection):
 def style_latest_pivot_table(df):
     """
     Pro-readable compact table styling:
-    â€¢ Duetto column = always tinted blue (focal â€” current forecast)
-    â€¢ Budget column = always tinted amber (target)
-    â€¢ Rev row      = headline background (stronger orange)
-    â€¢ Duetto vs Budget on Rev row = green if above target, red if below
+     Duetto column = always tinted blue (focal - current forecast)
+     Budget column = always tinted amber (target)
+     Rev row      = headline background (stronger orange)
+     Duetto vs Budget on Rev row = green if above target, red if below
     """
     if df is None or df.empty:
         return df
@@ -527,13 +527,13 @@ def style_latest_pivot_table(df):
         styles = pd.Series("", index=row.index)
         metric = str(row.get("Metric", ""))
 
-        # â”€â”€ Base banding by metric row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Base banding by metric row ------------------------
         if metric == "Occ":
             styles[:] = "background-color: #f9fafb"
         elif metric == "Rev":
             styles[:] = "background-color: #fff7ed; font-weight: 500"
 
-        # â”€â”€ Always emphasise the focal columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Always emphasise the focal columns ----------------
         if "Duetto" in row.index:
             base = "background-color: #eff6ff; font-weight: 600; color: #1e40af"
             if metric == "Rev":
@@ -546,7 +546,7 @@ def style_latest_pivot_table(df):
                 base = "background-color: #fef3c7; font-weight: 600; color: #713f12"
             styles["Budget"] = base
 
-        # â”€â”€ Headline call-out: Duetto vs Budget on Rev row â”€â”€â”€â”€
+        # -- Headline call-out: Duetto vs Budget on Rev row ----
         if metric == "Rev" and "Duetto" in row.index and "Budget" in row.index:
             d = row.get("Duetto")
             b = row.get("Budget")
@@ -564,11 +564,11 @@ def style_latest_pivot_table(df):
 def style_variance_pivot(df):
     """
     Style the variance pivot table.
-    â€¢ Today  â†’ blue tint (focal â€” on-the-book)
-    â€¢ Duetto â†’ green tint (forecast)
-    â€¢ Budget â†’ amber tint (target)
-    â€¢ VS variance columns â†’ green if positive, red if negative, yellow if zero
-    â€¢ Rev row â†’ slightly warmer background for row emphasis
+     Today  -> blue tint (focal - on-the-book)
+     Duetto -> green tint (forecast)
+     Budget -> amber tint (target)
+     VS variance columns -> green if positive, red if negative, yellow if zero
+     Rev row -> slightly warmer background for row emphasis
     """
     if df is None or df.empty:
         return df
@@ -582,7 +582,7 @@ def style_variance_pivot(df):
             v = float(x)
             return f"{v:+.1f}%"
         except (TypeError, ValueError):
-            return "â€”"
+            return "-"
 
     fmt = {c: fmt_raw2 for c in raw_cols}
     for c in var_cols:
@@ -630,7 +630,7 @@ def style_variance_pivot(df):
 
         return styles
 
-    return df.style.format(fmt, na_rep="â€”").apply(row_style, axis=1)
+    return df.style.format(fmt, na_rep="-").apply(row_style, axis=1)
 
 
 def style_final_variance_table(df):
@@ -695,7 +695,7 @@ def _render_comparison_summary_cards(df, value_col, value_label):
                     {fmt_raw2(variance)}
                 </div>
                 <div style="font-size:0.86rem;font-weight:800;color:{text};margin-top:2px;">
-                    {fmt_signed_pct2(variance_pct)} Â· {status}
+                    {fmt_signed_pct2(variance_pct)}  {status}
                 </div>
             </div>
             """,
@@ -711,7 +711,7 @@ def _render_comparison_summary_cards(df, value_col, value_label):
 
 def _render_forecast_vs_budget(pivot_df):
     """
-    Forecast VS Budget snapshot â€” KPI cards only.
+    Forecast VS Budget snapshot - KPI cards only.
     Metric selector: Revenue Summary (default) or any individual metric.
     """
     st.markdown('<div class="section-title">Duetto VS Budget</div>', unsafe_allow_html=True)
@@ -753,10 +753,10 @@ def _render_forecast_vs_budget(pivot_df):
 
 def _render_otb_comparison_chart(pivot_df):
     """
-    Compare On The Book â€” KPI cards only.
+    Compare On The Book - KPI cards only.
     Metric selector: Revenue Summary (default) or individual metric.
     """
-    st.markdown('<div class="section-title">Compare â€” Today VS Budget</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Compare - Today VS Budget</div>', unsafe_allow_html=True)
 
     if pivot_df is None or pivot_df.empty or "Today" not in pivot_df.columns:
         st.info("No On-The-Book data available.")
@@ -798,7 +798,7 @@ def _render_otb_comparison_chart(pivot_df):
 
 def render_compact_hotel_tabs(pivot_df):
     """
-    Duetto pivot table â€” variance-enhanced view.
+    Duetto pivot table - variance-enhanced view.
     Columns: Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
              STLY | Today VS STLY | Final LY | Duetto VS Final LY | ... + more.
     """
@@ -806,7 +806,7 @@ def render_compact_hotel_tabs(pivot_df):
         st.info("No pivot data for selected filters.")
         return
 
-    st.markdown('<div class="section-title">Duetto Pivot â€” by Stay Month</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Duetto Pivot - by Stay Month</div>', unsafe_allow_html=True)
 
     c_view, c_legend = st.columns([1.6, 3])
     with c_view:
@@ -824,18 +824,18 @@ def render_compact_hotel_tabs(pivot_df):
         if has_var:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">Today</b> = on-the-book &nbsp;Â·&nbsp; '
-                '<b style="color:#15803d;">Duetto</b> = forecast &nbsp;Â·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = target &nbsp;Â·&nbsp; '
-                '<b style="color:#166534;">VS %</b> = variance (green +, red âˆ’)'
+                '<b style="color:#1e40af;">Today</b> = on-the-book &nbsp;&nbsp; '
+                '<b style="color:#15803d;">Duetto</b> = forecast &nbsp;&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;&nbsp; '
+                '<b style="color:#166534;">VS %</b> = variance (green +, red -)'
                 '</div>'
             )
         else:
             legend_html = (
                 '<div style="font-size:0.76rem;color:#6b7280;line-height:1.6;padding-top:8px;text-align:right;">'
-                '<b style="color:#1e40af;">Duetto</b> = forecast &nbsp;Â·&nbsp; '
-                '<b style="color:#713f12;">Budget</b> = target &nbsp;Â·&nbsp; '
-                'STLY/ST2Y/ST3Y = same-time &nbsp;Â·&nbsp; Final LY/2Y/3Y = actuals'
+                '<b style="color:#1e40af;">Duetto</b> = forecast &nbsp;&nbsp; '
+                '<b style="color:#713f12;">Budget</b> = target &nbsp;&nbsp; '
+                'STLY/ST2Y/ST3Y = same-time &nbsp;&nbsp; Final LY/2Y/3Y = actuals'
                 '</div>'
             )
         st.markdown(legend_html, unsafe_allow_html=True)
@@ -843,7 +843,7 @@ def render_compact_hotel_tabs(pivot_df):
     _style_fn = style_variance_pivot if any(" VS " in str(c) for c in pivot_df.columns) else style_latest_pivot_table
 
     # Pin "Stay Month" + "Metric" (the context columns) to the left when the
-    # table scrolls horizontally â€” so the user keeps seeing which row is what.
+    # table scrolls horizontally - so the user keeps seeing which row is what.
     def _pinned_config(df_cols):
         cfg = {}
         for col in ("Stay Month", "Metric"):
@@ -1619,7 +1619,7 @@ def render_pace_cards(df):
                         box-shadow: 0 1px 4px rgba(15,23,42,0.08);
                     ">
                         <div style="font-weight:700; font-size:1.02rem; margin-bottom:6px;">
-                            {row['Stay Month']} Â· {row['Metric']} Â· {row['Status']}
+                            {row['Stay Month']}  {row['Metric']}  {row['Status']}
                         </div>
                         <div style="display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px;">
                             <div><span style="color:#64748b;">Today</span><br><b>{row['Today']}</b></div>
@@ -1841,7 +1841,7 @@ def build_weekly_movement_v2(metric_data):
 
 def render_weekly_movement_v2(metric_data):
     st.markdown('<div class="section-title">Weekly Revenue Movement</div>', unsafe_allow_html=True)
-    st.caption("Purpose: see which hotel moved up/down by week. Weekly Movement = End-of-week forecast âˆ’ Start-of-week forecast.")
+    st.caption("Purpose: see which hotel moved up/down by week. Weekly Movement = End-of-week forecast - Start-of-week forecast.")
 
     weekly = build_weekly_movement_v2(metric_data)
     if weekly.empty:
@@ -1961,7 +1961,7 @@ def build_budget_review(metric_data, role_selection):
         return pd.DataFrame()
 
     # Per (Hotel, Stay Month, Metric, Reference) keep the row from the latest
-    # available Report Date â€” supports look-back at past stay months.
+    # available Report Date - supports look-back at past stay months.
     if "Report Date" in metric_data.columns:
         latest = (
             metric_data.sort_values("Report Date")
@@ -2252,7 +2252,7 @@ def render_forecast_trend_by_month_v3(metric_data):
         ["Value", "Daily % Change"],
         index=0,
         key="trend_v3_view_mode",
-        help="Daily % Change = (today âˆ’ yesterday) / yesterday Ã— 100 per stay month",
+        help="Daily % Change = (today - yesterday) / yesterday x 100 per stay month",
     )
 
     view = d4.copy()
@@ -2272,7 +2272,7 @@ def render_forecast_trend_by_month_v3(metric_data):
         .sort_values(["Stay Month", "Report Date"])
     )
 
-    # â”€â”€ Daily % Change mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Daily % Change mode -----------------------------------
     is_pct_mode = (view_mode == "Daily % Change")
     if is_pct_mode:
         trend["Pct Change"] = (
@@ -2282,13 +2282,13 @@ def render_forecast_trend_by_month_v3(metric_data):
         trend = trend.dropna(subset=["Pct Change"]).copy()
         plot_col   = "Pct Change"
         y_title    = "Daily % Change"
-        chart_title = f"Daily % Change â€” Forecast by Stay Month ({metric_choice})"
+        chart_title = f"Daily % Change - Forecast by Stay Month ({metric_choice})"
     else:
         plot_col   = "Value"
         y_title    = "Forecast"
         chart_title = f"Forecast Trend by Stay Month ({metric_choice})"
 
-    # â”€â”€ Point labels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Point labels -----------------------------------------
     def _fmt_label(val):
         if pd.isna(val):
             return ""
@@ -2372,17 +2372,17 @@ def render_forecast_trend_by_month_v3(metric_data):
 
 
 # ============================================================
-# Trend Comparison â€” two metrics side-by-side with baselines
+# Trend Comparison - two metrics side-by-side with baselines
 # ============================================================
 def render_trend_comparison(metric_data, role_selection):
     """
-    Trend Comparison â€” single combo chart with dual Y-axis.
-        â€¢ Metric A â†’ bars on LEFT axis (e.g. Revenue)
-        â€¢ Metric B â†’ line on RIGHT axis (e.g. ADR)
-        â€¢ Baseline drawn as dashed reference for each metric.
+    Trend Comparison - single combo chart with dual Y-axis.
+         Metric A -> bars on LEFT axis (e.g. Revenue)
+         Metric B -> line on RIGHT axis (e.g. ADR)
+         Baseline drawn as dashed reference for each metric.
     """
     st.markdown(
-        '<div class="section-title">Trend Comparison â€” Two Metrics vs Baseline</div>',
+        '<div class="section-title">Trend Comparison - Two Metrics vs Baseline</div>',
         unsafe_allow_html=True,
     )
     st.caption(
@@ -2431,9 +2431,9 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No baseline references available.")
         return
 
-    # â”€â”€ Controls â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # Comparison mode pill â€” what to compare against Budget:
-    #   "Forecast VS Budget" (default when available â€” Duetto vs locked Budget)
+    # -- Controls ---------------------------------------------
+    # Comparison mode pill - what to compare against Budget:
+    #   "Forecast VS Budget" (default when available - Duetto vs locked Budget)
     #   "OTB VS Budget"      (Today/on-the-book vs locked Budget)
     cmp_modes = []
     latest_refs = latest["Reference"].unique()
@@ -2463,7 +2463,7 @@ def render_trend_comparison(metric_data, role_selection):
         )
         if not cmp_choice:
             cmp_choice = cmp_modes[0]
-    # Map mode â†’ reference names in data
+    # Map mode -> reference names in data
     actual_ref = "Duetto" if cmp_choice == "Forecast VS Budget" else "Today"
     actual_label = "Forecast" if actual_ref == "Duetto" else "OTB"
     baseline = "Budget"
@@ -2486,7 +2486,7 @@ def render_trend_comparison(metric_data, role_selection):
             key="trend_cmp_metric_b",
         )
 
-    # â”€â”€ Data builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Data builder -----------------------------------------
     # Actual = Forecast (Duetto) or OTB (Today); baseline = Budget
     def get_trend(metric):
         sub = latest[latest["Metric"] == metric]
@@ -2506,12 +2506,12 @@ def render_trend_comparison(metric_data, role_selection):
         st.info("No stay months in data.")
         return
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ---------------------------------------------------------
     # DUETTO-STYLE CUMULATIVE CURVE
-    #   â€¢ Filled area (green) for Metric A â€” left Y axis
-    #   â€¢ Smooth line (amber) for Metric B â€” right Y axis
-    #   â€¢ Dashed line baselines on each axis
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    #    Filled area (green) for Metric A - left Y axis
+    #    Smooth line (amber) for Metric B - right Y axis
+    #    Dashed line baselines on each axis
+    # ---------------------------------------------------------
     _metric_full = {"Rev": "Revenue", "ADR": "ADR", "Occ": "Occupancy", "Room": "Rooms"}
     full_a = f"{actual_label} {_metric_full.get(metric_a, metric_a)}"
     full_b = f"{actual_label} {_metric_full.get(metric_b, metric_b)}"
@@ -2550,7 +2550,7 @@ def render_trend_comparison(metric_data, role_selection):
             return f"{v/1_000:,.1f}K"
         return f"{v:,.1f}"
 
-    # â”€â”€ Aggregate totals for KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Aggregate totals for KPI cards ------------------------
     def _total(vals):
         return sum(v for v in vals if v is not None and pd.notna(v))
 
@@ -2567,12 +2567,12 @@ def render_trend_comparison(metric_data, role_selection):
     var_a_pct = (total_a - total_a_b) / abs(total_a_b) * 100 if total_a_b else None
     var_b_pct = (total_b - total_b_b) / abs(total_b_b) * 100 if total_b_b else None
 
-    # â”€â”€ KPI cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- KPI cards ---------------------------------------------
     def _kpi_card(full_label, kind, value, base_value, var_pct, accent):
         if var_pct is None:
             var_chip = '<span style="color:#9ca3af;font-size:11px;">no baseline</span>'
         else:
-            arrow = "â–²" if var_pct >= 0 else "â–¼"
+            arrow = "^" if var_pct >= 0 else "^"
             var_color = "#15803d" if var_pct >= 0 else "#b91c1c"
             var_bg = "#dcfce7" if var_pct >= 0 else "#fee2e2"
             var_chip = (
@@ -2586,7 +2586,7 @@ def render_trend_comparison(metric_data, role_selection):
             f'border-radius:10px;padding:16px 20px;'
             f'box-shadow:0 1px 2px rgba(15,23,42,0.04);">'
             f'<div style="font-size:11px;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:0.08em;color:#6b7280;">{full_label} Â· {kind}</div>'
+            f'letter-spacing:0.08em;color:#6b7280;">{full_label}  {kind}</div>'
             f'<div style="display:flex;align-items:baseline;gap:14px;margin-top:8px;">'
             f'<span style="font-size:28px;font-weight:800;color:{INK};'
             f'letter-spacing:-0.02em;font-variant-numeric:tabular-nums;">'
@@ -2605,12 +2605,12 @@ def render_trend_comparison(metric_data, role_selection):
     k2.markdown(_kpi_card(full_b, kind_b, total_b, total_b_b, var_b_pct, AMBER_LINE), unsafe_allow_html=True)
     st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
 
-    # â”€â”€ Duetto-style combo chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Duetto-style combo chart -----------------------------
     from plotly.subplots import make_subplots
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
     # If only 1 stay month is in scope, the spline curve and area-fill can't
-    # render visibly with a single point â€” we make the markers larger so the
+    # render visibly with a single point - we make the markers larger so the
     # single point is clearly visible. Style stays identical for 2+ months.
     n_pts = len(months_union)
     _marker_a = 14 if n_pts == 1 else 7
@@ -2618,7 +2618,7 @@ def render_trend_comparison(metric_data, role_selection):
     _marker_base = 14 if n_pts == 1 else 6
     _base_mode = "markers" if n_pts == 1 else "lines"
 
-    # Metric A â€” filled area (left Y)
+    # Metric A - filled area (left Y)
     fig.add_trace(
         go.Scatter(
             x=months_union,
@@ -2634,7 +2634,7 @@ def render_trend_comparison(metric_data, role_selection):
         secondary_y=False,
     )
 
-    # Metric A baseline â€” dashed line (left Y)
+    # Metric A baseline - dashed line (left Y)
     if any(v is not None for v in base_a_v):
         fig.add_trace(
             go.Scatter(
@@ -2654,7 +2654,7 @@ def render_trend_comparison(metric_data, role_selection):
             secondary_y=False,
         )
 
-    # Metric B â€” smooth line (right Y)
+    # Metric B - smooth line (right Y)
     fig.add_trace(
         go.Scatter(
             x=months_union,
@@ -2668,7 +2668,7 @@ def render_trend_comparison(metric_data, role_selection):
         secondary_y=True,
     )
 
-    # Metric B baseline â€” dotted line (right Y)
+    # Metric B baseline - dotted line (right Y)
     if any(v is not None for v in base_b_v):
         fig.add_trace(
             go.Scatter(
@@ -2689,12 +2689,12 @@ def render_trend_comparison(metric_data, role_selection):
             secondary_y=True,
         )
 
-    # Subtle hint when only 1 month â€” chart can't draw a "trend" with 1 point
+    # Subtle hint when only 1 month - chart can't draw a "trend" with 1 point
     if n_pts == 1:
         st.caption(
-            "â„¹ï¸ à¹€à¸¥à¸·à¸­à¸à¹€à¸žà¸µà¸¢à¸‡ 1 stay month â€” à¸à¸£à¸²à¸Ÿ Trend à¸ˆà¸°à¸§à¸²à¸” curve à¹„à¸¡à¹ˆà¹„à¸”à¹‰ "
-            "(à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸­à¸¢à¹ˆà¸²à¸‡à¸™à¹‰à¸­à¸¢ 2 à¹€à¸”à¸·à¸­à¸™). à¸„à¹ˆà¸²à¹‚à¸Šà¸§à¹Œà¹€à¸›à¹‡à¸™ marker à¸ˆà¸¸à¸”à¹€à¸”à¸µà¸¢à¸§ Â· "
-            "KPI cards à¸”à¹‰à¸²à¸™à¸šà¸™à¸¢à¸±à¸‡à¸–à¸¹à¸à¸•à¹‰à¸­à¸‡"
+            "Info:  1 stay month -  Trend - curve - "
+            "( 2 -).  marker --  "
+            "KPI cards -"
         )
 
     fig.update_layout(
@@ -2749,29 +2749,29 @@ def render_trend_comparison(metric_data, role_selection):
         },
     )
 
-    # â”€â”€ Auto-diagnosis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Auto-diagnosis ----------------------------------------
     if metric_a == "Rev" and metric_b == "ADR" and var_a_pct is not None and var_b_pct is not None:
         if var_a_pct > 0 and var_b_pct > 0:
             narrative = (
-                f"Revenue **+{var_a_pct:.1f}%** and ADR **+{var_b_pct:.1f}%** vs {baseline} â€” "
+                f"Revenue **+{var_a_pct:.1f}%** and ADR **+{var_b_pct:.1f}%** vs {baseline} - "
                 f"growth is **rate-driven** (selling at higher prices)."
             )
             tone = "good"
         elif var_a_pct > 0 and var_b_pct <= 0:
             narrative = (
-                f"Revenue **+{var_a_pct:.1f}%** despite ADR at **{var_b_pct:+.1f}%** vs {baseline} â€” "
+                f"Revenue **+{var_a_pct:.1f}%** despite ADR at **{var_b_pct:+.1f}%** vs {baseline} - "
                 f"growth is **volume-driven** (more rooms sold at lower rates)."
             )
             tone = "info"
         elif var_a_pct <= 0 and var_b_pct > 0:
             narrative = (
-                f"Revenue **{var_a_pct:+.1f}%** while ADR **+{var_b_pct:.1f}%** vs {baseline} â€” "
+                f"Revenue **{var_a_pct:+.1f}%** while ADR **+{var_b_pct:.1f}%** vs {baseline} - "
                 f"rate is up but **volume is dragging** revenue down."
             )
             tone = "warn"
         else:
             narrative = (
-                f"Revenue **{var_a_pct:+.1f}%** and ADR **{var_b_pct:+.1f}%** vs {baseline} â€” "
+                f"Revenue **{var_a_pct:+.1f}%** and ADR **{var_b_pct:+.1f}%** vs {baseline} - "
                 f"**both rate and volume** under pressure."
             )
             tone = "bad"
@@ -2792,13 +2792,13 @@ def render_trend_comparison(metric_data, role_selection):
 
 # ============================================================
 # Revenue Momentum % Change chart
-# Formula: (revenue_t - revenue_{t-1}) / revenue_{t-1} Ã— 100 per day
+# Formula: (revenue_t - revenue_{t-1}) / revenue_{t-1} x 100 per day
 # ============================================================
 def render_revenue_momentum_pct_chart(metric_data):
     """
     Daily % Change momentum chart.
     - Bars: selected metric's daily % change
-    - Dashed reference line: ADR daily % change (when selected metric â‰  ADR)
+    - Dashed reference line: ADR daily % change (when selected metric != ADR)
     - Filter by stay months (default = first 3 months, can show all selected)
     """
     st.markdown('<div class="section-title">Daily Duetto Movement (%)</div>', unsafe_allow_html=True)
@@ -2837,7 +2837,7 @@ def render_revenue_momentum_pct_chart(metric_data):
 
     view_months = sel_months
 
-    # â”€â”€ Build daily % change for one stay month â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Build daily % change for one stay month -----------------
     def _daily_pct(metric, stay_month):
         sub = d4[(d4["Metric"] == metric) & (d4["Stay Month"] == stay_month)].copy()
         if sub.empty:
@@ -2934,7 +2934,7 @@ def render_revenue_momentum_pct_chart(metric_data):
             key=f"revenue_momentum_pct_chart_{container_key}",
         )
 
-        # â”€â”€ Summary stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Summary stats -------------------------------------
         pos_days = int((grp["Pct Change"] > 0).sum())
         neg_days = int((grp["Pct Change"] < 0).sum())
         avg_pct  = grp["Pct Change"].mean()
@@ -3074,7 +3074,7 @@ def render_forecast_movement_v31(metric_data, role_selection):
             st.markdown(
                 f"""
                 <div style="background:{color}; border-left:6px solid {border}; border-radius:14px; padding:14px 16px; margin-bottom:10px;">
-                    <div style="font-weight:800; font-size:1.02rem;">{row['Hotel']} Â· {row['Metric']} Â· {row['Stay Month']} Â· {row['Period']}</div>
+                    <div style="font-weight:800; font-size:1.02rem;">{row['Hotel']}  {row['Metric']}  {row['Stay Month']}  {row['Period']}</div>
                     <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:12px; margin-top:8px;">
                         <div><span style="color:#64748b;">Latest</span><br><b>{fmt_raw2(row['Latest Forecast'])}</b></div>
                         <div><span style="color:#64748b;">Base</span><br><b>{fmt_raw2(row['Base Forecast'])}</b></div>
@@ -3352,8 +3352,8 @@ def build_leaderboard_by_month(
 ):
     """
     Rank ALL hotels per Stay Month by the chosen metric.
-    rank_by = "Budget Variance %" â†’ rank 1 = most behind budget (needs attention)
-    rank_by = "Today OTB" / "Forecast" â†’ rank 1 = highest value (best performer)
+    rank_by = "Budget Variance %" -> rank 1 = most behind budget (needs attention)
+    rank_by = "Today OTB" / "Forecast" -> rank 1 = highest value (best performer)
     selected_hotels are highlighted at render time, not filtered here.
     """
     base = metric_long.copy()                         # ALL properties
@@ -3374,8 +3374,8 @@ def build_leaderboard_by_month(
     budget_df["_month_sort"] = budget_df["Stay Month"].apply(month_sort_key)
 
     # Rank within each Stay Month
-    # Budget Variance % ascending=True  â†’ most negative = rank 1 (most behind)
-    # OTB / Forecast    ascending=False â†’ highest = rank 1 (strongest)
+    # Budget Variance % ascending=True  -> most negative = rank 1 (most behind)
+    # OTB / Forecast    ascending=False -> highest = rank 1 (strongest)
     asc_rank = (rank_by == "Budget Variance %")
     rank_col = rank_by if rank_by in budget_df.columns else "Today OTB"
     budget_df["Rank"] = (
@@ -3404,7 +3404,7 @@ def render_leaderboard_by_month(
     st.caption(
         "All properties ranked per stay month. "
         "Highlighted rows = your selected properties. "
-        "Budget Variance % cells: green = above budget Â· red = below Â· yellow = flat. "
+        "Budget Variance % cells: green = above budget  red = below  yellow = flat. "
         "Rank 1 = highest OTB/Forecast, or most behind budget when ranked by Variance %."
     )
 
@@ -3446,7 +3446,7 @@ def render_leaderboard_by_month(
     # Fast lookup set for highlight check
     selected_set = set(selected_hotels)
 
-    # â”€â”€ Cell color helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Cell color helpers -----------------------------------
     def _var_color(val):
         if pd.isna(val):  return "#dbeafe"
         if val > 0:       return "#bbf7d0"
@@ -3454,12 +3454,12 @@ def render_leaderboard_by_month(
         return "#fef08a"
 
     def _fmt(val):
-        return fmt_raw2(val) if pd.notna(val) else "â€”"
+        return fmt_raw2(val) if pd.notna(val) else "-"
 
     def _fmt_pct(val):
-        return fmt_signed_pct2(val) if pd.notna(val) else "â€”"
+        return fmt_signed_pct2(val) if pd.notna(val) else "-"
 
-    # â”€â”€ One Plotly table per Stay Month â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- One Plotly table per Stay Month ----------------------
     for stay_month in stay_months:
         grp = lb_data[lb_data["Stay Month"] == stay_month].sort_values("Rank")
         if grp.empty:
@@ -3470,7 +3470,7 @@ def render_leaderboard_by_month(
         # Determine which rows belong to selected hotels
         is_sel = [h in selected_set for h in grp["Hotel"].tolist()]
 
-        # â”€â”€ Background colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Background colors -----------------------------
         # Selected rows: blue tint across data columns
         # Non-selected: default muted tones
         HL_RANK  = "#dbeafe"   # blue-100
@@ -3492,7 +3492,7 @@ def render_leaderboard_by_month(
         # Variance columns keep semantic color regardless
         colors_var  = [_var_color(v) for v in grp["Budget Variance %"]]
 
-        # â”€â”€ Font colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Font colors ------------------------------------
         fc_rank = [
             "#1d4ed8" if s else _RANK_FC.get(r, "#475569")
             for r, s in zip(grp["Rank"], is_sel)
@@ -3501,13 +3501,13 @@ def render_leaderboard_by_month(
         fc_data = ["#1d4ed8" if s else "#334155" for s in is_sel]
         fc_var  = ["#374151"] * n
 
-        # â”€â”€ Hotel name: bold for selected rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Hotel name: bold for selected rows -------------
         hotel_names = [
             f"<b>{name}</b>" if s else name
             for name, s in zip(grp["Hotel Short"].tolist(), is_sel)
         ]
 
-        # â”€â”€ Clean rank numbers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Clean rank numbers -----------------------------
         rank_display = [str(r) for r in grp["Rank"]]
 
         fig = go.Figure(data=[go.Table(
@@ -3607,7 +3607,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         st.info("No stay months in data.")
         return
 
-    # â”€â”€ Month tags (CM / M+1 / M-1 â€¦) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Month tags (CM / M+1 / M-1 ) -------------------------
     cm_dt = pd.to_datetime(report_file_month, format="%b, %Y", errors="coerce")
     month_tags = []
     for sm in stay_months:
@@ -3619,7 +3619,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         tag = "CM" if delta == 0 else (f"M+{delta}" if delta > 0 else f"M{delta}")
         month_tags.append((tag, sm))
 
-    # Pre-compute LATEST snapshot per (Hotel, Stay Month, Metric, Reference) â€”
+    # Pre-compute LATEST snapshot per (Hotel, Stay Month, Metric, Reference) -
     # so look-back stay months pull from their own latest available report file.
     if "Report Date" in base.columns:
         base_latest = (
@@ -3632,7 +3632,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
     else:
         base_latest = base
 
-    # â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Data helpers ------------------------------------------
     def get_value(metric, sm, report_label, reference="Today"):
         # If report_label is the today_label sentinel, use the latest-snapshot
         # view (works for past stay months). For 1st-of-month, filter exactly.
@@ -3733,7 +3733,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         out.insert(1, "Rank", range(1, len(out) + 1))
         return out
 
-    # Top-3 tints â€” gold / silver / bronze backgrounds (no emoji, kept professional)
+    # Top-3 tints - gold / silver / bronze backgrounds (no emoji, kept professional)
     _MEDAL_BG = {1: "#fef3c7", 2: "#e2e8f0", 3: "#fed7aa"}
     _MEDAL_FG = {1: "#78350f", 2: "#1f2937", 3: "#7c2d12"}
 
@@ -3746,12 +3746,12 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
         def apply_style(_):
             styles = pd.DataFrame("", index=show.index, columns=show.columns)
             for idx in show.index:
-                # â”€â”€ Subtle zebra striping for unselected rows â”€â”€â”€
+                # -- Subtle zebra striping for unselected rows ---
                 if not selected[idx] and idx % 2 == 1:
                     for col in show.columns:
                         styles.loc[idx, col] = "background-color:#fafbfc"
 
-                # â”€â”€ Rank medal coloring (top 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # -- Rank medal coloring (top 3) -----------------
                 rk = ranks[idx] if idx < len(ranks) else None
                 if "Rank" in show.columns and pd.notna(rk) and int(rk) in _MEDAL_BG:
                     r = int(rk)
@@ -3761,7 +3761,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
                         f"font-weight:900; text-align:center;"
                     )
 
-                # â”€â”€ Selected hotel highlight â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # -- Selected hotel highlight --------------------
                 if selected[idx]:
                     for col in show.columns:
                         styles.loc[idx, col] = "background-color:#eff6ff; color:#1e3a8a; font-weight:700"
@@ -3780,7 +3780,7 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
                             f"box-shadow: inset 0 0 0 2px #2563eb;"
                         )
 
-                # â”€â”€ Variance cell coloring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                # -- Variance cell coloring ----------------------
                 for col in [
                     "ADR Today VS BUD %",  "ADR Duetto VS BUD %",
                     "Rev Today VS BUD (K)", "Rev Duetto VS BUD (K)",
@@ -3866,13 +3866,13 @@ def render_mega_leaderboard(metric_long, role_selection, hotels, stay_month_sele
             f'box-shadow:0 1px 2px rgba(30,58,138,0.15);">{html.escape(tag)}</span>'
             f'<span style="font-weight:700;font-size:14px;color:#0f172a;">{html.escape(str(sm))}</span>'
             f'<span style="font-size:11px;color:#94a3b8;font-weight:500;">'
-            f'Â· {n_hotels} hotels ranked</span>'
+            f' {n_hotels} hotels ranked</span>'
             '</div>'
         )
 
     st.caption(
         "One table per stay month. Selected properties highlighted in blue. "
-        f"Top 3 ranks (gold / silver / bronze cells) sorted by {rank_by} Â· "
+        f"Top 3 ranks (gold / silver / bronze cells) sorted by {rank_by}  "
         "Green / red columns show budget variance."
     )
     for tag, sm in month_tags:
@@ -3914,7 +3914,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         st.info("No movement data. Upload multiple report dates to compare.")
         return pd.DataFrame()
 
-    # â”€â”€ Stay Month pills filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Stay Month pills filter ------------------------------
     if "Stay Month" in movement.columns:
         mv_months = sorted(movement["Stay Month"].dropna().unique(), key=month_sort_key)
         if mv_months:
@@ -3977,7 +3977,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
         st.info("No movement data for selected filters.")
         return movement
 
-    # â”€â”€ Canonical sort keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Canonical sort keys -----------------------------------
     _M_ORD = {"Occ": 0, "Room": 1, "ADR": 2, "Rev": 3}
     _P_ORD = {"1 Day": 0, "7 Days": 1, "First Day of Month": 2}
     view["_mo"] = view["Metric"].map(_M_ORD).fillna(99)
@@ -4000,7 +4000,7 @@ def render_forecast_movement_table_only(metric_data, role_selection):
 
     view = view.drop(columns=["_mo", "_po"], errors="ignore")
 
-    # â”€â”€ Top KPI row â€” colored â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Top KPI row - colored ---------------------------------
     total_move = view["Movement"].sum() if "Movement" in view.columns else 0
     up_rows   = int((view["Movement"] > 0).sum()) if "Movement" in view.columns else 0
     down_rows = int((view["Movement"] < 0).sum()) if "Movement" in view.columns else 0
@@ -4024,8 +4024,8 @@ def render_forecast_movement_table_only(metric_data, role_selection):
 
     k1, k2, k3 = st.columns(3)
     k1.markdown(_kpi_html("Total Movement", fmt_raw2(total_move), move_color, move_bg), unsafe_allow_html=True)
-    k2.markdown(_kpi_html("Rows Up â†‘",   str(up_rows),   "#15803d", "#f6ffed"), unsafe_allow_html=True)
-    k3.markdown(_kpi_html("Rows Down â†“", str(down_rows), "#b91c1c", "#fff1f0"), unsafe_allow_html=True)
+    k2.markdown(_kpi_html("Rows Up up",   str(up_rows),   "#15803d", "#f6ffed"), unsafe_allow_html=True)
+    k3.markdown(_kpi_html("Rows Down down", str(down_rows), "#b91c1c", "#fff1f0"), unsafe_allow_html=True)
 
     st.markdown("#### Movement table")
 
@@ -4117,7 +4117,7 @@ def render_budget_first_kpi_cards(metric_data, role_selection, selected_metric):
     3. Variance vs Budget = Forecast - Budget
     4. Variance vs Budget % = Variance / Budget * 100
     """
-    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget Ã— 100.")
+    st.caption("Budget is the target/base. Variance % = (Latest Forecast - Budget) / Budget x 100.")
 
     metrics_to_show = metric_label_order() if selected_metric == "All Metrics" else [selected_metric]
 
@@ -4198,7 +4198,7 @@ KPI_AXIS_MAP = {
     "On The Book": "Today OTB",
 }
 # Order determines base axis: earlier = base.
-# Forecast before OTB â†’ "On The Book vs Forecast" (OTB is compare, Forecast is base)
+# Forecast before OTB -> "On The Book vs Forecast" (OTB is compare, Forecast is base)
 KPI_AXIS_ORDER = list(KPI_AXIS_MAP)
 
 
@@ -4395,7 +4395,7 @@ def render_priority_budget_table(view, show_heading=True, key_suffix="default"):
 
         return styles
 
-    # Display-only column rename â€” internal `raw`/`show` keep old names
+    # Display-only column rename - internal `raw`/`show` keep old names
     # for the styler closure; we rename ONLY the dataframe shown to user.
     _display_rename = {
         "Forecast":           "Duetto",
@@ -4528,23 +4528,23 @@ def style_pace_variance_table(df):
 # Main UI Execution
 # ============================================================
 
-# â”€â”€ Page title slot (filled after sidebar so we know the report date) â”€
+# -- Page title slot (filled after sidebar so we know the report date) -
 # Reserve top-of-page space here, fill it once `report_file_month` is set.
 _title_slot = st.empty()
 
-# â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -- Sidebar ---------------------------------------------------
 # RULE: never call st.stop() in main area before with st.sidebar: completes.
 # Reason: stop in main area = sidebar never renders = widgets disappear.
 # Correct pattern: let sidebar finish first, then guard-check in main area.
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# -------------------------------------------------------------
 
 def main() -> None:
-    # Default values â€” overwritten by sidebar once data is loaded
+    # Default values - overwritten by sidebar once data is loaded
     file_catalog = None
     mode = "Upload"
 
     with st.sidebar:
-        # â”€â”€ Brand header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Brand header -----------------------------------------
         if LOGO_B64:
             st.markdown(
                 f"""
@@ -4592,22 +4592,22 @@ def main() -> None:
             key="data_source_mode",
         )
 
-        # â”€â”€ Load data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Load data ------------------------------------------
         if mode == "Folder":
             folder_path = st.text_input(
                 "Path",
                 value=r"G:\My Drive\Ecom\Report\G5 - Weekly Pace Review",
             )
-            if st.button("â†»  Refresh Data", use_container_width=True, type="primary"):
+            if st.button("->  Refresh Data", use_container_width=True, type="primary"):
                 st.cache_data.clear()
                 st.rerun()
             try:
-                with st.spinner("Loadingâ€¦"):
+                with st.spinner("Loading"):
                     file_catalog = build_file_catalog_from_folder(folder_path)
                 st.caption(f"{len(file_catalog)} files found")
             except Exception as e:
                 st.error(str(e))
-                # file_catalog stays None â€” main area guard will stop rendering
+                # file_catalog stays None - main area guard will stop rendering
         else:
             uploaded = st.file_uploader(
                 "Files",
@@ -4623,9 +4623,9 @@ def main() -> None:
                 file_catalog = st.session_state["uploaded_file_catalog"]
             else:
                 st.caption("Drop files above to begin.")
-                # file_catalog stays None â€” main area guard will stop rendering
+                # file_catalog stays None - main area guard will stop rendering
 
-        # â”€â”€ Data processing (filters live on main page) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Data processing (filters live on main page) ------------
         if file_catalog is not None:
             latest_report_month = file_catalog["Report Date"].max().strftime("%b, %Y")
             report_file_month = latest_report_month  # Always auto-use latest report
@@ -4633,7 +4633,7 @@ def main() -> None:
             # Role identification stays anchored to the CURRENT report month
             role_selection, month_file_catalog = select_role_files(file_catalog, report_file_month)
 
-            # â”€â”€ Look-back: also load the previous month's report files so
+            # -- Look-back: also load the previous month's report files so
             # the Stay Month dropdown can include past months. Role mapping
             # (Today / Yesterday / 7D / 1st Month) still comes from the
             # current month only.
@@ -4649,7 +4649,7 @@ def main() -> None:
                 _prev_files = pd.DataFrame(columns=file_catalog.columns)
 
             # Merge prev + current month catalogs. The two date ranges are disjoint
-            # by construction so concat without dedup is safe â€” and this avoids the
+            # by construction so concat without dedup is safe - and this avoids the
             # None-File-Path collision that would dedupe uploaded files.
             if _prev_files.empty:
                 extended_catalog = month_file_catalog.copy()
@@ -4657,7 +4657,7 @@ def main() -> None:
                 extended_catalog = pd.concat(
                     [_prev_files, month_file_catalog], ignore_index=True
                 )
-                # Safe dedup using (File Name + Report Date) â€” works for both
+                # Safe dedup using (File Name + Report Date) - works for both
                 # folder mode and upload mode (where File Path may be None).
                 if {"File Name", "Report Date"}.issubset(extended_catalog.columns):
                     extended_catalog = extended_catalog.drop_duplicates(
@@ -4666,7 +4666,7 @@ def main() -> None:
             selected_file_catalog = extended_catalog.sort_values("Report Date").reset_index(drop=True)
             selected_file_catalog["Report Order"] = range(1, len(selected_file_catalog) + 1)
 
-            with st.spinner("Processingâ€¦"):
+            with st.spinner("Processing"):
                 combined_df = pd.concat(
                     [parse_record(row) for _, row in selected_file_catalog.iterrows()],
                     ignore_index=True,
@@ -4674,7 +4674,7 @@ def main() -> None:
                 ref_col_map = build_ref_col_map(combined_df)
                 if not ref_col_map.get("Duetto"):
                     st.error("No Forecast / Duetto columns found.")
-                    file_catalog = None  # reset â†’ main area guard will stop
+                    file_catalog = None  # reset -> main area guard will stop
                 else:
                     metric_long = build_metric_long(combined_df, ref_col_map)
 
@@ -4683,17 +4683,17 @@ def main() -> None:
             all_stay_months = sorted(metric_long["Stay Month"].dropna().unique(), key=month_sort_key)
             # Default hotels = Altera properties (or all if none found)
             _default_hotels = [h for h in all_hotels if "altera" in str(h).lower()] or list(all_hotels)
-            # Default stay window = (report month âˆ’ 1) â†’ report month + 2
+            # Default stay window = (report month - 1) -> report month + 2
             # so when a new report month is uploaded the team can still look back
             # at the previous month's pace.
             _rpt_idx = all_stay_months.index(report_file_month) if report_file_month in all_stay_months else 0
             _default_start = all_stay_months[max(_rpt_idx - 1, 0)]
             _default_end   = all_stay_months[min(_rpt_idx + 2, len(all_stay_months) - 1)]
-            # Metric: always All â€” each tab handles its own filtering
+            # Metric: always All - each tab handles its own filtering
             selected_metric = "All Metrics"
-            st.caption(f"Report: {report_file_month}  Â·  {len(file_catalog)} files")
+            st.caption(f"Report: {report_file_month}    {len(file_catalog)} files")
 
-    # â”€â”€ Fill the title slot now that sidebar has set report_file_month â”€â”€
+    # -- Fill the title slot now that sidebar has set report_file_month --
     with _title_slot.container():
         _ttl_left, _ttl_right = st.columns([3, 2])
         with _ttl_left:
@@ -4704,7 +4704,7 @@ def main() -> None:
                 _n_files = len(file_catalog)
                 _latest_label = (
                     _latest_dt.strftime("%a, %d %b %Y")
-                    if pd.notna(_latest_dt) else "â€”"
+                    if pd.notna(_latest_dt) else "-"
                 )
                 _is_today_data = (
                     pd.notna(_latest_dt)
@@ -4742,7 +4742,7 @@ def main() -> None:
                         <div style="font-size:11px;color:#6b7280;margin-top:3px;
                                     font-weight:500;">
                           Report month <b style="color:#374151;">{report_file_month}</b>
-                          &nbsp;Â·&nbsp; {_n_files} file{"" if _n_files == 1 else "s"}
+                          &nbsp;&nbsp; {_n_files} file{"" if _n_files == 1 else "s"}
                         </div>
                       </div>
                     </div>
@@ -4757,7 +4757,7 @@ def main() -> None:
                     unsafe_allow_html=True,
                 )
 
-    # â”€â”€ Main area: guard â€” no data loaded â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Main area: guard - no data loaded ------------------------
     if file_catalog is None:
         st.markdown(
             """
@@ -4798,7 +4798,7 @@ def main() -> None:
                 st.rerun()
         st.stop()
 
-    # â”€â”€ Top page navigation (above filters â€” always visible) â”€â”€â”€â”€â”€
+    # -- Top page navigation (above filters - always visible) -----
     _NAV_PAGES = ["Leaderboard", "Overview", "Budget Review", "Trend", "Export"]
     st.markdown('<div class="main-page-nav">', unsafe_allow_html=True)
     selected_page = st.pills(
@@ -4818,7 +4818,7 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
-    # â”€â”€ Inline filters (Properties + Stay Month) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Inline filters (Properties + Stay Month) -----------------
     _fc1, _fc2, _fc3 = st.columns([3, 1.6, 1.6])
 
     with _fc1:
@@ -4832,14 +4832,14 @@ def main() -> None:
             options=all_hotels,
             default=[h for h in _default_hotels if h in all_hotels] or list(all_hotels),
             label_visibility="collapsed",
-            placeholder="Select propertiesâ€¦",
+            placeholder="Select properties",
             key="main_hotel_multiselect",
         )
 
     with _fc2:
         st.markdown(
             '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
-            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month â€” From</p>',
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month - From</p>',
             unsafe_allow_html=True,
         )
         _start_idx = all_stay_months.index(_default_start) if _default_start in all_stay_months else 0
@@ -4854,7 +4854,7 @@ def main() -> None:
     with _fc3:
         st.markdown(
             '<p style="font-size:0.76rem;font-weight:600;color:#6b7280;'
-            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month â€” To</p>',
+            'text-transform:uppercase;letter-spacing:0.06em;margin:0 0 4px 0;">Stay Month - To</p>',
             unsafe_allow_html=True,
         )
         _end_idx = all_stay_months.index(_default_end) if _default_end in all_stay_months else len(all_stay_months) - 1
@@ -4879,12 +4879,12 @@ def main() -> None:
     selected_stay_months_raw = all_stay_months[_si : _ei + 1]
     stay_month_selection = normalize_stay_month_selection(selected_stay_months_raw)
 
-    # â”€â”€ Guard: no hotels selected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Guard: no hotels selected --------------------------------
     if not selected_hotels:
         st.warning("Select at least one property above.")
         st.stop()
 
-    # â”€â”€ Filter data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Filter data -----------------------------------------------
     metric_data = metric_long[metric_long["Hotel"].isin(selected_hotels)].copy()
     metric_data = apply_stay_month_filter(metric_data, stay_month_selection)
 
@@ -4895,7 +4895,7 @@ def main() -> None:
         st.warning("No data for the current filter selection.")
         st.stop()
 
-    # â”€â”€ Pre-build summaries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Pre-build summaries ---------------------------------------
     movement_summary = build_movement_summary(metric_data, role_selection)
     pace_summary     = build_pace_summary(metric_data, role_selection)
     final_comparison = build_final_comparison(metric_data, role_selection)
@@ -4912,23 +4912,23 @@ def main() -> None:
         if not d4.empty else pd.DataFrame()
     )
 
-    # â”€â”€ Page content (driven by top-nav pills) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # -- Page content (driven by top-nav pills) -------------------
     if selected_page == "Overview":
         # Build variance pivot (OTB + variances)
         latest_pivot = build_variance_pivot_table(metric_data, role_selection)
 
-        # â”€â”€ 1. Compare On The Book (KPI cards) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- 1. Compare On The Book (KPI cards) -------------------
         _render_otb_comparison_chart(latest_pivot)
 
-        # â”€â”€ 2. Forecast VS Budget (KPI cards) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- 2. Forecast VS Budget (KPI cards) --------------------
         _render_forecast_vs_budget(latest_pivot)
 
-        # â”€â”€ 3. Forecast Pivot with variance columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- 3. Forecast Pivot with variance columns ---------------
         render_compact_hotel_tabs(latest_pivot)
 
-        # â”€â”€ 4. Same-Time Pace Benchmark (always visible) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- 4. Same-Time Pace Benchmark (always visible) ---------
         st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
-        st.caption("Today VS STLY / ST2Y / ST3Y â€” how today's on-the-book compares to same-time prior years.")
+        st.caption("Today VS STLY / ST2Y / ST3Y - how today's on-the-book compares to same-time prior years.")
         pace_view = pace_summary.copy()
         if not pace_view.empty and "Stay Month" in pace_view.columns:
             current_month_key = month_sort_key(report_file_month)
@@ -4956,10 +4956,10 @@ def main() -> None:
             else:
                 render_compact_by_hotel(pace_display, view_mode_pace, "pace")
 
-        # â”€â”€ 5. Historical Final Comparison (collapsed, coloured) â”€
+        # -- 5. Historical Final Comparison (collapsed, coloured) -
         st.markdown('<div class="section-title">Historical Final Comparison</div>', unsafe_allow_html=True)
-        with st.expander("Expand â€” Duetto vs Final LY / 2Y / 3Y", expanded=False):
-            st.caption("Duetto vs Final LY / Final 2Y / Final 3Y. Historical context only â€” not a budget target.")
+        with st.expander("Expand - Duetto vs Final LY / 2Y / 3Y", expanded=False):
+            st.caption("Duetto vs Final LY / Final 2Y / Final 3Y. Historical context only - not a budget target.")
             if final_comparison.empty:
                 st.info("No final comparison data.")
             else:
@@ -4969,7 +4969,7 @@ def main() -> None:
                 final_display = make_final_compact(final_comparison)
                 render_compact_by_hotel(final_display, view_mode_final, "final")
 
-        # â”€â”€ 6. Forecast Movement (collapsed by default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- 6. Forecast Movement (collapsed by default) -----------
         with st.expander("Duetto Movement", expanded=False):
             forecast_movement_summary = render_forecast_movement_table_only(metric_data, role_selection)
 
@@ -4985,7 +4985,7 @@ def main() -> None:
 
     elif selected_page == "Leaderboard":
         st.markdown(
-            '<div class="section-title">Leaderboard â€” Key Metrics by Stay Month</div>',
+            '<div class="section-title">Leaderboard - Key Metrics by Stay Month</div>',
             unsafe_allow_html=True,
         )
         st.caption(
@@ -5002,15 +5002,15 @@ def main() -> None:
 
 
     elif selected_page == "Trend":
-        # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # TREND TAB â€” narrative flow:
-        #   1) Strategic â€” two metrics vs baseline (high-level read)
+        # ----------------------------------------------------------
+        # TREND TAB - narrative flow:
+        #   1) Strategic - two metrics vs baseline (high-level read)
         #   2) Forecast trend over report days (absolute values)
         #   3) Daily % change (momentum view)
         #   4) Hotel-level drill-down (bubble chart)
-        # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # ----------------------------------------------------------
 
-        # 1. Strategic â€” compare two metrics with shared baseline
+        # 1. Strategic - compare two metrics with shared baseline
         render_trend_comparison(metric_data, role_selection)
 
         st.divider()
@@ -5026,8 +5026,8 @@ def main() -> None:
         st.divider()
 
         # 4. Hotel-level momentum (drill-down)
-        st.markdown('<div class="section-title">Hotel Momentum â€” Per-Property Drill-Down</div>', unsafe_allow_html=True)
-        st.caption("Bubble size = forecast magnitude Â· Bubble color = daily % change. Use this to spot which hotels are driving the overall trend.")
+        st.markdown('<div class="section-title">Hotel Momentum - Per-Property Drill-Down</div>', unsafe_allow_html=True)
+        st.caption("Bubble size = forecast magnitude  Bubble color = daily % change. Use this to spot which hotels are driving the overall trend.")
 
         if hotel_momentum.empty:
             st.info("No hotel momentum data.")
@@ -5279,10 +5279,10 @@ def main() -> None:
 
 
     elif selected_page == "Export":
-        # â”€â”€ Primary: Daily Briefing Excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        st.markdown('<div class="section-title">Daily Briefing Excel â€” One-Click Morning Deck</div>', unsafe_allow_html=True)
+        # -- Primary: Daily Briefing Excel -------------------------
+        st.markdown('<div class="section-title">Daily Briefing Excel - One-Click Morning Deck</div>', unsafe_allow_html=True)
         st.caption(
-            "Single multi-sheet workbook with every key view from this dashboard â€” "
+            "Single multi-sheet workbook with every key view from this dashboard - "
             "ready to share with GMs or open at the morning meeting."
         )
 
@@ -5292,17 +5292,17 @@ def main() -> None:
         # Build all sheets
         briefing_sheets = build_daily_briefing_sheets(metric_data, role_selection, report_file_month)
 
-        # â”€â”€ Sheet preview strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Sheet preview strip -----------------------------------
         preview_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px 0;">'
         sheet_icons = {
-            "Portfolio Snapshot": "ðŸ“Š",
-            "Hotel Scorecard":    "ðŸ¨",
-            "Variance Pivot":     "ðŸ“ˆ",
-            "Same-Time Pace":     "â±",
-            "Historical Final":   "ðŸ“…",
-            "Duetto Movement":    "ðŸ“‰",
-            "Hotel Momentum":     "ðŸš€",
-            "Role Selection":     "âœ…",
+            "Portfolio Snapshot": "",
+            "Hotel Scorecard":    "",
+            "Variance Pivot":     "",
+            "Same-Time Pace":     "",
+            "Historical Final":   "",
+            "Duetto Movement":    "",
+            "Hotel Momentum":     "",
+            "Role Selection":     "",
         }
         for name, df in briefing_sheets.items():
             n_rows = 0 if (df is None or df.empty) else len(df)
@@ -5313,7 +5313,7 @@ def main() -> None:
             preview_html += (
                 f'<div style="background:{bg};border:1px solid {bd};border-radius:8px;'
                 f'padding:8px 12px;font-size:12px;display:inline-flex;align-items:center;gap:8px;">'
-                f'<span style="font-size:14px;opacity:0.7;">{sheet_icons.get(name, "â€¢")}</span>'
+                f'<span style="font-size:14px;opacity:0.7;">{sheet_icons.get(name, "")}</span>'
                 f'<span style="color:{fg};font-weight:600;">{html.escape(name)}</span>'
                 f'<span style="color:#94a3b8;font-size:11px;font-variant-numeric:tabular-nums;">'
                 f'{n_rows:,} row{"" if n_rows == 1 else "s"}</span>'
@@ -5322,10 +5322,10 @@ def main() -> None:
         preview_html += '</div>'
         st.markdown(preview_html, unsafe_allow_html=True)
 
-        # â”€â”€ Primary download button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Primary download button -------------------------------
         file_stamp = report_file_month.replace(", ", "_").replace(" ", "_")
         st.download_button(
-            "ðŸ“¥  Download Daily Briefing Excel",
+            "  Download Daily Briefing Excel",
             data=to_excel_bytes(briefing_sheets),
             file_name=f"g5_daily_briefing_{file_stamp}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -5334,7 +5334,7 @@ def main() -> None:
             use_container_width=True,
         )
 
-        # â”€â”€ Secondary: quick CSVs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # -- Secondary: quick CSVs ---------------------------------
         st.markdown('<div class="section-title">Quick CSV Exports</div>', unsafe_allow_html=True)
         st.caption("Individual CSVs for spreadsheet pivots or sharing a single view.")
 
@@ -5362,7 +5362,7 @@ def main() -> None:
                     use_container_width=True,
                 )
 
-        # â”€â”€ Role validation (kept at bottom for transparency) â”€â”€â”€â”€â”€
+        # -- Role validation (kept at bottom for transparency) -----
         with st.expander("Report Roles Validation", expanded=False):
             st.caption("Confirms which files were assigned to Today / Yesterday / 7D / 1st Month roles.")
             st.dataframe(role_selection, use_container_width=True, hide_index=True)
