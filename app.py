@@ -1756,6 +1756,15 @@ def render_compact_hotel_tabs(pivot_df):
 
     _style_fn = style_variance_pivot if any(" VS " in str(c) for c in pivot_df.columns) else style_latest_pivot_table
 
+    # Pin "Stay Month" + "Metric" (the context columns) to the left when the
+    # table scrolls horizontally — so the user keeps seeing which row is what.
+    def _pinned_config(df_cols):
+        cfg = {}
+        for col in ("Stay Month", "Metric"):
+            if col in df_cols:
+                cfg[col] = st.column_config.Column(pinned=True)
+        return cfg
+
     if view_mode == "Hotel tabs":
         hotels = sorted(pivot_df["Hotel"].dropna().unique())
         labels = [short_hotel_name(h) for h in hotels]
@@ -1768,6 +1777,7 @@ def render_compact_hotel_tabs(pivot_df):
                     use_container_width=True,
                     hide_index=True,
                     height=min(650, 40 + 38 * len(sub)),
+                    column_config=_pinned_config(sub.columns),
                 )
     else:
         show = pivot_df.copy()
@@ -1777,6 +1787,7 @@ def render_compact_hotel_tabs(pivot_df):
             use_container_width=True,
             hide_index=True,
             height=min(750, 40 + 30 * len(show)),
+            column_config=_pinned_config(show.columns),
         )
 
 
