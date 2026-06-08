@@ -4,8 +4,9 @@ import io
 
 import pandas as pd
 from openpyxl import load_workbook
+from PIL import Image
 
-from src.services.excel_export import to_styled_duetto_pivot_excel_bytes
+from src.services.excel_export import to_duetto_pivot_png_bytes, to_styled_duetto_pivot_excel_bytes
 
 
 def _fill(cell) -> str:
@@ -47,3 +48,26 @@ def test_styled_duetto_pivot_excel_writes_empty_state():
 
     assert wb.sheetnames == ["Duetto Pivot"]
     assert wb["Duetto Pivot"]["A1"].value == "No pivot data for selected filters."
+
+
+def test_duetto_pivot_png_export_writes_single_image_canvas():
+    df = pd.DataFrame(
+        [
+            {
+                "Hotel": "G5 Test Hotel",
+                "Stay Month": "Jun 2026",
+                "Metric": "Rev",
+                "Today": 120,
+                "Budget": 100,
+                "Duetto": 130,
+                "Today VS BUD": 20,
+                "Duetto VS BUD": -10,
+            }
+        ]
+    )
+
+    image = Image.open(io.BytesIO(to_duetto_pivot_png_bytes(df)))
+
+    assert image.format == "PNG"
+    assert image.width > 900
+    assert image.height > 100

@@ -7,6 +7,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from PIL import Image, ImageDraw, ImageFont
 
 
 def to_excel_bytes(sheets_dict: dict[str, pd.DataFrame]) -> bytes:
@@ -35,6 +36,66 @@ def to_styled_duetto_pivot_excel_bytes(pivot_df: pd.DataFrame) -> bytes:
         _write_styled_pivot_sheet(wb, "Duetto Pivot", pivot_df)
 
     wb.save(output)
+    output.seek(0)
+    return output.getvalue()
+
+
+def to_duetto_pivot_png_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot - by Stay Month") -> bytes:
+    """Render the full Duetto pivot as one PNG canvas for easy sharing."""
+    if pivot_df is None or pivot_df.empty:
+        pivot_df = pd.DataFrame({"Message": ["No pivot data for selected filters."]})
+
+    df = pivot_df.reset_index(drop=True)
+    columns = list(df.columns)
+    rows = df.to_dict("records")
+
+    font_regular = _load_image_font(22)
+    font_small = _load_image_font(19)
+    font_bold = _load_image_font(22, bold=True)
+    font_title = _load_image_font(34, bold=True)
+
+    widths = _image_column_widths(df, font_small)
+    header_h = 44
+    row_h = 38
+    title_h = 64
+    margin = 24
+    canvas_w = sum(widths) + margin * 2
+    canvas_h = title_h + header_h + row_h * len(rows) + margin * 2
+
+    image = Image.new("RGB", (canvas_w, canvas_h), "#FFFFFF")
+    draw = ImageDraw.Draw(image)
+
+    draw.rectangle([0, 0, canvas_w, title_h + margin], fill="#F8FAFC")
+    draw.text((margin, 18), title, fill="#111827", font=font_title)
+
+    y = title_h + margin
+    x = margin
+    for col, width in zip(columns, widths):
+        draw.rectangle([x, y, x + width, y + header_h], fill="#111827")
+        _draw_text_fit(draw, str(col), (x + 8, y + 8), width - 16, font_bold, "#FFFFFF")
+        x += width
+
+    y += header_h
+    for row in rows:
+        metric = str(row.get("Metric", ""))
+        x = margin
+        for col, width in zip(columns, widths):
+            value = _format_png_value(row.get(col), col)
+            fill, text_color, bold = _png_cell_colors(col, metric, row.get(col))
+            draw.rectangle([x, y, x + width, y + row_h], fill=fill)
+            draw.line([x, y + row_h, x + width, y + row_h], fill="#E5E7EB", width=1)
+            draw.line([x + width, y, x + width, y + row_h], fill="#E5E7EB", width=1)
+            font = font_bold if bold else font_regular
+            if col in {"Hotel", "Stay Month", "Metric", "Message"}:
+                _draw_text_fit(draw, value, (x + 8, y + 8), width - 16, font, text_color)
+            else:
+                text_w = draw.textlength(value, font=font)
+                draw.text((x + width - text_w - 8, y + 8), value, fill=text_color, font=font)
+            x += width
+        y += row_h
+
+    output = io.BytesIO()
+    image.save(output, format="PNG", optimize=True)
     output.seek(0)
     return output.getvalue()
 
@@ -150,3 +211,92 @@ def _apply_pivot_cell_style(cell, col: str, metric: str, row_values: dict[str, o
 def _set_cell_colors(cell, fill: str, font_color: str, bold: bool = False) -> None:
     cell.fill = PatternFill("solid", fgColor=fill)
     cell.font = Font(bold=bold, color=font_color)
+
+
+def _load_image_font(size: int, bold: bool = False):
+    names = (
+        ["DejaVuSans-Bold.ttf", "Arial Bold.ttf", "arialbd.ttf"]
+        if bold
+        else ["DejaVuSans.ttf", "Arial.ttf", "arial.ttf"]
+    )
+    for name in names:
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _image_column_widths(df: pd.DataFrame, font) -> list[int]:
+    widths = []
+    for col in df.columns:
+        values = [str(col)] + [_format_png_value(v, str(col)) for v in df[col].head(80)]
+        max_text = max(values, key=len)
+        measured = int(ImageDraw.Draw(Image.new("RGB", (1, 1))).textlength(max_text, font=font)) + 22
+        if col == "Hotel":
+            widths.append(min(max(measured, 170), 260))
+        elif col == "Stay Month":
+            widths.append(min(max(measured, 120), 150))
+        elif col == "Metric":
+            widths.append(90)
+        elif " VS " in str(col):
+            widths.append(min(max(measured, 118), 150))
+        else:
+            widths.append(min(max(measured, 112), 145))
+    return widths
+
+
+def _format_png_value(value, col: str) -> str:
+    if pd.isna(value):
+        return "-"
+    if " VS " in str(col):
+        try:
+            return f"{float(value):+.1f}%"
+        except (TypeError, ValueError):
+            return "-"
+    if isinstance(value, (int, float)):
+        return f"{value:,.2f}"
+    return str(value)
+
+
+def _png_cell_colors(col: str, metric: str, value) -> tuple[str, str, bool]:
+    fill = "#FFFFFF"
+    text = "#111827"
+    bold = False
+
+    if metric == "Rev":
+        fill = "#FFFBF5"
+    elif metric == "Occ":
+        fill = "#F9FAFB"
+
+    if col == "Today":
+        return ("#DBEAFE" if metric == "Rev" else "#EFF6FF", "#1E40AF", True)
+    if col == "Duetto":
+        return ("#DCFCE7" if metric == "Rev" else "#F0FDF4", "#15803D", True)
+    if col == "Budget":
+        return ("#FEFCE8", "#713F12", metric == "Rev")
+
+    if " VS " in str(col):
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            numeric = None
+        if numeric is not None:
+            if numeric > 0:
+                return "#BBF7D0", "#166534", True
+            if numeric < 0:
+                return "#FECACA", "#991B1B", True
+            return "#FEF9C3", "#92400E", True
+
+    return fill, text, bold
+
+
+def _draw_text_fit(draw, text: str, xy: tuple[int, int], max_width: int, font, fill: str) -> None:
+    if draw.textlength(text, font=font) <= max_width:
+        draw.text(xy, text, fill=fill, font=font)
+        return
+    ellipsis = "..."
+    clipped = text
+    while clipped and draw.textlength(clipped + ellipsis, font=font) > max_width:
+        clipped = clipped[:-1]
+    draw.text(xy, (clipped + ellipsis) if clipped else ellipsis, fill=fill, font=font)
