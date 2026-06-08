@@ -27,7 +27,7 @@ from src.domain.helpers import (
 )
 
 from src.domain.pivot import build_variance_pivot_table
-from src.services.excel_export import to_duetto_pivot_png_bytes, to_styled_duetto_pivot_excel_bytes
+from src.services.excel_export import to_duetto_pivot_svg_bytes, to_styled_duetto_pivot_excel_bytes
 from src.ui.dataframe_stylers import (
     style_final_variance_table,
     style_latest_pivot_table,
@@ -201,10 +201,10 @@ def render_compact_hotel_tabs(pivot_df, report_file_month=None):
     )
     with c_png:
         st.download_button(
-            "Export PNG",
-            data=to_duetto_pivot_png_bytes(pivot_df),
-            file_name=f"duetto_pivot_by_stay_month_{file_stamp}.png",
-            mime="image/png",
+            "Export Image",
+            data=to_duetto_pivot_svg_bytes(pivot_df),
+            file_name=f"duetto_pivot_by_stay_month_{file_stamp}.svg",
+            mime="image/svg+xml",
             type="primary",
             width="stretch",
         )

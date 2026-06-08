@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import io
+import html
 import re
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from PIL import Image, ImageDraw, ImageFont
 
 
 def to_excel_bytes(sheets_dict: dict[str, pd.DataFrame]) -> bytes:
@@ -40,8 +40,8 @@ def to_styled_duetto_pivot_excel_bytes(pivot_df: pd.DataFrame) -> bytes:
     return output.getvalue()
 
 
-def to_duetto_pivot_png_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot - by Stay Month") -> bytes:
-    """Render the full Duetto pivot as one PNG canvas for easy sharing."""
+def to_duetto_pivot_svg_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot - by Stay Month") -> bytes:
+    """Render the full Duetto pivot as one dependency-free SVG image."""
     if pivot_df is None or pivot_df.empty:
         pivot_df = pd.DataFrame({"Message": ["No pivot data for selected filters."]})
 
@@ -49,12 +49,7 @@ def to_duetto_pivot_png_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
     columns = list(df.columns)
     rows = df.to_dict("records")
 
-    font_regular = _load_image_font(22)
-    font_small = _load_image_font(19)
-    font_bold = _load_image_font(22, bold=True)
-    font_title = _load_image_font(34, bold=True)
-
-    widths = _image_column_widths(df, font_small)
+    widths = _image_column_widths(df)
     header_h = 44
     row_h = 38
     title_h = 64
@@ -62,17 +57,25 @@ def to_duetto_pivot_png_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
     canvas_w = sum(widths) + margin * 2
     canvas_h = title_h + header_h + row_h * len(rows) + margin * 2
 
-    image = Image.new("RGB", (canvas_w, canvas_h), "#FFFFFF")
-    draw = ImageDraw.Draw(image)
-
-    draw.rectangle([0, 0, canvas_w, title_h + margin], fill="#F8FAFC")
-    draw.text((margin, 18), title, fill="#111827", font=font_title)
+    parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{canvas_w}" height="{canvas_h}" '
+            f'viewBox="0 0 {canvas_w} {canvas_h}">'
+        ),
+        '<rect width="100%" height="100%" fill="#FFFFFF"/>',
+        f'<rect x="0" y="0" width="{canvas_w}" height="{title_h + margin}" fill="#F8FAFC"/>',
+        (
+            f'<text x="{margin}" y="42" fill="#111827" font-family="Arial, sans-serif" '
+            f'font-size="30" font-weight="700">{html.escape(title)}</text>'
+        ),
+    ]
 
     y = title_h + margin
     x = margin
     for col, width in zip(columns, widths):
-        draw.rectangle([x, y, x + width, y + header_h], fill="#111827")
-        _draw_text_fit(draw, str(col), (x + 8, y + 8), width - 16, font_bold, "#FFFFFF")
+        parts.append(f'<rect x="{x}" y="{y}" width="{width}" height="{header_h}" fill="#111827"/>')
+        parts.append(_svg_text(str(col), x + 8, y + 29, width - 16, "#FFFFFF", bold=True))
         x += width
 
     y += header_h
@@ -81,23 +84,23 @@ def to_duetto_pivot_png_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
         x = margin
         for col, width in zip(columns, widths):
             value = _format_png_value(row.get(col), col)
-            fill, text_color, bold = _png_cell_colors(col, metric, row.get(col))
-            draw.rectangle([x, y, x + width, y + row_h], fill=fill)
-            draw.line([x, y + row_h, x + width, y + row_h], fill="#E5E7EB", width=1)
-            draw.line([x + width, y, x + width, y + row_h], fill="#E5E7EB", width=1)
-            font = font_bold if bold else font_regular
+            fill, text_color, bold = _image_cell_colors(col, metric, row.get(col))
+            parts.append(f'<rect x="{x}" y="{y}" width="{width}" height="{row_h}" fill="{fill}"/>')
+            parts.append(
+                f'<line x1="{x}" y1="{y + row_h}" x2="{x + width}" y2="{y + row_h}" stroke="#E5E7EB"/>'
+            )
+            parts.append(f'<line x1="{x + width}" y1="{y}" x2="{x + width}" y2="{y + row_h}" stroke="#E5E7EB"/>')
             if col in {"Hotel", "Stay Month", "Metric", "Message"}:
-                _draw_text_fit(draw, value, (x + 8, y + 8), width - 16, font, text_color)
+                parts.append(_svg_text(value, x + 8, y + 25, width - 16, text_color, bold=bold))
             else:
-                text_w = draw.textlength(value, font=font)
-                draw.text((x + width - text_w - 8, y + 8), value, fill=text_color, font=font)
+                parts.append(
+                    _svg_text(value, x + width - 8, y + 25, width - 16, text_color, bold=bold, anchor="end")
+                )
             x += width
         y += row_h
 
-    output = io.BytesIO()
-    image.save(output, format="PNG", optimize=True)
-    output.seek(0)
-    return output.getvalue()
+    parts.append("</svg>")
+    return "\n".join(parts).encode("utf-8")
 
 
 def _safe_sheet_name(name: str) -> str:
@@ -213,26 +216,11 @@ def _set_cell_colors(cell, fill: str, font_color: str, bold: bool = False) -> No
     cell.font = Font(bold=bold, color=font_color)
 
 
-def _load_image_font(size: int, bold: bool = False):
-    names = (
-        ["DejaVuSans-Bold.ttf", "Arial Bold.ttf", "arialbd.ttf"]
-        if bold
-        else ["DejaVuSans.ttf", "Arial.ttf", "arial.ttf"]
-    )
-    for name in names:
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
-def _image_column_widths(df: pd.DataFrame, font) -> list[int]:
+def _image_column_widths(df: pd.DataFrame) -> list[int]:
     widths = []
     for col in df.columns:
         values = [str(col)] + [_format_png_value(v, str(col)) for v in df[col].head(80)]
-        max_text = max(values, key=len)
-        measured = int(ImageDraw.Draw(Image.new("RGB", (1, 1))).textlength(max_text, font=font)) + 22
+        measured = max(len(v) for v in values) * 9 + 24
         if col == "Hotel":
             widths.append(min(max(measured, 170), 260))
         elif col == "Stay Month":
@@ -259,7 +247,7 @@ def _format_png_value(value, col: str) -> str:
     return str(value)
 
 
-def _png_cell_colors(col: str, metric: str, value) -> tuple[str, str, bool]:
+def _image_cell_colors(col: str, metric: str, value) -> tuple[str, str, bool]:
     fill = "#FFFFFF"
     text = "#111827"
     bold = False
@@ -291,12 +279,19 @@ def _png_cell_colors(col: str, metric: str, value) -> tuple[str, str, bool]:
     return fill, text, bold
 
 
-def _draw_text_fit(draw, text: str, xy: tuple[int, int], max_width: int, font, fill: str) -> None:
-    if draw.textlength(text, font=font) <= max_width:
-        draw.text(xy, text, fill=fill, font=font)
-        return
-    ellipsis = "..."
-    clipped = text
-    while clipped and draw.textlength(clipped + ellipsis, font=font) > max_width:
-        clipped = clipped[:-1]
-    draw.text(xy, (clipped + ellipsis) if clipped else ellipsis, fill=fill, font=font)
+def _svg_text(
+    text: str,
+    x: int,
+    y: int,
+    max_width: int,
+    fill: str,
+    bold: bool = False,
+    anchor: str = "start",
+) -> str:
+    max_chars = max(3, max_width // 9)
+    clipped = text if len(text) <= max_chars else text[: max_chars - 3] + "..."
+    weight = "700" if bold else "400"
+    return (
+        f'<text x="{x}" y="{y}" fill="{fill}" font-family="Arial, sans-serif" '
+        f'font-size="18" font-weight="{weight}" text-anchor="{anchor}">{html.escape(clipped)}</text>'
+    )
