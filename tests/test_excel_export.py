@@ -70,8 +70,8 @@ def test_duetto_pivot_svg_export_writes_single_image_canvas():
     root = ET.fromstring(svg)
 
     assert root.tag.endswith("svg")
-    assert int(root.attrib["width"]) > 900
-    assert int(root.attrib["height"]) > 100
+    assert 700 <= int(root.attrib["width"]) <= 900
+    assert int(root.attrib["height"]) > 80
     assert b"G5 Test Hotel" in svg
     assert b"#BBF7D0" in svg
     assert b"#FECACA" in svg

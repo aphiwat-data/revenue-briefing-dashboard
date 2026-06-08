@@ -50,10 +50,10 @@ def to_duetto_pivot_svg_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
     rows = df.to_dict("records")
 
     widths = _image_column_widths(df)
-    header_h = 44
-    row_h = 38
-    title_h = 64
-    margin = 24
+    header_h = 32
+    row_h = 28
+    title_h = 46
+    margin = 14
     canvas_w = sum(widths) + margin * 2
     canvas_h = title_h + header_h + row_h * len(rows) + margin * 2
 
@@ -67,7 +67,7 @@ def to_duetto_pivot_svg_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
         f'<rect x="0" y="0" width="{canvas_w}" height="{title_h + margin}" fill="#F8FAFC"/>',
         (
             f'<text x="{margin}" y="42" fill="#111827" font-family="Arial, sans-serif" '
-            f'font-size="30" font-weight="700">{html.escape(title)}</text>'
+            f'font-size="24" font-weight="700">{html.escape(title)}</text>'
         ),
     ]
 
@@ -75,7 +75,7 @@ def to_duetto_pivot_svg_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
     x = margin
     for col, width in zip(columns, widths):
         parts.append(f'<rect x="{x}" y="{y}" width="{width}" height="{header_h}" fill="#111827"/>')
-        parts.append(_svg_text(str(col), x + 8, y + 29, width - 16, "#FFFFFF", bold=True))
+        parts.append(_svg_text(str(col), x + 5, y + 22, width - 10, "#FFFFFF", bold=True))
         x += width
 
     y += header_h
@@ -91,10 +91,10 @@ def to_duetto_pivot_svg_bytes(pivot_df: pd.DataFrame, title: str = "Duetto Pivot
             )
             parts.append(f'<line x1="{x + width}" y1="{y}" x2="{x + width}" y2="{y + row_h}" stroke="#E5E7EB"/>')
             if col in {"Hotel", "Stay Month", "Metric", "Message"}:
-                parts.append(_svg_text(value, x + 8, y + 25, width - 16, text_color, bold=bold))
+                parts.append(_svg_text(value, x + 5, y + 20, width - 10, text_color, bold=bold))
             else:
                 parts.append(
-                    _svg_text(value, x + width - 8, y + 25, width - 16, text_color, bold=bold, anchor="end")
+                    _svg_text(value, x + width - 5, y + 20, width - 10, text_color, bold=bold, anchor="end")
                 )
             x += width
         y += row_h
@@ -220,17 +220,17 @@ def _image_column_widths(df: pd.DataFrame) -> list[int]:
     widths = []
     for col in df.columns:
         values = [str(col)] + [_format_png_value(v, str(col)) for v in df[col].head(80)]
-        measured = max(len(v) for v in values) * 9 + 24
+        measured = max(len(v) for v in values) * 7 + 18
         if col == "Hotel":
-            widths.append(min(max(measured, 170), 260))
+            widths.append(min(max(measured, 130), 190))
         elif col == "Stay Month":
-            widths.append(min(max(measured, 120), 150))
+            widths.append(min(max(measured, 92), 115))
         elif col == "Metric":
-            widths.append(90)
+            widths.append(58)
         elif " VS " in str(col):
-            widths.append(min(max(measured, 118), 150))
+            widths.append(min(max(measured, 78), 102))
         else:
-            widths.append(min(max(measured, 112), 145))
+            widths.append(min(max(measured, 78), 100))
     return widths
 
 
@@ -288,10 +288,10 @@ def _svg_text(
     bold: bool = False,
     anchor: str = "start",
 ) -> str:
-    max_chars = max(3, max_width // 9)
+    max_chars = max(3, max_width // 7)
     clipped = text if len(text) <= max_chars else text[: max_chars - 3] + "..."
     weight = "700" if bold else "400"
     return (
         f'<text x="{x}" y="{y}" fill="{fill}" font-family="Arial, sans-serif" '
-        f'font-size="18" font-weight="{weight}" text-anchor="{anchor}">{html.escape(clipped)}</text>'
+        f'font-size="13" font-weight="{weight}" text-anchor="{anchor}">{html.escape(clipped)}</text>'
     )

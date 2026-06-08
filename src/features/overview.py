@@ -27,7 +27,7 @@ from src.domain.helpers import (
 )
 
 from src.domain.pivot import build_variance_pivot_table
-from src.services.excel_export import to_duetto_pivot_svg_bytes, to_styled_duetto_pivot_excel_bytes
+from src.services.excel_export import to_duetto_pivot_svg_bytes
 from src.ui.dataframe_stylers import (
     style_final_variance_table,
     style_latest_pivot_table,
@@ -183,7 +183,7 @@ def render_compact_hotel_tabs(pivot_df, report_file_month=None):
 
     st.markdown('<div class="section-title">Duetto Pivot - by Stay Month</div>', unsafe_allow_html=True)
 
-    c_view, c_png, c_excel, c_legend = st.columns([1.3, 1.15, 1.15, 3])
+    c_view, c_image, c_legend = st.columns([1.3, 1.25, 3.1])
     with c_view:
         view_mode = st.pills(
             "View",
@@ -199,22 +199,13 @@ def render_compact_hotel_tabs(pivot_df, report_file_month=None):
         if report_file_month
         else "selected_filters"
     )
-    with c_png:
+    with c_image:
         st.download_button(
             "Export Image",
             data=to_duetto_pivot_svg_bytes(pivot_df),
             file_name=f"duetto_pivot_by_stay_month_{file_stamp}.svg",
             mime="image/svg+xml",
             type="primary",
-            width="stretch",
-        )
-    with c_excel:
-        st.download_button(
-            "Export Excel",
-            data=to_styled_duetto_pivot_excel_bytes(pivot_df),
-            file_name=f"duetto_pivot_by_stay_month_{file_stamp}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="secondary",
             width="stretch",
         )
     with c_legend:
