@@ -10,15 +10,16 @@ Install:
     python -m pip install streamlit pandas openpyxl plotly
 """
 
-import re
 import html
+import base64
+import re
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
-from src.core.assets import LOGO_B64
 from src.core.constants import *
 from src.core.helpers import (
     fmt_pct2,
@@ -108,6 +109,19 @@ from src.features.budget_review import (
 from src.features.movement import (
     render_forecast_movement_table_only,
 )
+
+
+def _load_logo_b64() -> str | None:
+    try:
+        logo_path = Path(__file__).resolve().parent / "assets" / "logo.png"
+        if logo_path.exists():
+            return base64.b64encode(logo_path.read_bytes()).decode()
+    except Exception:
+        return None
+    return None
+
+
+LOGO_B64 = _load_logo_b64()
 
 
 setup_page(st)
