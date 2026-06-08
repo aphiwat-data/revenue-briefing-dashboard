@@ -24,23 +24,15 @@ def to_excel_bytes(sheets_dict: dict[str, pd.DataFrame]) -> bytes:
 
 
 def to_styled_duetto_pivot_excel_bytes(pivot_df: pd.DataFrame) -> bytes:
-    """Build a styled XLSX for the Duetto Pivot - by Stay Month table."""
+    """Build a one-sheet styled XLSX for the Duetto Pivot - by Stay Month table."""
     output = io.BytesIO()
     wb = Workbook()
     wb.remove(wb.active)
 
     if pivot_df is None or pivot_df.empty:
-        _write_styled_pivot_sheet(wb, "All Hotels", pd.DataFrame())
+        _write_styled_pivot_sheet(wb, "Duetto Pivot", pd.DataFrame())
     else:
-        _write_styled_pivot_sheet(wb, "All Hotels", pivot_df)
-        if "Hotel" in pivot_df.columns:
-            for hotel in sorted(pivot_df["Hotel"].dropna().unique()):
-                hotel_df = (
-                    pivot_df[pivot_df["Hotel"] == hotel]
-                    .drop(columns=["Hotel"])
-                    .reset_index(drop=True)
-                )
-                _write_styled_pivot_sheet(wb, _safe_sheet_name(str(hotel)), hotel_df)
+        _write_styled_pivot_sheet(wb, "Duetto Pivot", pivot_df)
 
     wb.save(output)
     output.seek(0)
@@ -54,6 +46,7 @@ def _safe_sheet_name(name: str) -> str:
 
 def _write_styled_pivot_sheet(wb: Workbook, sheet_name: str, df: pd.DataFrame) -> None:
     ws = wb.create_sheet(_safe_sheet_name(sheet_name))
+    _apply_one_page_export_setup(ws)
 
     if df is None or df.empty:
         ws.append(["No pivot data for selected filters."])
@@ -96,6 +89,17 @@ def _write_styled_pivot_sheet(wb: Workbook, sheet_name: str, df: pd.DataFrame) -
         ws.column_dimensions[letter].width = min(max(max_len + 2, 11), 24)
 
     ws.sheet_view.showGridLines = False
+
+
+def _apply_one_page_export_setup(ws) -> None:
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+    ws.page_margins.left = 0.2
+    ws.page_margins.right = 0.2
+    ws.page_margins.top = 0.25
+    ws.page_margins.bottom = 0.25
 
 
 def _apply_pivot_cell_style(cell, col: str, metric: str, row_values: dict[str, object]) -> None:

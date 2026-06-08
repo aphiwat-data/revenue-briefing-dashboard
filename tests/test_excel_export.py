@@ -29,10 +29,14 @@ def test_styled_duetto_pivot_excel_keeps_variance_colors():
     )
 
     wb = load_workbook(io.BytesIO(to_styled_duetto_pivot_excel_bytes(df)))
-    ws = wb["All Hotels"]
+    ws = wb["Duetto Pivot"]
 
+    assert wb.sheetnames == ["Duetto Pivot"]
     assert ws.freeze_panes == "D2"
-    assert "G5 Test Hotel" in wb.sheetnames
+    assert ws.sheet_properties.pageSetUpPr.fitToPage is True
+    assert ws.page_setup.orientation == "landscape"
+    assert ws.page_setup.fitToWidth == 1
+    assert ws.page_setup.fitToHeight == 1
     assert _fill(ws["G2"]).endswith("BBF7D0")
     assert _fill(ws["H2"]).endswith("FECACA")
     assert ws["G2"].number_format == '+0.0"%"'
@@ -41,4 +45,5 @@ def test_styled_duetto_pivot_excel_keeps_variance_colors():
 def test_styled_duetto_pivot_excel_writes_empty_state():
     wb = load_workbook(io.BytesIO(to_styled_duetto_pivot_excel_bytes(pd.DataFrame())))
 
-    assert wb["All Hotels"]["A1"].value == "No pivot data for selected filters."
+    assert wb.sheetnames == ["Duetto Pivot"]
+    assert wb["Duetto Pivot"]["A1"].value == "No pivot data for selected filters."
