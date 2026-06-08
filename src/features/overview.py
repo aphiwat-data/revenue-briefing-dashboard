@@ -27,6 +27,7 @@ from src.domain.helpers import (
 )
 
 from src.domain.pivot import build_variance_pivot_table
+from src.services.excel_export import to_styled_duetto_pivot_excel_bytes
 from src.ui.dataframe_stylers import (
     style_final_variance_table,
     style_latest_pivot_table,
@@ -170,7 +171,7 @@ def _render_otb_comparison_chart(pivot_df):
         return
     _render_comparison_summary_cards(by_hotel, "Today", "On The Book")
 
-def render_compact_hotel_tabs(pivot_df):
+def render_compact_hotel_tabs(pivot_df, report_file_month=None):
     """
     Duetto pivot table - variance-enhanced view.
     Columns: Today | Budget | Today VS BUD | Duetto | Duetto VS BUD | Today VS Duetto |
@@ -182,7 +183,7 @@ def render_compact_hotel_tabs(pivot_df):
 
     st.markdown('<div class="section-title">Duetto Pivot - by Stay Month</div>', unsafe_allow_html=True)
 
-    c_view, c_legend = st.columns([1.6, 3])
+    c_view, c_export, c_legend = st.columns([1.4, 1.2, 3])
     with c_view:
         view_mode = st.pills(
             "View",
@@ -193,6 +194,20 @@ def render_compact_hotel_tabs(pivot_df):
         )
         if not view_mode:
             view_mode = "Hotel tabs"
+    with c_export:
+        file_stamp = (
+            str(report_file_month).replace(", ", "_").replace(" ", "_")
+            if report_file_month
+            else "selected_filters"
+        )
+        st.download_button(
+            "Export Excel",
+            data=to_styled_duetto_pivot_excel_bytes(pivot_df),
+            file_name=f"duetto_pivot_by_stay_month_{file_stamp}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="secondary",
+            width="stretch",
+        )
     with c_legend:
         has_var = any(" VS " in str(c) for c in pivot_df.columns)
         if has_var:

@@ -584,7 +584,7 @@ def main() -> None:
         _render_forecast_vs_budget(latest_pivot)
 
         # -- 3. Forecast Pivot with variance columns ---------------
-        render_compact_hotel_tabs(latest_pivot)
+        render_compact_hotel_tabs(latest_pivot, report_file_month)
 
         # -- 4. Same-Time Pace Benchmark (always visible) ---------
         st.markdown('<div class="section-title">Same-Time Pace Benchmark</div>', unsafe_allow_html=True)
