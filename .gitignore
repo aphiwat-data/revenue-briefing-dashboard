@@ -35,3 +35,7 @@ data/
 # Local config overrides
 .env
 .env.local
+
+# exec_deck — slide-deck source kept; deps + intermediate renders are not
+exec_deck/node_modules/
+exec_deck/*.jpg
