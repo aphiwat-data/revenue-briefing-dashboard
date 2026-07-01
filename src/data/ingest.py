@@ -126,27 +126,44 @@ def build_file_catalog_from_uploads(uploaded_files):
 
 
 def select_role_files(file_catalog, report_file_month):
+    """
+    Pick 4 role files from the catalog:
+      - Today / Latest       : newest file in the report month
+      - Yesterday / Previous : the file just before Today's date (cross-month OK)
+      - Last 7D              : file closest to Today - 7 days (cross-month OK)
+      - 1st Month            : first file within the report month
+
+    Yesterday / Last 7D search the FULL catalog (not just the current month)
+    so that early-month reports still have a valid base for movement calc
+    (e.g. Jul 1's yesterday = Jun 30).
+    """
     start = pd.to_datetime(report_file_month, format="%b, %Y")
     end = start + pd.offsets.MonthEnd(0)
     month_files = file_catalog[(file_catalog["Report Date"] >= start) & (file_catalog["Report Date"] <= end)].copy()
-    
+
     if month_files.empty:
         raise ValueError(f"No report files found for {report_file_month}")
 
     latest = month_files.sort_values("Report Date").iloc[-1]
     latest_date = latest["Report Date"]
-    previous_candidates = month_files[month_files["Report Date"] < latest_date].copy()
+
+    # Yesterday / 7D can come from PREVIOUS months too (cross-month lookback)
+    all_previous = file_catalog[file_catalog["Report Date"] < latest_date].copy()
 
     today = latest
-    yesterday = previous_candidates.sort_values("Report Date").iloc[-1] if not previous_candidates.empty else None
+    yesterday = (
+        all_previous.sort_values("Report Date").iloc[-1]
+        if not all_previous.empty else None
+    )
 
     target_7d = latest_date - pd.Timedelta(days=7)
     seven = None
-    if not previous_candidates.empty:
-        temp = previous_candidates.copy()
+    if not all_previous.empty:
+        temp = all_previous.copy()
         temp["Distance To 7D"] = (temp["Report Date"] - target_7d).abs()
         seven = temp.sort_values(["Distance To 7D", "Report Date"]).iloc[0]
 
+    # 1st Month stays scoped to the current report month
     first = month_files.sort_values("Report Date").iloc[0]
     rows = []
 
